@@ -98,27 +98,62 @@
           <div
             v-for="shape in shapes"
             :key="shape.id"
-            class="flex items-center justify-between p-2 bg-gray-50 rounded-md"
+            class="p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
           >
-            <div>
-              <span class="text-sm font-medium text-gray-700">{{ shape.type }}</span>
-              <span class="text-xs text-gray-500 block">
-                {{ formatArea(shape.surface) }}
-              </span>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-sm font-medium text-gray-700">{{ getShapeDisplayName(shape) }}</span>
+              <button
+                @click="deleteShape(shape.id)"
+                class="text-red-600 hover:text-red-800"
+              >
+                <span class="sr-only">Supprimer</span>
+                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fill-rule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
             </div>
-            <button
-              @click="deleteShape(shape.id)"
-              class="text-red-600 hover:text-red-800"
-            >
-              <span class="sr-only">Supprimer</span>
-              <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fill-rule="evenodd"
-                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                  clip-rule="evenodd"
-                />
-              </svg>
-            </button>
+
+            <!-- Dimensions spécifiques selon le type de forme -->
+            <div class="space-y-1 text-sm text-gray-600">
+              <template v-if="shape.properties.dimensions">
+                <!-- Rectangle -->
+                <template v-if="shape.type.toLowerCase() === 'rectangle'">
+                  <div>Largeur: {{ formatDistance(shape.properties.dimensions.width) }}</div>
+                  <div>Longueur: {{ formatDistance(shape.properties.dimensions.height) }}</div>
+                </template>
+
+                <!-- Cercle -->
+                <template v-if="shape.type.toLowerCase() === 'cercle'">
+                  <div>Rayon: {{ formatDistance(shape.properties.dimensions.radius) }}</div>
+                  <div>Diamètre: {{ formatDistance(shape.properties.dimensions.diameter) }}</div>
+                </template>
+
+                <!-- Demi-cercle -->
+                <template v-if="shape.type.toLowerCase() === 'demi-cercle'">
+                  <div>Rayon: {{ formatDistance(shape.properties.dimensions.radius) }}</div>
+                  <div>Orientation: {{ shape.properties.dimensions.orientation }}°</div>
+                </template>
+              </template>
+
+              <!-- Ligne -->
+              <template v-if="shape.type.toLowerCase() === 'ligne'">
+                <div>Longueur: {{ formatDistance(shape.properties.length) }}</div>
+                <div>Zone d'influence: {{ formatArea(shape.properties.surfaceInfluence) }}</div>
+              </template>
+
+              <!-- Surfaces pour les formes fermées -->
+              <template v-if="shape.properties.surfaceInterieure">
+                <div class="mt-2 pt-2 border-t border-gray-200">
+                  <div>Surface intérieure: {{ formatArea(shape.properties.surfaceInterieure) }}</div>
+                  <div>Surface extérieure: {{ formatArea(shape.properties.surfaceExterieure) }}</div>
+                  <div>Périmètre: {{ formatDistance(shape.properties.perimetre) }}</div>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
       </div>
@@ -148,6 +183,8 @@ import { useIrrigationStore } from '@/stores/irrigation'
 import L from 'leaflet'
 import '@geoman-io/leaflet-geoman-free'
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
+import 'leaflet-semicircle'
+import * as turf from '@turf/turf'
 
 const mapContainer = ref<HTMLElement | null>(null)
 const map = ref<L.Map | null>(null)
@@ -165,20 +202,26 @@ const drawingOptions = ref({
   fillOpacity: 0.2
 })
 
+const isDrawing = ref(false)
+const drawingState = ref('idle') // 'idle', 'drawing', 'editing'
+const currentShape = ref(null)
+
 // Configuration des options de dessin
 const drawingOptionsGeoman = {
   position: 'topright',
   drawControls: false,
-  editControls: true,
+  editControls: false,  // On cache les contrôles d'édition par défaut
   cutControls: false,
   dragMode: false,
-  removalMode: true,
+  removalMode: false,
   drawText: false,
-  rotateMode: true,
+  rotateMode: false,
   oneBlock: false,
   customControls: false,
-  optionsControls: true,
-  snappingOption: true
+  optionsControls: false,
+  snappingOption: true,
+  snapDistance: 20,
+  tooltips: true
 }
 
 // Initialisation de la carte
@@ -200,9 +243,15 @@ onMounted(() => {
   // Initialisation de Leaflet-Geoman
   map.value.pm.addControls(drawingOptionsGeoman)
 
-  // Gestionnaire d'événements pour le dessin
+  // Gestionnaire d'événements pour le dessin et les modifications
   map.value.on('pm:create', handleShapeCreated)
   map.value.on('pm:remove', handleShapeRemoved)
+  map.value.on('pm:edit', (e) => {
+    // Mettre à jour la forme dans la base de données après modification
+    if (irrigationStore.currentPlan) {
+      saveShape(e.layer, e.layer.shape || 'unknown')
+    }
+  })
 
   // Chargement des formes existantes si un plan est sélectionné
   if (irrigationStore.currentPlan) {
@@ -214,14 +263,26 @@ onMounted(() => {
 function startDrawing(shapeType) {
   if (!map.value) return
 
-  // Désactiver tous les modes de dessin
+  // Mise à jour des états
+  isDrawing.value = true
+  drawingState.value = 'drawing'
+  currentShape.value = shapeType
+
+  // Ajouter une classe pour le mode dessin
+  map.value.getContainer().classList.add('drawing-mode')
+
+  // Désactiver tous les modes de dessin et nettoyage
   map.value.pm.disableDraw()
-  
-  // Nettoyer les événements précédents du demi-cercle
   cleanupSemicircleEvents()
+  
+  // Ajout d'un curseur personnalisé pour indiquer le mode dessin
+  map.value.getContainer().style.cursor = 'crosshair'
 
   const drawOptions = {
-    templineStyle: { color: drawingOptions.value.color },
+    templineStyle: { 
+      color: drawingOptions.value.color,
+      dashArray: [5, 5]
+    },
     hintlineStyle: { 
       color: drawingOptions.value.color,
       dashArray: [5, 5]
@@ -231,7 +292,26 @@ function startDrawing(shapeType) {
       fillColor: drawingOptions.value.color,
       fillOpacity: drawingOptions.value.fillOpacity,
       weight: drawingOptions.value.weight
-    }
+    },
+    tooltips: true,
+    snapDistance: 20,
+    finishOn: 'contextmenu'
+  }
+
+  // Afficher un message d'aide selon le type de forme
+  const helpMessage = {
+    'Rectangle': 'Cliquez et glissez pour dessiner un rectangle',
+    'Cercle': 'Cliquez et glissez pour définir le rayon du cercle',
+    'Ligne': 'Cliquez pour commencer la ligne, double-cliquez pour terminer',
+    'Demi-cercle': 'Cliquez pour placer le centre, glissez pour définir le rayon'
+  }
+
+  // Afficher le message d'aide
+  if (map.value && helpMessage[shapeType]) {
+    const helpDiv = document.createElement('div')
+    helpDiv.className = 'drawing-help-message'
+    helpDiv.textContent = helpMessage[shapeType]
+    map.value.getContainer().appendChild(helpDiv)
   }
 
   switch (shapeType) {
@@ -262,149 +342,280 @@ function enableSemicircleDrawing() {
 
   let center = null
   let tempCircle = null
-  let isDrawing = false
+  let drawingStep = 0
+  let radius = 0
+  let helpTooltip = L.tooltip({
+    permanent: true,
+    direction: 'right',
+    className: 'drawing-tooltip'
+  })
 
-  // Gestionnaire mousedown
-  semicircleEvents.mousedown = (e) => {
-    if (!isDrawing) {
-      isDrawing = true
-      center = e.latlng
-      
-      tempCircle = L.circle(center, {
-        radius: 0,
-        color: drawingOptions.value.color,
-        fillColor: drawingOptions.value.color,
-        fillOpacity: drawingOptions.value.fillOpacity,
-        weight: drawingOptions.value.weight
-      }).addTo(map.value)
+  // Fonction pour mettre à jour le tooltip
+  const updateTooltip = (latlng, text) => {
+    helpTooltip.setLatLng(latlng)
+    helpTooltip.setContent(text)
+  }
+
+  map.value.once('click', (e) => {
+    // Premier clic pour définir le centre
+    center = e.latlng
+    drawingStep = 1
+    
+    // Ajouter le tooltip
+    helpTooltip.setLatLng(e.latlng)
+    helpTooltip.setContent('Move mouse to set radius')
+    helpTooltip.addTo(map.value)
+    
+    // Créer le cercle temporaire
+    tempCircle = L.circle(center, {
+      radius: 0,
+      color: drawingOptions.value.color,
+      fillColor: drawingOptions.value.color,
+      fillOpacity: drawingOptions.value.fillOpacity,
+      weight: drawingOptions.value.weight,
+      dashArray: '5, 5'
+    }).addTo(map.value)
+
+    // Gestionnaire de mouvement pour le rayon
+    const handleMouseMove = (e) => {
+      if (drawingStep === 1) {
+        radius = center.distanceTo(e.latlng)
+        tempCircle.setRadius(radius)
+        updateTooltip(e.latlng, 'Click to set radius')
+      }
     }
-  }
 
-  // Gestionnaire mousemove
-  semicircleEvents.mousemove = (e) => {
-    if (isDrawing && tempCircle && center) {
-      const radius = center.distanceTo(e.latlng)
-      tempCircle.setRadius(radius)
-      
-      // Créer l'effet visuel du demi-cercle
-      const points = calculateSemicirclePoints(center, radius)
-      updateTempSemicircle(points)
-    }
-  }
+    map.value.on('mousemove', handleMouseMove)
 
-  // Gestionnaire mouseup
-  semicircleEvents.mouseup = (e) => {
-    if (isDrawing && tempCircle && center) {
-      const radius = center.distanceTo(e.latlng)
-      const points = calculateSemicirclePoints(center, radius)
-      
-      // Supprimer le cercle temporaire
-      map.value.removeLayer(tempCircle)
-      
-      // Créer le demi-cercle final
-      const semicircle = L.polygon(points, {
-        color: drawingOptions.value.color,
-        fillColor: drawingOptions.value.color,
-        fillOpacity: drawingOptions.value.fillOpacity,
-        weight: drawingOptions.value.weight
-      })
-      
-      // Ajouter au groupe de formes et déclencher l'événement de création
-      featureGroup.value.addLayer(semicircle)
-      handleShapeCreated({
-        layer: semicircle,
-        shape: 'semicircle',
-        radius: radius,
-        center: center
-      })
+    // Gestionnaire pour définir le rayon
+    map.value.once('click', (e) => {
+      if (drawingStep === 1) {
+        radius = center.distanceTo(e.latlng)
+        drawingStep = 2
+        map.value.off('mousemove', handleMouseMove)
 
-      // Réinitialiser l'état
-      isDrawing = false
-      center = null
-      tempCircle = null
-    }
-  }
+        // Convertir en demi-cercle
+        if (tempCircle) {
+          map.value.removeLayer(tempCircle)
+        }
 
-  // Attacher les événements
-  map.value.on('mousedown', semicircleEvents.mousedown)
-  map.value.on('mousemove', semicircleEvents.mousemove)
-  map.value.on('mouseup', semicircleEvents.mouseup)
-}
+        // Créer le demi-cercle temporaire
+        tempCircle = L.semiCircle(center, {
+          radius: radius,
+          color: drawingOptions.value.color,
+          fillColor: drawingOptions.value.color,
+          fillOpacity: drawingOptions.value.fillOpacity,
+          weight: drawingOptions.value.weight,
+          startAngle: 0,
+          stopAngle: 180,
+          dashArray: '5, 5'
+        }).addTo(map.value)
 
-function calculateSemicirclePoints(center, radius) {
-  const points = []
-  const nbPoints = 32 // Nombre de points pour dessiner l'arc
-  
-  // Ajouter le centre comme premier point
-  points.push(center)
-  
-  // Calculer les points de l'arc
-  for (let i = 0; i <= nbPoints; i++) {
-    const angle = (Math.PI * i) / nbPoints
-    const lat = center.lat + (radius / 111319) * Math.cos(angle)
-    const lng = center.lng + (radius / (111319 * Math.cos(center.lat * Math.PI / 180))) * Math.sin(angle)
-    points.push([lat, lng])
-  }
-  
-  // Fermer le polygone en revenant au centre
-  points.push(center)
-  
-  return points
-}
+        updateTooltip(e.latlng, 'Move mouse to set orientation')
 
-function cleanupSemicircleEvents() {
-  if (!map.value) return
-  
-  // Détacher les événements précédents
-  if (semicircleEvents.mousedown) {
-    map.value.off('mousedown', semicircleEvents.mousedown)
-  }
-  if (semicircleEvents.mousemove) {
-    map.value.off('mousemove', semicircleEvents.mousemove)
-  }
-  if (semicircleEvents.mouseup) {
-    map.value.off('mouseup', semicircleEvents.mouseup)
-  }
-  
-  // Réinitialiser les gestionnaires
-  semicircleEvents = {
-    mousedown: null,
-    mousemove: null,
-    mouseup: null
-  }
+        // Gestionnaire de mouvement pour l'orientation
+        const handleOrientation = (e) => {
+          if (drawingStep === 2) {
+            const angle = Math.atan2(e.latlng.lat - center.lat, e.latlng.lng - center.lng) * 180 / Math.PI
+            tempCircle.setStartAngle(angle - 90)
+            tempCircle.setStopAngle(angle + 90)
+            updateTooltip(e.latlng, 'Click to finish')
+          }
+        }
+
+        map.value.on('mousemove', handleOrientation)
+
+        // Gestionnaire pour finaliser le demi-cercle
+        map.value.once('click', (e) => {
+          const angle = Math.atan2(e.latlng.lat - center.lat, e.latlng.lng - center.lng) * 180 / Math.PI
+          
+          // Créer le demi-cercle final
+          const semicircle = L.semiCircle(center, {
+            radius: radius,
+            color: drawingOptions.value.color,
+            fillColor: drawingOptions.value.color,
+            fillOpacity: drawingOptions.value.fillOpacity,
+            weight: drawingOptions.value.weight,
+            startAngle: angle - 90,
+            stopAngle: angle + 90
+          })
+          
+          // Nettoyer les éléments temporaires
+          map.value.removeLayer(tempCircle)
+          map.value.removeLayer(helpTooltip)
+          map.value.off('mousemove', handleOrientation)
+          
+          featureGroup.value.addLayer(semicircle)
+          
+          handleShapeCreated({
+            layer: semicircle,
+            shape: 'demi-cercle',
+            radius: radius,
+            center: center,
+            angle: angle
+          })
+
+          // Réinitialiser les variables
+          center = null
+          tempCircle = null
+          drawingStep = 0
+        })
+      }
+    })
+  })
 }
 
 // Gestion de la création d'une forme
 function handleShapeCreated(e) {
   const { layer, shape } = e
   
+  // Mise à jour des états
+  isDrawing.value = false
+  drawingState.value = 'idle'
+  currentShape.value = null
+
+  // Retirer la classe de mode dessin
+  if (map.value) {
+    map.value.getContainer().classList.remove('drawing-mode')
+  }
+
+  // Déterminer le type de forme en français
+  const typeMap = {
+    'rectangle': 'Rectangle',
+    'cercle': 'Cercle',
+    'demi-cercle': 'Demi-cercle',
+    'ligne': 'Ligne'
+  }
+  
+  const baseType = shape.toLowerCase()
+  const frenchType = typeMap[baseType] || shape
+  
+  // Incrémenter le compteur pour ce type de forme
+  const counterKey = baseType
+  if (!shapeCounters.value[counterKey]) {
+    shapeCounters.value[counterKey] = 1
+  } else {
+    shapeCounters.value[counterKey]++
+  }
+  
+  const shapeDisplayName = `${frenchType} ${shapeCounters.value[counterKey]}`
+
+  // Calculer les propriétés détaillées de la forme
+  const properties = calculateShapeProperties(layer, shape)
+
+  // Ajouter un effet de confirmation visuelle
+  layer.getElement()?.classList.add('shape-created')
+  setTimeout(() => {
+    layer.getElement()?.classList.remove('shape-created')
+  }, 1000)
+  
+  // Rendre la forme modifiable
+  layer.on('click', () => {
+    if (map.value) {
+      // Désactiver l'édition sur toutes les autres formes d'abord
+      featureGroup.value.eachLayer((l) => {
+        if (l !== layer) {
+          l.pm.disable()
+        }
+      })
+      // Activer l'édition sur la forme cliquée
+      layer.pm.enable({
+        allowSelfIntersection: false,
+        preventMarkerRemoval: true,
+        removeLayerOnEmpty: false
+      })
+    }
+  })
+  
   // Ajouter la forme au groupe
   featureGroup.value.addLayer(layer)
   
   // Sauvegarder la forme si un plan est sélectionné
   if (irrigationStore.currentPlan) {
-    saveShape(layer, shape)
+    saveShape(layer, shape, properties)
   }
+
+  // Ajouter la forme à la liste des formes
+  shapes.value.push({
+    id: layer.id || Date.now(),
+    type: shape,
+    layer: layer,
+    properties: properties
+  })
 }
 
-// Gestion de la suppression d'une forme
-function handleShapeRemoved(e) {
-  const { layer } = e
-  if (irrigationStore.currentPlan) {
-    deleteShape(layer)
+// Fonction pour calculer les propriétés détaillées d'une forme
+function calculateShapeProperties(layer, shapeType) {
+  const properties = {
+    type: shapeType,
+    surfaceInterieure: 0,
+    surfaceExterieure: 0,
+    perimetre: 0,
+    dimensions: {}
   }
+
+  // Convertir la forme en GeoJSON pour utiliser Turf.js
+  const geoJson = layer.toGeoJSON()
+
+  switch (shapeType.toLowerCase()) {
+    case 'rectangle':
+      const bbox = turf.bbox(geoJson)
+      const poly = turf.bboxPolygon(bbox)
+      properties.surfaceInterieure = turf.area(poly)
+      // Ajouter une marge de 1 mètre pour la surface extérieure
+      const buffered = turf.buffer(poly, 1, { units: 'meters' })
+      properties.surfaceExterieure = turf.area(buffered)
+      properties.perimetre = turf.length(turf.polygonToLine(poly), { units: 'meters' })
+      properties.dimensions = {
+        width: Math.abs(bbox[2] - bbox[0]),
+        height: Math.abs(bbox[3] - bbox[1])
+      }
+      break
+
+    case 'cercle':
+      const rayon = layer.getRadius()
+      properties.surfaceInterieure = Math.PI * Math.pow(rayon, 2)
+      properties.surfaceExterieure = Math.PI * Math.pow(rayon + 1, 2)
+      properties.perimetre = 2 * Math.PI * rayon
+      properties.dimensions = {
+        radius: rayon,
+        diameter: rayon * 2
+      }
+      break
+
+    case 'demi-cercle':
+      const rayonDemi = layer.getRadius()
+      properties.surfaceInterieure = (Math.PI * Math.pow(rayonDemi, 2)) / 2
+      properties.surfaceExterieure = (Math.PI * Math.pow(rayonDemi + 1, 2)) / 2
+      properties.perimetre = Math.PI * rayonDemi + 2 * rayonDemi
+      properties.dimensions = {
+        radius: rayonDemi,
+        orientation: layer.options.startAngle + 90
+      }
+      break
+
+    case 'ligne':
+      const ligne = turf.lineString(layer.getLatLngs().map(ll => [ll.lng, ll.lat]))
+      properties.length = turf.length(ligne, { units: 'meters' })
+      // Calculer la zone d'influence de 1 mètre de chaque côté
+      const ligneBuffered = turf.buffer(ligne, 1, { units: 'meters' })
+      properties.surfaceInfluence = turf.area(ligneBuffered)
+      break
+  }
+
+  return properties
 }
 
 // Sauvegarde d'une forme
-async function saveShape(layer, shapeType) {
+async function saveShape(layer, shapeType, properties) {
   try {
     const shapeData = {
       plan_id: irrigationStore.currentPlan.id,
       type_forme: shapeType.toUpperCase(),
       geometrie: layer.toGeoJSON().geometry,
       proprietes: {
-        style: layer.options,
-        radius: layer.getRadius ? layer.getRadius() : undefined
+        ...properties,
+        style: layer.options
       }
     }
     
@@ -413,6 +624,14 @@ async function saveShape(layer, shapeType) {
   } catch (error) {
     console.error('Erreur lors de la sauvegarde de la forme:', error)
     featureGroup.value.removeLayer(layer)
+  }
+}
+
+// Gestion de la suppression d'une forme
+function handleShapeRemoved(e) {
+  const { layer } = e
+  if (irrigationStore.currentPlan) {
+    deleteShape(layer)
   }
 }
 
@@ -428,6 +647,15 @@ function deleteShape(shapeId) {
 // Fonction pour annuler le dessin en cours
 function cancelDrawing() {
   if (!currentDrawing.value || !map.value) return
+  
+  // Mise à jour des états
+  isDrawing.value = false
+  drawingState.value = 'idle'
+  currentShape.value = null
+
+  // Nettoyer l'interface
+  map.value.getContainer().classList.remove('drawing-mode')
+  cleanupSemicircleEvents()
   
   map.value.removeLayer(currentDrawing.value.layer)
   currentDrawing.value = null
@@ -532,8 +760,279 @@ async function loadExistingShapes() {
 function savePlan() {
   // Implementation de la sauvegarde du plan
 }
+
+// Ajout d'un watcher pour les changements d'état
+watch(drawingState, (newState, oldState) => {
+  if (!map.value) return
+
+  // Mettre à jour les classes CSS selon l'état
+  const container = map.value.getContainer()
+  container.classList.remove(`state-${oldState}`)
+  container.classList.add(`state-${newState}`)
+
+  // Mettre à jour le curseur selon l'état
+  switch (newState) {
+    case 'drawing':
+      container.style.cursor = 'crosshair'
+      break
+    case 'editing':
+      container.style.cursor = 'pointer'
+      break
+    default:
+      container.style.cursor = ''
+  }
+})
+
+function cleanupSemicircleEvents() {
+  if (!map.value) return
+  
+  // Réactiver le déplacement de la carte
+  map.value.dragging.enable()
+  
+  // Réinitialiser le curseur
+  map.value.getContainer().style.cursor = ''
+  
+  // Supprimer le message d'aide
+  const helpMessage = map.value.getContainer().querySelector('.drawing-help-message')
+  if (helpMessage) {
+    helpMessage.remove()
+  }
+  
+  // Détacher les événements précédents
+  if (semicircleEvents.mousedown) {
+    map.value.off('mousedown', semicircleEvents.mousedown)
+  }
+  if (semicircleEvents.mousemove) {
+    map.value.off('mousemove', semicircleEvents.mousemove)
+  }
+  if (semicircleEvents.mouseup) {
+    map.value.off('mouseup', semicircleEvents.mouseup)
+  }
+  
+  // Réinitialiser les gestionnaires
+  semicircleEvents = {
+    mousedown: null,
+    mousemove: null,
+    mouseup: null
+  }
+}
+
+// Fonction pour formater les distances
+function formatDistance(value) {
+  if (!value) return ''
+  return `${value.toFixed(2)} m`
+}
+
+// Ajout des compteurs pour chaque type de forme
+const shapeCounters = ref({
+  rectangle: 0,
+  cercle: 0,
+  'demi-cercle': 0,
+  ligne: 0
+})
+
+// Fonction pour obtenir le nom d'affichage de la forme
+function getShapeDisplayName(shape) {
+  return shape.type
+}
 </script>
 
 <style>
 @import 'leaflet/dist/leaflet.css';
+
+/* Styles pour les messages d'aide */
+.drawing-help-message {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+/* Styles pour les marqueurs personnalisés */
+.custom-div-icon {
+  background: transparent;
+  border: none;
+}
+
+.marker-pin {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #3388ff;
+  border: 2px solid white;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Styles pour les lignes de guide */
+.leaflet-pm-draggable {
+  cursor: move;
+}
+
+.leaflet-pm-drawing {
+  cursor: crosshair;
+}
+
+/* Styles pour le mode édition */
+.editing-mode .leaflet-container {
+  cursor: pointer;
+}
+
+/* Animation pour les guides visuels */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.drawing-guide {
+  animation: pulse 2s infinite;
+}
+
+/* États de la carte */
+.state-drawing .leaflet-container {
+  background-color: rgba(51, 136, 255, 0.05);
+}
+
+.state-editing .leaflet-container {
+  background-color: rgba(255, 193, 7, 0.05);
+}
+
+/* Animation de création de forme */
+@keyframes shapeCreated {
+  0% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.7;
+  }
+}
+
+.shape-created {
+  animation: shapeCreated 0.3s ease-out;
+}
+
+/* Styles pour les guides de dessin */
+.drawing-guide-line {
+  stroke-dasharray: 5, 5;
+  animation: dash 20s linear infinite;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: 1000;
+  }
+}
+
+/* Amélioration des styles de sélection */
+.leaflet-interactive:hover {
+  filter: brightness(1.1);
+}
+
+.leaflet-interactive:active {
+  filter: brightness(0.9);
+}
+
+/* Styles pour le mode édition */
+.editing-mode .leaflet-interactive {
+  transition: all 0.2s ease;
+}
+
+.editing-mode .leaflet-marker-icon {
+  transition: transform 0.2s ease;
+}
+
+.editing-mode .leaflet-marker-icon:hover {
+  transform: scale(1.2);
+}
+
+/* Styles pour les points de contrôle */
+.leaflet-pm-draggable {
+  transition: transform 0.2s ease;
+}
+
+.leaflet-pm-draggable:hover {
+  transform: scale(1.2);
+}
+
+/* Styles pour les messages d'aide contextuels */
+.context-help {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 1000;
+  transition: opacity 0.2s ease;
+}
+
+/* Styles pour les indicateurs de mesure */
+.measurement-label {
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* Styles pour le mode dessin actif */
+.drawing-mode {
+  .leaflet-container {
+    transition: background-color 0.3s ease;
+  }
+  
+  .leaflet-control-container {
+    opacity: 0.7;
+  }
+}
+
+/* Styles pour les formes en cours de dessin */
+.shape-drawing {
+  stroke-dasharray: 5, 5;
+  animation: drawing-dash 1s linear infinite;
+}
+
+@keyframes drawing-dash {
+  to {
+    stroke-dashoffset: 10;
+  }
+}
+
+/* Styles pour les tooltips de dessin */
+.drawing-tooltip {
+  background: rgba(0, 0, 0, 0.8);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  padding: 4px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.drawing-tooltip::before {
+  border-top-color: rgba(0, 0, 0, 0.8);
+}
 </style> 

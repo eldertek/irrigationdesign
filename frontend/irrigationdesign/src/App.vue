@@ -133,7 +133,7 @@ async function handleLogout() {
           </div>
         </div>
       </nav>
-    </header>
+  </header>
 
     <main class="h-[calc(100%-4rem)] pt-16">
       <router-view />
