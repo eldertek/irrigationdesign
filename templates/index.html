@@ -6,14 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IrrigationDesign</title>
     <link rel="icon" href="{% static 'frontend/favicon.ico' %}">
-    {% for css in css_files %}
-    <link rel="stylesheet" href="{% static css %}">
-    {% endfor %}
+    <link rel="stylesheet" href="{% static 'frontend/assets/index.css' %}">
 </head>
 <body>
     <div id="app"></div>
-    {% for js in js_files %}
-    <script type="module" src="{% static js %}"></script>
-    {% endfor %}
+    <script type="module" src="{% static 'frontend/assets/index.js' %}"></script>
 </body>
 </html> 

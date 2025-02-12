@@ -1,13 +1,13 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
 
 @layer base {
-  html {
-    @apply h-full bg-gray-100;
+  html, body {
+    @apply h-full;
   }
   body {
-    @apply h-full;
+    @apply bg-gray-50;
   }
   #app {
     @apply h-full;
@@ -15,16 +15,43 @@
 }
 
 @layer components {
-  .btn {
-    @apply px-4 py-2 rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+  .btn-primary {
+    @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500;
   }
+
   .btn-secondary {
-    @apply px-4 py-2 rounded-md text-primary-700 bg-primary-100 hover:bg-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500;
   }
+
   .input {
-    @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500;
+    @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm;
   }
-  .label {
-    @apply block text-sm font-medium text-gray-700;
+
+  .select {
+    @apply mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md;
+  }
+
+  .card {
+    @apply bg-white shadow-sm rounded-lg p-6;
+  }
+
+  .sidebar {
+    @apply w-80 bg-white shadow-lg flex flex-col;
+  }
+
+  .sidebar-header {
+    @apply p-4 border-b border-gray-200;
+  }
+
+  .sidebar-section {
+    @apply p-4 border-b border-gray-200;
+  }
+
+  .sidebar-title {
+    @apply text-lg font-medium text-gray-900 mb-4;
+  }
+
+  .map-container {
+    @apply flex-1 relative;
   }
 }
