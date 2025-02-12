@@ -1,0 +1,68 @@
+---
+description: Règles générales pour l'ensemble du projet
+files: **/*
+---
+
+# Règles Générales
+- Toujours utiliser un style de code concis et efficace.
+- Privilégier la clarté et la lisibilité du code.
+- Commenter le code de manière exhaustive, en expliquant le *pourquoi* des choix, pas seulement le *quoi*.
+- Utiliser des noms de variables et de fonctions descriptifs.
+- Gérer les erreurs de manière robuste avec des messages d'erreur clairs pour l'utilisateur.
+- Optimiser le code pour la performance, en particulier les opérations sur la carte et les calculs de surface.
+- Toujours considérer l'expérience utilisateur : l'interface doit être intuitive et facile à utiliser.
+- S'assurer que le code est facilement maintenable et extensible pour de futures fonctionnalités.
+
+# Authentification et Rôles
+- Pour la connexion et la gestion des utilisateurs utiliser une authentification.
+- Prévois un rôle administrateur, un rôle concessionnaire et un rôle utilisateur final.
+- L'administrateur peut gérer tous les comptes.
+- Le concessionnaire à accès aux plans qu'il a fait et peut gérer les utilisateurs finaux.
+
+# Frontend - Composants
+- Utiliser des composants réutilisables autant que possible.
+- Séparer clairement la logique de présentation (UI) de la logique métier.
+- Utiliser des composants fonctionnels avec des hooks (si applicable au framework choisi).
+- Gérer l'état des composants de manière efficace (par exemple, avec un contexte global ou un store si nécessaire).
+- Assurer l'accessibilité des composants (WAI-ARIA).
+- Créer des composants de formulaire qui gèrent la validation et l'affichage des erreurs.
+
+# Frontend - Carte et Formes
+- Privilégier la librairie KonvaJS pour la gestion des formes, si elle est plus limité, passer sur leaflet.
+- Minimiser la quantité de librairies tierces pour éviter les conflits et faciliter la maintenance.
+- Toujours avoir une solution simple et intuitive pour dessiner les formes et établir des connexions.
+- Permettre le dessin de formes géométriques : rectangles, cercles, demi-cercles, lignes.
+- Calculer et afficher les dimensions (longueurs, rayons) et les surfaces des formes dessinées.
+- Gérer les interactions de l'utilisateur (clic, glisser-déposer) de manière fluide.
+- Permettre le zoom et le déplacement sur la carte.
+- Afficher un profil altimétrique pour les lignes.
+- Intégrer une fonctionnalité de connexion de formes entre elles.
+- Intégrer un fond de carte (utiliser une API gratuite comme OpenStreetMap).
+
+# Frontend - Style
+- Utiliser un framework CSS moderne (tailwind, bootstrap...)
+- Privilégier un design minimaliste et épuré
+- Assurer la compatibilité responsive (mobile, tablette, desktop)
+
+# Backend - API
+- Utiliser une architecture RESTful.
+- Définir des routes claires et bien documentées.
+- Valider les données d'entrée de manière exhaustive.
+- Gérer l'authentification et l'autorisation des utilisateurs.
+- Utiliser des codes de statut HTTP appropriés.
+- Retourner des données au format JSON.
+- Gérer les erreurs de manière cohérente (codes d'erreur, messages).
+- Optimiser les performances de l'API.
+
+# Backend - Base de données
+- Choisir une base de données adaptée aux besoins (par exemple, PostgreSQL avec PostGIS pour les données géospatiales).
+- Définir un schéma de base de données clair et optimisé.
+- Utiliser un ORM si possible pour simplifier l'interaction avec la base de données.
+- Assurer la sécurité des données (prévention des injections SQL, etc.).
+- Gérer les migrations de schéma de manière propre.
+- Optimiser les requêtes pour la performance.
+
+# Utilitaires
+- Utiliser des fonctions pures quand c'est possible
+- S'assurer de la testabilité des fonctions
+- Mettre les fonctions qui ne sont pas spécifiques au front dans un autre dossier plus approprié
