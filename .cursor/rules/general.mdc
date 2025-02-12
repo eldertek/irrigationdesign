@@ -20,6 +20,10 @@ files: **/*
 - Le concessionnaire à accès aux plans qu'il a fait et peut gérer les utilisateurs finaux.
 - Utiliser djangorestframework-simplejwt pour la gestion des tokens.
 - Durée de validité des tokens : 60 minutes pour l'accès, 1 jour pour le rafraîchissement.
+- L'inscription directe d'utilisateurs est désactivée.
+- Seul l'administrateur peut créer de nouveaux utilisateurs via l'interface d'administration.
+- Les nouveaux utilisateurs reçoivent un email avec leurs identifiants de connexion temporaires.
+- Les utilisateurs doivent changer leur mot de passe à leur première connexion.
 
 # Base de Données
 - Utiliser PostgreSQL avec l'extension PostGIS pour les données géospatiales.
@@ -31,7 +35,7 @@ files: **/*
 # API REST
 - Utiliser Django REST Framework pour l'API.
 - Points d'accès principaux :
-  - /api/utilisateurs/
+  - /api/utilisateurs/ (accessible uniquement aux administrateurs)
   - /api/plans/
   - /api/formes/
   - /api/connexions/
@@ -41,6 +45,8 @@ files: **/*
 - Authentification via tokens JWT sur :
   - /api/token/ (obtention)
   - /api/token/refresh/ (rafraîchissement)
+- Désactiver les endpoints d'inscription publique
+- Restreindre la création d'utilisateurs à l'interface d'administration
 
 # Frontend - Composants
 - Utiliser des composants réutilisables autant que possible.
@@ -103,6 +109,10 @@ files: **/*
 - Valider toutes les entrées utilisateur
 - Utiliser HTTPS en production
 - Mettre en place une politique de mots de passe robuste
+- Désactiver l'inscription publique d'utilisateurs
+- Implémenter un système de journalisation des actions administratives
+- Mettre en place un système de notification par email pour les actions sensibles
+- Limiter les tentatives de connexion échouées
 
 # Tests
 - Écrire des tests unitaires pour les fonctionnalités critiques

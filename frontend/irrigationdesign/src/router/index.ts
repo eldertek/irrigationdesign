@@ -1,8 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import MapView from '@/views/MapView.vue'
-import LoginView from '@/views/LoginView.vue'
-import RegisterView from '@/views/RegisterView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -10,30 +7,51 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: MapView,
+      component: () => import('@/views/HomeView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/projects',
+      name: 'projects',
+      component: () => import('@/views/ProjectsView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: () => import('@/views/ProfileView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/views/SettingsView.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/login',
       name: 'login',
-      component: LoginView,
-      meta: { guest: true }
+      component: () => import('@/views/LoginView.vue'),
+      meta: { requiresGuest: true }
     },
     {
-      path: '/register',
-      name: 'register',
-      component: RegisterView,
-      meta: { guest: true }
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('@/views/ForgotPasswordView.vue'),
+      meta: { requiresGuest: true }
     },
     {
-      path: '/about',
-      name: 'about',
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
-      component: () => import('../views/AboutView.vue'),
+      path: '/reset-password/:token',
+      name: 'reset-password',
+      component: () => import('@/views/ResetPasswordView.vue'),
+      meta: { requiresGuest: true }
     },
-  ],
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      component: () => import('@/views/NotFoundView.vue')
+    }
+  ]
 })
 
 // Navigation guard
@@ -41,31 +59,19 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
 
-  // Vérifier l'authentification au chargement initial
-  if (!from.name) {
-    authStore.checkAuth()
+  // Redirection vers la page de connexion si l'authentification est requise
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    next({ name: 'login', query: { redirect: to.fullPath } })
+    return
   }
 
-  // Routes protégées
-  if (to.matched.some(record => record.meta.requiresAuth)) {
-    if (!isAuthenticated) {
-      next({ name: 'login', query: { redirect: to.fullPath } })
-    } else {
-      next()
-    }
+  // Redirection vers la page d'accueil si l'utilisateur est déjà connecté
+  if (to.meta.requiresGuest && isAuthenticated) {
+    next({ name: 'home' })
+    return
   }
-  // Routes pour les invités (login, register)
-  else if (to.matched.some(record => record.meta.guest)) {
-    if (isAuthenticated) {
-      next({ name: 'home' })
-    } else {
-      next()
-    }
-  }
-  // Routes publiques
-  else {
-    next()
-  }
+
+  next()
 })
 
 export default router
