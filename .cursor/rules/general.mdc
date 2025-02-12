@@ -125,3 +125,67 @@ files: **/*
 - Documenter les choix d'architecture
 - Commenter le code de manière pertinente
 - Fournir des exemples d'utilisation
+
+# Configurateur
+## Formes Géométriques
+- Types de formes disponibles :
+  - Rectangle
+  - Cercle
+  - Demi-cercle
+  - Ligne
+- Toutes les formes doivent être modifiables (taille, position, rotation)
+- Assurer une interaction fluide pour la modification des formes
+
+## Connexions et Relations
+- Permettre la création de connexions entre différentes formes
+- Supporter les connexions entre tous les types de formes (ex: demi-cercle vers rectangle)
+- Visualisation claire des connexions sur le plan
+
+## Mesures et Calculs
+- Affichage automatique des dimensions des formes
+- Calcul et affichage en temps réel des surfaces :
+  - Surfaces intérieures
+  - Surfaces extérieures
+- Mise à jour dynamique des mesures lors des modifications
+
+## Profil Altimétrique
+- Intégration d'un système de profil altimétrique
+- Interface similaire à Google Earth/Géoportail
+- Affichage des variations d'altitude le long des lignes
+- Visualisation claire des dénivelés
+
+## Annotations et Textes
+- Système d'ajout de textes sur les plans
+- Options de formatage du texte
+- Positionnement libre des annotations
+- Rotation possible des textes
+
+## Gestion des Plans
+- Système de sauvegarde automatique
+- Historique des modifications
+- Export au format PDF avec synthèse complète :
+  - Visualisation du plan
+  - Mesures et calculs
+  - Liste des formes et connexions
+  - Annotations
+
+## Interface Utilisateur
+- Design minimaliste et intuitif
+- Utilisation possible sans formation préalable
+- Organisation claire des outils et fonctionnalités
+- Retours visuels sur les actions utilisateur
+- Messages d'aide contextuels
+
+## Niveaux d'Accès
+- Admin Général (Usine) :
+  - Accès complet à toutes les fonctionnalités
+  - Gestion des concessionnaires
+  - Supervision globale
+- Concessionnaire :
+  - Administration de ses clients spécifiques
+  - Accès aux plans de ses clients
+  - Gestion des utilisateurs finaux
+- Utilisateur Final :
+  - Sélection obligatoire d'un concessionnaire
+  - Création et modification de ses propres plans
+  - Accès limité aux fonctionnalités de base

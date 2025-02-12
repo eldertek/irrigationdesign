@@ -143,12 +143,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useIrrigationStore } from '@/stores/irrigation'
-import * as L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import 'leaflet-draw'
-import 'leaflet-draw/dist/leaflet.draw.css'
+import L from 'leaflet'
+import '@geoman-io/leaflet-geoman-free'
+import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
 
 const mapContainer = ref<HTMLElement | null>(null)
 const map = ref<L.Map | null>(null)
@@ -166,6 +165,22 @@ const drawingOptions = ref({
   fillOpacity: 0.2
 })
 
+// Configuration des options de dessin
+const drawingOptionsGeoman = {
+  position: 'topright',
+  drawControls: false,
+  editControls: true,
+  cutControls: false,
+  dragMode: false,
+  removalMode: true,
+  drawText: false,
+  rotateMode: true,
+  oneBlock: false,
+  customControls: false,
+  optionsControls: true,
+  snappingOption: true
+}
+
 // Initialisation de la carte
 onMounted(() => {
   if (!mapContainer.value) return
@@ -178,14 +193,16 @@ onMounted(() => {
     attribution: '© OpenStreetMap contributors'
   }).addTo(map.value)
 
-  // Création du FeatureGroup pour stocker les formes dessinées
+  // Initialisation du groupe de formes
   featureGroup.value = new L.FeatureGroup()
   map.value.addLayer(featureGroup.value)
 
+  // Initialisation de Leaflet-Geoman
+  map.value.pm.addControls(drawingOptionsGeoman)
+
   // Gestionnaire d'événements pour le dessin
-  map.value.on('mousedown', startShape)
-  map.value.on('mousemove', updateShape)
-  map.value.on('mouseup', finishShape)
+  map.value.on('pm:create', handleShapeCreated)
+  map.value.on('pm:remove', handleShapeRemoved)
 
   // Chargement des formes existantes si un plan est sélectionné
   if (irrigationStore.currentPlan) {
@@ -194,94 +211,218 @@ onMounted(() => {
 })
 
 // Fonctions de dessin
-function startShape(e) {
-  if (!map.value || !selectedShape.value) return
+function startDrawing(shapeType) {
+  if (!map.value) return
 
-  const latlng = e.latlng
-  const shapeOptions = {
-    color: drawingOptions.value.color,
-    weight: drawingOptions.value.weight,
-    opacity: drawingOptions.value.opacity,
-    fillOpacity: drawingOptions.value.fillOpacity
+  // Désactiver tous les modes de dessin
+  map.value.pm.disableDraw()
+  
+  // Nettoyer les événements précédents du demi-cercle
+  cleanupSemicircleEvents()
+
+  const drawOptions = {
+    templineStyle: { color: drawingOptions.value.color },
+    hintlineStyle: { 
+      color: drawingOptions.value.color,
+      dashArray: [5, 5]
+    },
+    pathOptions: {
+      color: drawingOptions.value.color,
+      fillColor: drawingOptions.value.color,
+      fillOpacity: drawingOptions.value.fillOpacity,
+      weight: drawingOptions.value.weight
+    }
   }
 
-  switch (selectedShape.value) {
+  switch (shapeType) {
     case 'Rectangle':
-      currentDrawing.value = {
-        type: 'Rectangle',
-        startPoint: latlng,
-        layer: L.rectangle([latlng, latlng], shapeOptions).addTo(map.value)
-      }
+      map.value.pm.enableDraw('Rectangle', drawOptions)
       break
     case 'Cercle':
-      currentDrawing.value = {
-        type: 'Cercle',
-        center: latlng,
-        layer: L.circle(latlng, { radius: 0, ...shapeOptions }).addTo(map.value)
-      }
-      break
-    case 'Demi-cercle':
-      currentDrawing.value = {
-        type: 'Demi-cercle',
-        center: latlng,
-        layer: L.semiCircle(latlng, { radius: 0, ...shapeOptions, startAngle: 0, stopAngle: 180 }).addTo(map.value)
-      }
+      map.value.pm.enableDraw('Circle', drawOptions)
       break
     case 'Ligne':
-      currentDrawing.value = {
-        type: 'Ligne',
-        points: [latlng],
-        layer: L.polyline([latlng], shapeOptions).addTo(map.value)
-      }
+      map.value.pm.enableDraw('Line', drawOptions)
       break
-  }
-
-  // Désactiver temporairement le déplacement de la carte pendant le dessin
-  map.value.dragging.disable()
-}
-
-function updateShape(e) {
-  if (!currentDrawing.value || !map.value) return
-
-  const latlng = e.latlng
-  const layer = currentDrawing.value.layer
-
-  switch (currentDrawing.value.type) {
-    case 'Rectangle':
-      const bounds = L.latLngBounds(currentDrawing.value.startPoint, latlng)
-      layer.setBounds(bounds)
-      break
-    case 'Cercle':
     case 'Demi-cercle':
-      const radius = currentDrawing.value.center.distanceTo(latlng)
-      layer.setRadius(radius)
-      break
-    case 'Ligne':
-      const points = [...currentDrawing.value.points, latlng]
-      layer.setLatLngs(points)
+      enableSemicircleDrawing()
       break
   }
 }
 
-function finishShape(e) {
-  if (!currentDrawing.value || !map.value || !featureGroup.value) return
+// Gestion du dessin du demi-cercle
+let semicircleEvents = {
+  mousedown: null,
+  mousemove: null,
+  mouseup: null
+}
 
-  const layer = currentDrawing.value.layer
+function enableSemicircleDrawing() {
+  if (!map.value) return
+
+  let center = null
+  let tempCircle = null
+  let isDrawing = false
+
+  // Gestionnaire mousedown
+  semicircleEvents.mousedown = (e) => {
+    if (!isDrawing) {
+      isDrawing = true
+      center = e.latlng
+      
+      tempCircle = L.circle(center, {
+        radius: 0,
+        color: drawingOptions.value.color,
+        fillColor: drawingOptions.value.color,
+        fillOpacity: drawingOptions.value.fillOpacity,
+        weight: drawingOptions.value.weight
+      }).addTo(map.value)
+    }
+  }
+
+  // Gestionnaire mousemove
+  semicircleEvents.mousemove = (e) => {
+    if (isDrawing && tempCircle && center) {
+      const radius = center.distanceTo(e.latlng)
+      tempCircle.setRadius(radius)
+      
+      // Créer l'effet visuel du demi-cercle
+      const points = calculateSemicirclePoints(center, radius)
+      updateTempSemicircle(points)
+    }
+  }
+
+  // Gestionnaire mouseup
+  semicircleEvents.mouseup = (e) => {
+    if (isDrawing && tempCircle && center) {
+      const radius = center.distanceTo(e.latlng)
+      const points = calculateSemicirclePoints(center, radius)
+      
+      // Supprimer le cercle temporaire
+      map.value.removeLayer(tempCircle)
+      
+      // Créer le demi-cercle final
+      const semicircle = L.polygon(points, {
+        color: drawingOptions.value.color,
+        fillColor: drawingOptions.value.color,
+        fillOpacity: drawingOptions.value.fillOpacity,
+        weight: drawingOptions.value.weight
+      })
+      
+      // Ajouter au groupe de formes et déclencher l'événement de création
+      featureGroup.value.addLayer(semicircle)
+      handleShapeCreated({
+        layer: semicircle,
+        shape: 'semicircle',
+        radius: radius,
+        center: center
+      })
+
+      // Réinitialiser l'état
+      isDrawing = false
+      center = null
+      tempCircle = null
+    }
+  }
+
+  // Attacher les événements
+  map.value.on('mousedown', semicircleEvents.mousedown)
+  map.value.on('mousemove', semicircleEvents.mousemove)
+  map.value.on('mouseup', semicircleEvents.mouseup)
+}
+
+function calculateSemicirclePoints(center, radius) {
+  const points = []
+  const nbPoints = 32 // Nombre de points pour dessiner l'arc
+  
+  // Ajouter le centre comme premier point
+  points.push(center)
+  
+  // Calculer les points de l'arc
+  for (let i = 0; i <= nbPoints; i++) {
+    const angle = (Math.PI * i) / nbPoints
+    const lat = center.lat + (radius / 111319) * Math.cos(angle)
+    const lng = center.lng + (radius / (111319 * Math.cos(center.lat * Math.PI / 180))) * Math.sin(angle)
+    points.push([lat, lng])
+  }
+  
+  // Fermer le polygone en revenant au centre
+  points.push(center)
+  
+  return points
+}
+
+function cleanupSemicircleEvents() {
+  if (!map.value) return
+  
+  // Détacher les événements précédents
+  if (semicircleEvents.mousedown) {
+    map.value.off('mousedown', semicircleEvents.mousedown)
+  }
+  if (semicircleEvents.mousemove) {
+    map.value.off('mousemove', semicircleEvents.mousemove)
+  }
+  if (semicircleEvents.mouseup) {
+    map.value.off('mouseup', semicircleEvents.mouseup)
+  }
+  
+  // Réinitialiser les gestionnaires
+  semicircleEvents = {
+    mousedown: null,
+    mousemove: null,
+    mouseup: null
+  }
+}
+
+// Gestion de la création d'une forme
+function handleShapeCreated(e) {
+  const { layer, shape } = e
+  
+  // Ajouter la forme au groupe
   featureGroup.value.addLayer(layer)
+  
+  // Sauvegarder la forme si un plan est sélectionné
+  if (irrigationStore.currentPlan) {
+    saveShape(layer, shape)
+  }
+}
 
-  // Ajouter la forme à la liste
-  shapes.value.push({
-    id: Date.now(),
-    type: currentDrawing.value.type,
-    layer: layer,
-    surface: calculateArea(layer)
-  })
+// Gestion de la suppression d'une forme
+function handleShapeRemoved(e) {
+  const { layer } = e
+  if (irrigationStore.currentPlan) {
+    deleteShape(layer)
+  }
+}
 
-  // Réinitialiser le dessin en cours
-  currentDrawing.value = null
+// Sauvegarde d'une forme
+async function saveShape(layer, shapeType) {
+  try {
+    const shapeData = {
+      plan_id: irrigationStore.currentPlan.id,
+      type_forme: shapeType.toUpperCase(),
+      geometrie: layer.toGeoJSON().geometry,
+      proprietes: {
+        style: layer.options,
+        radius: layer.getRadius ? layer.getRadius() : undefined
+      }
+    }
+    
+    const response = await irrigationStore.createShape(shapeData)
+    layer.id = response.data.id
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde de la forme:', error)
+    featureGroup.value.removeLayer(layer)
+  }
+}
 
-  // Réactiver le déplacement de la carte
-  map.value.dragging.enable()
+// Suppression d'une forme
+function deleteShape(shapeId) {
+  const shape = shapes.value.find(s => s.id === shapeId)
+  if (!shape || !map.value || !featureGroup.value) return
+  
+  featureGroup.value.removeLayer(shape.layer)
+  shapes.value = shapes.value.filter(s => s.id !== shapeId)
 }
 
 // Fonction pour annuler le dessin en cours
@@ -290,16 +431,7 @@ function cancelDrawing() {
   
   map.value.removeLayer(currentDrawing.value.layer)
   currentDrawing.value = null
-  map.value.dragging.enable()
-}
-
-// Fonction pour supprimer une forme
-function deleteShape(shapeId) {
-  const shape = shapes.value.find(s => s.id === shapeId)
-  if (!shape || !map.value || !featureGroup.value) return
-  
-  featureGroup.value.removeLayer(shape.layer)
-  shapes.value = shapes.value.filter(s => s.id !== shapeId)
+  map.value.pm.disableDraw()
 }
 
 // Fonction pour calculer la surface
@@ -341,56 +473,17 @@ async function searchLocation() {
   }
 }
 
+// Surveiller les changements de forme sélectionnée
+watch(selectedShape, (newShape) => {
+  if (newShape) {
+    startDrawing(newShape)
+  }
+})
+
 // Fonctions de gestion du dessin
 function handleShapeChange() {
   if (!map.value) return
   cancelDrawing()
-}
-
-function startDrawing() {
-  if (!map.value) return
-
-  // Désactiver tous les modes de dessin actuels
-  cancelDrawing()
-
-  // Mettre à jour les options de style
-  updateDrawingStyle()
-
-  // Activer le mode de dessin approprié
-  switch (selectedShape.value) {
-    case 'Rectangle':
-      new L.Draw.Rectangle(map.value, {
-        shapeOptions: {
-          color: drawingOptions.value.color,
-          weight: drawingOptions.value.weight,
-          opacity: drawingOptions.value.opacity,
-          fillOpacity: drawingOptions.value.fillOpacity
-        }
-      }).enable()
-      break
-    case 'Cercle':
-      new L.Draw.Circle(map.value, {
-        shapeOptions: {
-          color: drawingOptions.value.color,
-          weight: drawingOptions.value.weight,
-          opacity: drawingOptions.value.opacity,
-          fillOpacity: drawingOptions.value.fillOpacity
-        }
-      }).enable()
-      break
-    case 'Ligne':
-      new L.Draw.Polyline(map.value, {
-        shapeOptions: {
-          color: drawingOptions.value.color,
-          weight: drawingOptions.value.weight,
-          opacity: drawingOptions.value.opacity
-        }
-      }).enable()
-      break
-    case 'Demi-cercle':
-      enableHalfCircleMode()
-      break
-  }
 }
 
 function updateDrawingStyle() {
@@ -412,33 +505,6 @@ function updateDrawingStyle() {
       drawOptions[type].shapeOptions = { ...newOptions.shapeOptions }
     }
   })
-}
-
-// Fonction pour activer le mode demi-cercle
-function enableHalfCircleMode() {
-  if (!map.value || !map.value._toolbars || !map.value._toolbars.draw || !map.value._toolbars.draw.options.draw) return
-
-  // Désactiver tous les autres modes de dessin
-  const drawOptions = map.value._toolbars.draw.options.draw
-  Object.keys(drawOptions).forEach((type) => {
-    const handler = map.value._toolbars.draw._modes[type]
-    if (handler) {
-      handler.disable()
-    }
-  })
-
-  // Activer le mode cercle avec les options de demi-cercle
-  const circleDrawer = new L.Draw.Circle(map.value, {
-    shapeOptions: {
-      fillColor: '#3388ff',
-      color: '#3388ff',
-      fillOpacity: 0.2,
-      isHalfCircle: true,
-      startAngle: 0,
-      stopAngle: 180
-    }
-  })
-  circleDrawer.enable()
 }
 
 // Chargement des formes existantes

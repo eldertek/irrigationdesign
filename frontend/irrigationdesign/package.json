@@ -38,7 +38,8 @@
     "vue": "^3.4.15",
     "vue-draggable-next": "^2.2.1",
     "vue-router": "^4.2.5",
-    "vue-toastification": "^2.0.0-rc.5"
+    "vue-toastification": "^2.0.0-rc.5",
+    "leaflet-semicircle": "^2.0.4"
   },
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.7.2",
