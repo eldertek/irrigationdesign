@@ -119,7 +119,7 @@
                 <h4 class="text-sm font-medium text-gray-700 mb-3">Options spécifiques</h4>
 
                 <!-- Options pour le cercle -->
-                <template v-if="currentTool?.type === 'circle'">
+                <template v-if="currentTool?.type === 'cercle'">
                   <div class="space-y-3">
                     <label class="flex items-center space-x-2">
                       <Switch
@@ -151,7 +151,7 @@
                 </template>
 
                 <!-- Options pour le demi-cercle -->
-                <template v-if="currentTool?.type === 'semicircle'">
+                <template v-if="currentTool?.type === 'demi-cercle'">
                   <div class="space-y-3">
                     <label class="block text-sm font-medium text-gray-700">
                       Orientation: {{ shapeOptions.orientation }}°
@@ -282,7 +282,7 @@ const canRedo = ref(false)
 
 const mainTools = [
   {
-    type: 'line',
+    type: 'ligne',
     label: 'Ligne',
     icon: PencilIcon,
     shortcut: 'L'
@@ -294,19 +294,19 @@ const mainTools = [
     shortcut: 'R'
   },
   {
-    type: 'circle',
+    type: 'cercle',
     label: 'Cercle',
     icon: CircleIcon,
     shortcut: 'C'
   },
   {
-    type: 'semicircle',
+    type: 'demi-cercle',
     label: 'Demi-cercle',
     icon: ArrowPathIcon,
     shortcut: 'S'
   },
   {
-    type: 'connection',
+    type: 'connexion',
     label: 'Connexion',
     icon: ArrowsPointingOutIcon,
     shortcut: 'X'
@@ -332,7 +332,7 @@ const shapeOptions = reactive({
 })
 
 const showDrawingOptions = computed(() => currentTool.value !== null)
-const hasSpecificOptions = computed(() => ['circle', 'semicircle', 'line'].includes(currentTool.value?.type))
+const hasSpecificOptions = computed(() => ['cercle', 'demi-cercle', 'ligne'].includes(currentTool.value?.type))
 
 // Raccourcis clavier
 useEventListener('keydown', (e) => {

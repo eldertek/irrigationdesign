@@ -53,8 +53,8 @@ const editingLayer = ref(null)
 
 // Configuration des outils de dessin
 const drawingTools = {
-  line: {
-    name: 'Line',
+  ligne: {
+    name: 'Ligne',
     button: 'drawPolyline',
     handler: 'pm:create',
     options: {
@@ -75,8 +75,8 @@ const drawingTools = {
       }
     }
   },
-  circle: {
-    name: 'Circle',
+  cercle: {
+    name: 'Cercle',
     button: 'drawCircle',
     handler: 'pm:create',
     options: {
@@ -88,8 +88,8 @@ const drawingTools = {
       radius: props.drawingOptions.radius
     }
   },
-  semicircle: {
-    name: 'Semicircle',
+  'demi-cercle': {
+    name: 'Demi-cercle',
     button: 'drawCircle',
     handler: 'pm:create',
     options: {
