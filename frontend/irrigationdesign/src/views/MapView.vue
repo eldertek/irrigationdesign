@@ -3,6 +3,7 @@
     <!-- Carte -->
     <div class="flex-1 relative">
       <div ref="mapContainer" class="h-full w-full"></div>
+      <ShapeInfo v-if="selectedShapeInfo" :shape="selectedShapeInfo" />
     </div>
 
     <!-- Panneau latéral -->
@@ -127,20 +128,20 @@
                 </template>
 
                 <!-- Cercle -->
-                <template v-if="shape.type.toLowerCase() === 'cercle'">
+                <template v-if="shape.type.toLowerCase() === 'circle'">
                   <div>Rayon: {{ formatDistance(shape.properties.dimensions.radius) }}</div>
                   <div>Diamètre: {{ formatDistance(shape.properties.dimensions.diameter) }}</div>
                 </template>
 
                 <!-- Demi-cercle -->
-                <template v-if="shape.type.toLowerCase() === 'demi-cercle'">
+                <template v-if="shape.type.toLowerCase() === 'semicircle'">
                   <div>Rayon: {{ formatDistance(shape.properties.dimensions.radius) }}</div>
                   <div>Orientation: {{ shape.properties.dimensions.orientation }}°</div>
                 </template>
               </template>
 
               <!-- Ligne -->
-              <template v-if="shape.type.toLowerCase() === 'ligne'">
+              <template v-if="shape.type.toLowerCase() === 'line'">
                 <div>Longueur: {{ formatDistance(shape.properties.length) }}</div>
                 <div>Zone d'influence: {{ formatArea(shape.properties.surfaceInfluence) }}</div>
               </template>
@@ -185,6 +186,7 @@ import '@geoman-io/leaflet-geoman-free'
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
 import 'leaflet-semicircle'
 import * as turf from '@turf/turf'
+import ShapeInfo from '@/components/ShapeInfo.vue'
 
 const mapContainer = ref<HTMLElement | null>(null)
 const map = ref<L.Map | null>(null)
@@ -194,6 +196,7 @@ const selectedShape = ref('Rectangle')
 const shapes = ref([])
 const irrigationStore = useIrrigationStore()
 const currentDrawing = ref(null)
+const selectedShapeInfo = ref(null)
 
 const drawingOptions = ref({
   color: '#3388ff',
@@ -247,9 +250,22 @@ onMounted(() => {
   map.value.on('pm:create', handleShapeCreated)
   map.value.on('pm:remove', handleShapeRemoved)
   map.value.on('pm:edit', (e) => {
-    // Mettre à jour la forme dans la base de données après modification
-    if (irrigationStore.currentPlan) {
-      saveShape(e.layer, e.layer.shape || 'unknown')
+    const layer = e.layer
+    // Recalculer les propriétés
+    const updatedProperties = calculateShapeProperties(layer, layer.shape || layer.options.shape || 'unknown')
+    
+    // Mettre à jour selectedShapeInfo si c'est la forme actuellement sélectionnée
+    if (selectedShapeInfo.value && layer.id === selectedShapeInfo.value.id) {
+      selectedShapeInfo.value = {
+        ...selectedShapeInfo.value,
+        properties: updatedProperties
+      }
+    }
+    
+    // Mettre à jour la forme dans la liste
+    const shapeIndex = shapes.value.findIndex(s => s.layer === layer)
+    if (shapeIndex !== -1) {
+      shapes.value[shapeIndex].properties = updatedProperties
     }
   })
 
@@ -449,7 +465,7 @@ function enableSemicircleDrawing() {
           
           handleShapeCreated({
             layer: semicircle,
-            shape: 'demi-cercle',
+            shape: 'semicircle',
             radius: radius,
             center: center,
             angle: angle
@@ -468,6 +484,7 @@ function enableSemicircleDrawing() {
 // Gestion de la création d'une forme
 function handleShapeCreated(e) {
   const { layer, shape } = e
+  if (!layer) return
   
   // Mise à jour des états
   isDrawing.value = false
@@ -482,26 +499,16 @@ function handleShapeCreated(e) {
   // Déterminer le type de forme en français
   const typeMap = {
     'rectangle': 'Rectangle',
-    'cercle': 'Cercle',
-    'demi-cercle': 'Demi-cercle',
-    'ligne': 'Ligne'
+    'circle': 'Cercle',
+    'semicircle': 'Demi-cercle',
+    'line': 'Ligne'
   }
   
   const baseType = shape.toLowerCase()
   const frenchType = typeMap[baseType] || shape
   
-  // Incrémenter le compteur pour ce type de forme
-  const counterKey = baseType
-  if (!shapeCounters.value[counterKey]) {
-    shapeCounters.value[counterKey] = 1
-  } else {
-    shapeCounters.value[counterKey]++
-  }
-  
-  const shapeDisplayName = `${frenchType} ${shapeCounters.value[counterKey]}`
-
   // Calculer les propriétés détaillées de la forme
-  const properties = calculateShapeProperties(layer, shape)
+  const properties = calculateShapeProperties(layer, baseType)
 
   // Ajouter un effet de confirmation visuelle
   layer.getElement()?.classList.add('shape-created')
@@ -524,23 +531,55 @@ function handleShapeCreated(e) {
         preventMarkerRemoval: true,
         removeLayerOnEmpty: false
       })
+      
+      // Mettre à jour selectedShapeInfo avec les informations de la forme
+      const shapeData = shapes.value.find(s => s.layer === layer)
+      if (shapeData) {
+        selectedShapeInfo.value = {
+          id: shapeData.id,
+          type: shapeData.type,
+          properties: shapeData.properties
+        }
+      }
     }
   })
+  
+  // Ajouter un gestionnaire pour désélectionner la forme
+  if (!map.value._clickHandler) {
+    map.value._clickHandler = (e) => {
+      // Vérifier si le clic n'est pas sur une forme
+      if (!e.originalEvent.target.closest('.leaflet-interactive')) {
+        selectedShapeInfo.value = null
+      }
+    }
+    map.value.on('click', map.value._clickHandler)
+  }
   
   // Ajouter la forme au groupe
   featureGroup.value.addLayer(layer)
   
   // Sauvegarder la forme si un plan est sélectionné
   if (irrigationStore.currentPlan) {
-    saveShape(layer, shape, properties)
+    saveShape(layer, baseType, properties)
   }
 
   // Ajouter la forme à la liste des formes
   shapes.value.push({
     id: layer.id || Date.now(),
-    type: shape,
+    type: frenchType,
     layer: layer,
     properties: properties
+  })
+
+  // Ajouter des gestionnaires d'événements pour l'édition
+  layer.on('pm:edit', (event) => {
+    const updatedProperties = calculateShapeProperties(event.target, baseType)
+    if (selectedShapeInfo.value && event.target.id === selectedShapeInfo.value.id) {
+      selectedShapeInfo.value = {
+        ...selectedShapeInfo.value,
+        properties: updatedProperties
+      }
+    }
   })
 }
 
@@ -572,34 +611,34 @@ function calculateShapeProperties(layer, shapeType) {
       }
       break
 
-    case 'cercle':
-      const rayon = layer.getRadius()
-      properties.surfaceInterieure = Math.PI * Math.pow(rayon, 2)
-      properties.surfaceExterieure = Math.PI * Math.pow(rayon + 1, 2)
-      properties.perimetre = 2 * Math.PI * rayon
+    case 'circle':
+      const radius = layer.getRadius()
+      properties.surfaceInterieure = Math.PI * Math.pow(radius, 2)
+      properties.surfaceExterieure = Math.PI * Math.pow(radius + 1, 2)
+      properties.perimetre = 2 * Math.PI * radius
       properties.dimensions = {
-        radius: rayon,
-        diameter: rayon * 2
+        radius: radius,
+        diameter: radius * 2
       }
       break
 
-    case 'demi-cercle':
-      const rayonDemi = layer.getRadius()
-      properties.surfaceInterieure = (Math.PI * Math.pow(rayonDemi, 2)) / 2
-      properties.surfaceExterieure = (Math.PI * Math.pow(rayonDemi + 1, 2)) / 2
-      properties.perimetre = Math.PI * rayonDemi + 2 * rayonDemi
+    case 'semicircle':
+      const semiRadius = layer.getRadius()
+      properties.surfaceInterieure = (Math.PI * Math.pow(semiRadius, 2)) / 2
+      properties.surfaceExterieure = (Math.PI * Math.pow(semiRadius + 1, 2)) / 2
+      properties.perimetre = Math.PI * semiRadius + 2 * semiRadius
       properties.dimensions = {
-        radius: rayonDemi,
+        radius: semiRadius,
         orientation: layer.options.startAngle + 90
       }
       break
 
-    case 'ligne':
-      const ligne = turf.lineString(layer.getLatLngs().map(ll => [ll.lng, ll.lat]))
-      properties.length = turf.length(ligne, { units: 'meters' })
+    case 'line':
+      const line = turf.lineString(layer.getLatLngs().map(ll => [ll.lng, ll.lat]))
+      properties.length = turf.length(line, { units: 'meters' })
       // Calculer la zone d'influence de 1 mètre de chaque côté
-      const ligneBuffered = turf.buffer(ligne, 1, { units: 'meters' })
-      properties.surfaceInfluence = turf.area(ligneBuffered)
+      const bufferedLine = turf.buffer(line, 1, { units: 'meters' })
+      properties.surfaceInfluence = turf.area(bufferedLine)
       break
   }
 
@@ -825,20 +864,38 @@ function formatDistance(value) {
 
 // Ajout des compteurs pour chaque type de forme
 const shapeCounters = ref({
-  rectangle: 0,
-  cercle: 0,
-  'demi-cercle': 0,
-  ligne: 0
+  'rectangle': 0,
+  'circle': 0,
+  'semicircle': 0,
+  'line': 0
 })
 
 // Fonction pour obtenir le nom d'affichage de la forme
 function getShapeDisplayName(shape) {
-  return shape.type
+  const typeMap = {
+    'rectangle': 'Rectangle',
+    'circle': 'Cercle',
+    'semicircle': 'Demi-cercle',
+    'line': 'Ligne'
+  }
+  
+  const baseType = shape.type.toLowerCase()
+  return typeMap[baseType] || shape.type
 }
 </script>
 
 <style>
 @import 'leaflet/dist/leaflet.css';
+
+/* Ajuster le z-index du conteneur de la carte */
+.leaflet-container {
+  z-index: 1;
+}
+
+/* Ajuster le z-index des contrôles de la carte */
+.leaflet-control-container {
+  z-index: 1000;
+}
 
 /* Styles pour les messages d'aide */
 .drawing-help-message {

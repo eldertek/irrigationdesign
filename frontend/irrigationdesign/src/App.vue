@@ -4,6 +4,7 @@ import HelloWorld from './components/HelloWorld.vue'
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import SearchBar from '@/components/SearchBar.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -74,6 +75,11 @@ async function handleLogout() {
             </div>
           </div>
 
+          <!-- Barre de recherche -->
+          <div class="flex-1 max-w-2xl mx-8">
+            <SearchBar />
+          </div>
+
           <!-- Actions utilisateur -->
           <div class="flex items-center space-x-4">
             <!-- Notifications -->
@@ -133,7 +139,7 @@ async function handleLogout() {
           </div>
         </div>
       </nav>
-  </header>
+    </header>
 
     <main class="h-[calc(100%-4rem)] pt-16">
       <router-view />
