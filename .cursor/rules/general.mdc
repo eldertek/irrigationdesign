@@ -14,10 +14,33 @@ files: **/*
 - S'assurer que le code est facilement maintenable et extensible pour de futures fonctionnalités.
 
 # Authentification et Rôles
-- Pour la connexion et la gestion des utilisateurs utiliser une authentification.
+- Pour la connexion et la gestion des utilisateurs utiliser une authentification JWT.
 - Prévois un rôle administrateur, un rôle concessionnaire et un rôle utilisateur final.
 - L'administrateur peut gérer tous les comptes.
 - Le concessionnaire à accès aux plans qu'il a fait et peut gérer les utilisateurs finaux.
+- Utiliser djangorestframework-simplejwt pour la gestion des tokens.
+- Durée de validité des tokens : 60 minutes pour l'accès, 1 jour pour le rafraîchissement.
+
+# Base de Données
+- Utiliser PostgreSQL avec l'extension PostGIS pour les données géospatiales.
+- Nom de la base : irrigation_db
+- Utilisateur : irrigation_user
+- Sécuriser les mots de passe en production.
+- Optimiser les requêtes géospatiales avec des index spatiaux.
+
+# API REST
+- Utiliser Django REST Framework pour l'API.
+- Points d'accès principaux :
+  - /api/utilisateurs/
+  - /api/plans/
+  - /api/formes/
+  - /api/connexions/
+  - /api/annotations/
+- Documentation interactive disponible sur /docs/
+- Interface de navigation de l'API sur /api-auth/
+- Authentification via tokens JWT sur :
+  - /api/token/ (obtention)
+  - /api/token/refresh/ (rafraîchissement)
 
 # Frontend - Composants
 - Utiliser des composants réutilisables autant que possible.
@@ -28,7 +51,7 @@ files: **/*
 - Créer des composants de formulaire qui gèrent la validation et l'affichage des erreurs.
 
 # Frontend - Carte et Formes
-- Privilégier la librairie KonvaJS pour la gestion des formes, si elle est plus limité, passer sur leaflet.
+- Privilégier la librairie Leaflet pour la gestion des formes.
 - Minimiser la quantité de librairies tierces pour éviter les conflits et faciliter la maintenance.
 - Toujours avoir une solution simple et intuitive pour dessiner les formes et établir des connexions.
 - Permettre le dessin de formes géométriques : rectangles, cercles, demi-cercles, lignes.
@@ -37,7 +60,7 @@ files: **/*
 - Permettre le zoom et le déplacement sur la carte.
 - Afficher un profil altimétrique pour les lignes.
 - Intégrer une fonctionnalité de connexion de formes entre elles.
-- Intégrer un fond de carte (utiliser une API gratuite comme OpenStreetMap).
+- Intégrer un fond de carte (utiliser OpenStreetMap par défaut).
 
 # Frontend - Style
 - Utiliser un framework CSS moderne (tailwind, bootstrap...)
@@ -55,14 +78,40 @@ files: **/*
 - Optimiser les performances de l'API.
 
 # Backend - Base de données
-- Choisir une base de données adaptée aux besoins (par exemple, PostgreSQL avec PostGIS pour les données géospatiales).
+- Utiliser PostgreSQL avec PostGIS pour les données géospatiales.
 - Définir un schéma de base de données clair et optimisé.
-- Utiliser un ORM si possible pour simplifier l'interaction avec la base de données.
+- Utiliser l'ORM Django pour simplifier l'interaction avec la base de données.
 - Assurer la sécurité des données (prévention des injections SQL, etc.).
 - Gérer les migrations de schéma de manière propre.
 - Optimiser les requêtes pour la performance.
 
-# Utilitaires
-- Utiliser des fonctions pures quand c'est possible
-- S'assurer de la testabilité des fonctions
-- Mettre les fonctions qui ne sont pas spécifiques au front dans un autre dossier plus approprié
+# Développement
+- Utiliser le Makefile pour les commandes courantes :
+  - make install : Installation des dépendances
+  - make migrations : Création des migrations
+  - make migrate : Application des migrations
+  - make run : Lancement du serveur
+  - make test : Exécution des tests
+  - make shell : Shell Django
+  - make clean : Nettoyage des fichiers compilés
+  - make format : Formatage du code
+
+# Sécurité
+- Ne jamais exposer les clés secrètes en production
+- Utiliser des variables d'environnement pour les configurations sensibles
+- Activer CORS uniquement pour les domaines nécessaires
+- Valider toutes les entrées utilisateur
+- Utiliser HTTPS en production
+- Mettre en place une politique de mots de passe robuste
+
+# Tests
+- Écrire des tests unitaires pour les fonctionnalités critiques
+- Utiliser pytest pour les tests
+- Maintenir une couverture de code satisfaisante
+- Tester les cas limites et les erreurs
+
+# Documentation
+- Maintenir une documentation à jour pour l'API (/docs/)
+- Documenter les choix d'architecture
+- Commenter le code de manière pertinente
+- Fournir des exemples d'utilisation

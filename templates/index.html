@@ -1,0 +1,19 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IrrigationDesign</title>
+    <link rel="icon" href="{% static 'frontend/favicon.ico' %}">
+    {% for css in css_files %}
+    <link rel="stylesheet" href="{% static css %}">
+    {% endfor %}
+</head>
+<body>
+    <div id="app"></div>
+    {% for js in js_files %}
+    <script type="module" src="{% static js %}"></script>
+    {% endfor %}
+</body>
+</html> 
