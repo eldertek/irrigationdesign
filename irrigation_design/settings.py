@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-votre-clé-secrète-à-changer-en-production'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['*']  # Pour le développement uniquement
 
 
 # Application definition
@@ -161,19 +161,24 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.BasicAuthentication",  # Pour le développement
     ),
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
+    "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.coreapi.AutoSchema",  # Pour la documentation API
 }
 
 # Configuration de CORS
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "http://localhost:3000",  # Pour le frontend React/Vue si nécessaire
 ]
+
+CORS_ALLOW_CREDENTIALS = True
 
 # Configuration de Simple JWT
 SIMPLE_JWT = {
