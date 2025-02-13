@@ -94,29 +94,6 @@
               </div>
             </div>
 
-            <!-- Style de trait -->
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <label class="block text-sm font-medium text-gray-700">Style de trait</label>
-              </div>
-              <div class="grid grid-cols-4 gap-2">
-                <button
-                  v-for="style in dashStyles"
-                  :key="style.value"
-                  @click="selectDashStyle(style.value)"
-                  class="p-2 border rounded-lg transition-colors flex items-center justify-center"
-                  :class="[
-                    shapeOptions.dashStyle === style.value
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 hover:bg-gray-50'
-                  ]"
-                  :title="style.label"
-                >
-                  <div class="w-12 h-0 border-t-2" :style="{ borderStyle: style.preview }"></div>
-                </button>
-              </div>
-            </div>
-
             <!-- Épaisseur avec prévisualisation -->
             <div>
               <div class="flex items-center justify-between mb-2">
@@ -275,7 +252,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { Switch, TransitionRoot } from '@headlessui/vue'
 import {
   PencilIcon,
@@ -344,13 +321,6 @@ const presetColors = [
   { label: 'Violet', value: '#7c3aed' }
 ]
 
-const dashStyles = [
-  { label: 'Continu', value: 'solid', preview: 'solid' },
-  { label: 'Pointillé', value: '5,5', preview: 'dashed' },
-  { label: 'Tiret long', value: '10,10', preview: 'dashed' },
-  { label: 'Mixte', value: '15,10,5,10', preview: 'dotted' }
-]
-
 const shapeOptions = reactive({
   color: presetColors[0].value,
   weight: 3,
@@ -358,8 +328,7 @@ const shapeOptions = reactive({
   radius: 10,
   orientation: 0,
   fixedRadius: false,
-  lineType: 'straight',
-  dashStyle: 'solid'
+  lineType: 'straight'
 })
 
 const showDrawingOptions = computed(() => currentTool.value !== null)
@@ -401,10 +370,6 @@ function selectColor(color) {
   shapeOptions.color = color
 }
 
-function selectDashStyle(style: string) {
-  shapeOptions.dashStyle = style
-}
-
 function finishDrawing() {
   emit('shape-confirmed', { tool: currentTool.value, options: shapeOptions })
   currentTool.value = null
@@ -429,20 +394,6 @@ function undo() {
 function redo() {
   emit('redo')
 }
-
-// Mise à jour de la fonction watch pour les options de dessin
-watch(() => props.drawingOptions, (newOptions) => {
-  if (!map.value) return
-
-  // Mise à jour des options de dessin
-  map.value.pm.setGlobalOptions({
-    pathOptions: {
-      color: newOptions.color,
-      weight: newOptions.weight,
-      dashArray: newOptions.dashStyle !== 'solid' ? newOptions.dashStyle : null
-    }
-  })
-}, { deep: true })
 </script>
 
 <style scoped>
