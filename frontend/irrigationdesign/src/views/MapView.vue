@@ -218,6 +218,18 @@ import 'leaflet-semicircle'
 import * as turf from '@turf/turf'
 import ShapeInfo from '@/components/ShapeInfo.vue'
 
+// Définition des couleurs prédéfinies
+const presetColors = [
+  { value: '#3388ff', label: 'Bleu' },
+  { value: '#33c9ff', label: 'Bleu clair' },
+  { value: '#ff3333', label: 'Rouge' },
+  { value: '#ff8033', label: 'Orange' },
+  { value: '#33ff33', label: 'Vert' },
+  { value: '#ffff33', label: 'Jaune' },
+  { value: '#9933ff', label: 'Violet' },
+  { value: '#ff33ff', label: 'Rose' }
+]
+
 const mapContainer = ref<HTMLElement | null>(null)
 const map = ref<L.Map | null>(null)
 const featureGroup = ref<L.FeatureGroup | null>(null)
@@ -573,7 +585,7 @@ async function getElevationProfile(coordinates) {
     })
     const data = await response.json()
     return data.results.map((result, index) => ({
-      distance: index === 0 ? 0 : turf.length(turf.lineString(coordinates.slice(0, index + 1).map(c => [c.lng, c.lat])),
+      distance: index === 0 ? 0 : turf.length(turf.lineString(coordinates.slice(0, index + 1).map(c => [c.lng, c.lat]))),
       elevation: result.elevation
     }))
   } catch (error) {
