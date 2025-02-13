@@ -39,34 +39,67 @@
       <div class="p-4 border-b border-gray-200">
         <h3 class="text-sm font-medium text-gray-700 mb-4">Style</h3>
         
-        <!-- Couleur -->
-        <div class="mb-4">
-          <label class="block text-sm text-gray-600 mb-1">
-            Couleur
-          </label>
-          <input
-            type="color"
-            v-model="drawingOptions.color"
-            class="w-full h-8 rounded border border-gray-300"
-            @change="updateDrawingStyle"
-          />
+        <!-- Couleur avec préréglages -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Couleur</label>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="color in presetColors"
+              :key="color.value"
+              @click="selectColor(color.value)"
+              class="w-8 h-8 rounded-full border-2 transition-all transform hover:scale-110"
+              :style="{ backgroundColor: color.value }"
+              :class="[shapeOptions.color === color.value ? 'border-primary-500 scale-110' : 'border-transparent']"
+              :title="color.label"
+            />
+            <div class="relative">
+              <input
+                type="color"
+                v-model="shapeOptions.color"
+                class="w-8 h-8 rounded-full cursor-pointer"
+              >
+            </div>
+          </div>
         </div>
 
-        <!-- Épaisseur -->
-        <div class="mb-4">
-          <label class="block text-sm text-gray-600 mb-1">
-            Épaisseur
-          </label>
-          <input
-            type="range"
-            v-model="drawingOptions.weight"
-            min="1"
-            max="10"
-            class="w-full"
-            @change="updateDrawingStyle"
-          />
-          <div class="text-sm text-gray-500 text-right">
-            {{ drawingOptions.weight }}px
+        <!-- Type de trait -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Type de trait</label>
+          <select
+            v-model="shapeOptions.dashArray"
+            class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+          >
+            <option value="">Trait continu</option>
+            <option value="5,5">Pointillé simple</option>
+            <option value="10,5">Pointillé long</option>
+            <option value="2,5">Pointillé court</option>
+            <option value="15,10,5,10">Pointillé mixte</option>
+            <option value="20,5,5,5">Trait-point</option>
+          </select>
+        </div>
+
+        <!-- Épaisseur avec prévisualisation -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-sm font-medium text-gray-700">Épaisseur</label>
+            <span class="text-sm text-gray-500">{{ shapeOptions.weight }}px</span>
+          </div>
+          <div class="relative">
+            <input
+              type="range"
+              v-model="shapeOptions.weight"
+              min="1"
+              max="10"
+              step="0.5"
+              class="w-full accent-primary-600"
+            >
+            <div 
+              class="mt-2 bg-current rounded-full" 
+              :style="{ 
+                height: shapeOptions.weight + 'px',
+                strokeDasharray: shapeOptions.dashArray
+              }"
+            ></div>
           </div>
         </div>
 
@@ -205,6 +238,17 @@ const drawingOptions = ref({
 const isDrawing = ref(false)
 const drawingState = ref('idle') // 'idle', 'drawing', 'editing'
 const currentShape = ref(null)
+
+const shapeOptions = ref({
+  color: presetColors[0].value,
+  weight: 3,
+  opacity: 0.8,
+  dashArray: '', // Trait continu par défaut
+  radius: 10,
+  orientation: 0,
+  fixedRadius: false,
+  lineType: 'straight'
+})
 
 // Configuration des options de dessin
 const drawingOptionsGeoman = {
@@ -529,7 +573,7 @@ async function getElevationProfile(coordinates) {
     })
     const data = await response.json()
     return data.results.map((result, index) => ({
-      distance: index === 0 ? 0 : turf.length(turf.lineString(coordinates.slice(0, index + 1).map(c => [c.lng, c.lat])), { units: 'meters' }),
+      distance: index === 0 ? 0 : turf.length(turf.lineString(coordinates.slice(0, index + 1).map(c => [c.lng, c.lat])),
       elevation: result.elevation
     }))
   } catch (error) {
@@ -1049,6 +1093,19 @@ function selectShape(shape: any) {
     }
   }
 }
+
+// Mise à jour du style de dessin
+watch(() => shapeOptions, (newOptions) => {
+  if (map.value) {
+    map.value.pm.setGlobalOptions({
+      pathOptions: {
+        color: newOptions.color,
+        weight: newOptions.weight,
+        dashArray: newOptions.dashArray
+      }
+    })
+  }
+}, { deep: true })
 </script>
 
 <style>

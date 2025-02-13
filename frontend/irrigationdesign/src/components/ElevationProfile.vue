@@ -258,4 +258,3 @@ function formatElevation(value: number): string {
   height: 100%;
 }
 </style> 
-</style> 
