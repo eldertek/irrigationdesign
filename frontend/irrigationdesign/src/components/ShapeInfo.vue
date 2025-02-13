@@ -45,12 +45,24 @@
       <!-- Ligne -->
       <template v-if="shape.type?.toLowerCase() === 'ligne' && shape.properties">
         <div class="info-item">
-          <span class="label">Longueur:</span>
+          <span class="label">Longueur totale:</span>
           <span class="value">{{ formatDistance(shape.properties.length) }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Largeur d'influence:</span>
+          <span class="value">{{ formatDistance(shape.properties.dimensions?.width || 0) }}</span>
         </div>
         <div class="info-item">
           <span class="label">Zone d'influence:</span>
           <span class="value">{{ formatArea(shape.properties.surfaceInfluence) }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Dénivelé:</span>
+          <span class="value">{{ formatDistance(shape.properties.elevation?.difference || 0) }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Pente moyenne:</span>
+          <span class="value">{{ formatSlope(shape.properties.elevation?.slope || 0) }}</span>
         </div>
       </template>
 
@@ -123,6 +135,11 @@ function formatDistance(value: number): string {
 function formatArea(value: number): string {
   if (!value && value !== 0) return '0 m²'
   return `${value.toFixed(2)} m²`
+}
+
+function formatSlope(value: number): string {
+  if (!value && value !== 0) return '0 %'
+  return `${value.toFixed(1)} %`
 }
 </script>
 

@@ -227,17 +227,30 @@ const drawingOptionsGeoman = {
   tooltips: true
 }
 
+// Ajout du fond de carte OpenStreetMap
+const baseMaps = {
+  'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }),
+  'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '© Esri'
+  }),
+  'Terrain': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenTopoMap contributors'
+  })
+}
+
 // Initialisation de la carte
 onMounted(() => {
   if (!mapContainer.value) return
 
   // Création de la carte
-  map.value = L.map(mapContainer.value).setView([48.8566, 2.3522], 13)
+  map.value = L.map(mapContainer.value, {
+    layers: [baseMaps['Satellite']] // Fond satellite par défaut
+  }).setView([48.8566, 2.3522], 13)
 
-  // Ajout du fond de carte OpenStreetMap
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
-  }).addTo(map.value)
+  // Ajout du contrôle de couches
+  L.control.layers(baseMaps).addTo(map.value)
 
   // Initialisation du groupe de formes
   featureGroup.value = new L.FeatureGroup()
@@ -268,6 +281,14 @@ onMounted(() => {
       shapes.value[shapeIndex].properties = updatedProperties
     }
   })
+
+  // Écouter l'événement de changement de position de la carte
+  window.addEventListener('map-set-location', ((event: CustomEvent) => {
+    if (map.value && event.detail) {
+      const { lat, lng, zoom } = event.detail
+      map.value.setView([lat, lng], zoom)
+    }
+  }) as EventListener)
 
   // Chargement des formes existantes si un plan est sélectionné
   if (irrigationStore.currentPlan) {
@@ -590,7 +611,11 @@ function calculateShapeProperties(layer, shapeType) {
     surfaceInterieure: 0,
     surfaceExterieure: 0,
     perimetre: 0,
-    dimensions: {}
+    dimensions: {},
+    elevation: {
+      difference: 0,
+      slope: 0
+    }
   }
 
   // Convertir la forme en GeoJSON pour utiliser Turf.js
@@ -605,9 +630,14 @@ function calculateShapeProperties(layer, shapeType) {
       const buffered = turf.buffer(poly, 1, { units: 'meters' })
       properties.surfaceExterieure = turf.area(buffered)
       properties.perimetre = turf.length(turf.polygonToLine(poly), { units: 'meters' })
+      
+      // Calculer les dimensions en mètres
+      const sw = turf.point([bbox[0], bbox[1]])
+      const se = turf.point([bbox[2], bbox[1]])
+      const nw = turf.point([bbox[0], bbox[3]])
       properties.dimensions = {
-        width: Math.abs(bbox[2] - bbox[0]),
-        height: Math.abs(bbox[3] - bbox[1])
+        width: turf.distance(sw, se, { units: 'meters' }),
+        height: turf.distance(sw, nw, { units: 'meters' })
       }
       break
 
@@ -639,6 +669,31 @@ function calculateShapeProperties(layer, shapeType) {
       // Calculer la zone d'influence de 1 mètre de chaque côté
       const bufferedLine = turf.buffer(line, 1, { units: 'meters' })
       properties.surfaceInfluence = turf.area(bufferedLine)
+      properties.dimensions = {
+        width: 2,
+      }
+      
+      // Simuler les données d'élévation (à remplacer par des données réelles d'API d'élévation)
+      properties.elevation = {
+        difference: 0, // Différence d'altitude en mètres
+        slope: 0 // Pente en pourcentage
+      }
+      
+      // Si l'API d'élévation est disponible, calculer le dénivelé et la pente
+      if (map.value) {
+        const coords = layer.getLatLngs()
+        if (coords.length >= 2) {
+          // TODO: Appeler l'API d'élévation pour obtenir les altitudes
+          // Pour l'instant, on utilise des valeurs simulées
+          const startPoint = coords[0]
+          const endPoint = coords[coords.length - 1]
+          const distance = properties.length // en mètres
+          
+          // Simulation : pente de 2%
+          properties.elevation.difference = distance * 0.02
+          properties.elevation.slope = 2
+        }
+      }
       break
   }
 
@@ -720,6 +775,12 @@ function formatArea(surface) {
 // Nettoyage lors du démontage du composant
 onUnmounted(() => {
   if (map.value) {
+    window.removeEventListener('map-set-location', ((event: CustomEvent) => {
+      if (map.value && event.detail) {
+        const { lat, lng, zoom } = event.detail
+        map.value.setView([lat, lng], zoom)
+      }
+    }) as EventListener)
     map.value.remove()
   }
 })

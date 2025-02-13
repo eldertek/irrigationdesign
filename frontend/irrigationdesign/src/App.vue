@@ -2,7 +2,7 @@
 import { RouterLink, RouterView } from 'vue-router'
 import HelloWorld from './components/HelloWorld.vue'
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import SearchBar from '@/components/SearchBar.vue'
 
@@ -44,6 +44,18 @@ async function handleLogout() {
     console.error('Erreur lors de la déconnexion:', error)
   }
 }
+
+// Fonction pour gérer la sélection d'une adresse
+function handleLocationSelect(location) {
+  // Émettre un événement personnalisé pour la carte
+  window.dispatchEvent(new CustomEvent('map-set-location', { 
+    detail: { 
+      lat: location.lat,
+      lng: location.lng,
+      zoom: 16
+    }
+  }))
+}
 </script>
 
 <template>
@@ -77,7 +89,7 @@ async function handleLogout() {
 
           <!-- Barre de recherche -->
           <div class="flex-1 max-w-2xl mx-8">
-            <SearchBar />
+            <SearchBar @select-location="handleLocationSelect" />
           </div>
 
           <!-- Actions utilisateur -->
