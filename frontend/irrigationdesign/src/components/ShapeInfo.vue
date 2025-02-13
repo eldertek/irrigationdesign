@@ -1,6 +1,9 @@
 <template>
-  <div v-if="shape && isValidShape" class="shape-info-panel">
-    <h3 class="title">{{ getShapeTitle(shape.type) }}</h3>
+  <div v-if="shape" class="shape-info-panel">
+    <h3 class="title">
+      {{ getShapeTitle(shape.type) }}
+      <button class="close-button" @click="emit('close')">X</button>
+    </h3>
     
     <div class="info-content">
       <!-- Dimensions spécifiques selon le type de forme -->
@@ -43,7 +46,7 @@
       </template>
 
       <!-- Ligne -->
-      <template v-if="shape.type?.toLowerCase() === 'ligne' && shape.properties">
+      <template v-if="shape.type?.toLowerCase() === 'line' && shape.properties">
         <div class="info-item">
           <span class="label">Longueur totale:</span>
           <span class="value">{{ formatDistance(shape.properties.length) }}</span>
@@ -63,6 +66,18 @@
         <div class="info-item">
           <span class="label">Pente moyenne:</span>
           <span class="value">{{ formatSlope(shape.properties.elevation?.slope || 0) }}</span>
+        </div>
+
+        <!-- Profil d'élévation -->
+        <div v-if="shape.properties.elevation?.profile" class="mt-4">
+          <h4 class="subtitle">Profil d'élévation</h4>
+          <ElevationProfile
+            :points="shape.properties.elevation.profile"
+            :min-elevation="shape.properties.elevation.minElevation"
+            :max-elevation="shape.properties.elevation.maxElevation"
+            :width="250"
+            :height="150"
+          />
         </div>
       </template>
 
@@ -145,16 +160,28 @@ function formatSlope(value: number): string {
 
 <style scoped>
 .shape-info-panel {
-  position: fixed;
-  bottom: 20px;
-  left: 20px;
+  position: absolute;
+  top: 20px;
+  right: 20px;
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   padding: 16px;
-  min-width: 250px;
-  max-width: 300px;
+  min-width: 280px;
+  max-width: 320px;
   z-index: 1000;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .title {
@@ -164,6 +191,28 @@ function formatSlope(value: number): string {
   margin-bottom: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.close-button {
+  padding: 4px;
+  border-radius: 4px;
+  color: #6b7280;
+  transition: all 0.2s;
+}
+
+.close-button:hover {
+  background-color: #f3f4f6;
+  color: #1f2937;
+}
+
+.subtitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: #4b5563;
+  margin-bottom: 8px;
 }
 
 .info-content {
@@ -174,6 +223,11 @@ function formatSlope(value: number): string {
   display: flex;
   justify-content: space-between;
   margin-bottom: 8px;
+  padding: 4px 0;
+}
+
+.info-item:hover {
+  background-color: #f9fafb;
 }
 
 .label {

@@ -5,6 +5,9 @@ interface User {
   id: number;
   username: string;
   email: string;
+  role: 'ADMIN' | 'CONCESSIONNAIRE' | 'UTILISATEUR';
+  concessionnaire?: number;
+  fullName?: string;
 }
 
 interface LoginCredentials {
@@ -24,12 +27,17 @@ export const useAuthStore = defineStore('auth', {
     user: null as User | null,
     token: localStorage.getItem('token'),
     loading: false,
-    error: null as string | null
+    error: null as string | null,
+    concessionnaires: [] as User[]
   }),
 
   getters: {
     isAuthenticated: (state) => !!state.token,
-    getUser: (state) => state.user
+    isAdmin: (state) => state.user?.role === 'ADMIN',
+    isConcessionnaire: (state) => state.user?.role === 'CONCESSIONNAIRE',
+    isUtilisateur: (state) => state.user?.role === 'UTILISATEUR',
+    getUser: (state) => state.user,
+    getConcessionnaires: (state) => state.concessionnaires
   },
 
   actions: {
@@ -128,6 +136,80 @@ export const useAuthStore = defineStore('auth', {
         axios.defaults.headers.common['Authorization'] = `Token ${this.token}`;
         this.fetchUser();
       }
+    },
+
+    async fetchConcessionnaires() {
+      this.loading = true;
+      try {
+        const response = await axios.get('/api/utilisateurs/', {
+          params: { role: 'CONCESSIONNAIRE' }
+        });
+        this.concessionnaires = response.data;
+      } catch (error) {
+        this.error = 'Erreur lors de la récupération des concessionnaires';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async setConcessionnaire(userId: number, concessionnaireId: number) {
+      this.loading = true;
+      try {
+        await axios.patch(`/api/utilisateurs/${userId}/`, {
+          concessionnaire: concessionnaireId
+        });
+        if (this.user && this.user.id === userId) {
+          this.user.concessionnaire = concessionnaireId;
+        }
+      } catch (error) {
+        this.error = 'Erreur lors de la mise à jour du concessionnaire';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async createUser(userData: {
+      username: string;
+      email: string;
+      password: string;
+      role: string;
+      concessionnaire?: number;
+    }) {
+      this.loading = true;
+      try {
+        const response = await axios.post('/api/utilisateurs/', userData);
+        return response.data;
+      } catch (error) {
+        this.error = 'Erreur lors de la création de l\'utilisateur';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async updateUserRole(userId: number, role: string) {
+      this.loading = true;
+      try {
+        const response = await axios.patch(`/api/utilisateurs/${userId}/`, {
+          role
+        });
+        if (this.user && this.user.id === userId) {
+          this.user.role = role as User['role'];
+        }
+        return response.data;
+      } catch (error) {
+        this.error = 'Erreur lors de la mise à jour du rôle';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    checkAccess(requiredRole: string[]): boolean {
+      if (!this.user) return false;
+      return requiredRole.includes(this.user.role);
     }
   }
 }); 

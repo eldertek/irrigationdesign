@@ -1,5 +1,14 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
+import { useAuthStore } from './auth';
+
+interface PlanHistory {
+  id: number;
+  plan_id: number;
+  date_modification: string;
+  modifications: any;
+  utilisateur: number;
+}
 
 interface Plan {
   id: number;
@@ -7,7 +16,10 @@ interface Plan {
   description: string;
   date_creation: string;
   date_modification: string;
+  createur: number;
   elements: any[];
+  historique: PlanHistory[];
+  version: number;
 }
 
 interface NewPlan {
@@ -20,21 +32,32 @@ export const useIrrigationStore = defineStore('irrigation', {
     plans: [] as Plan[],
     currentPlan: null as Plan | null,
     loading: false,
-    error: null as string | null
+    error: null as string | null,
+    autoSaveInterval: null as any,
+    unsavedChanges: false,
+    planHistory: [] as PlanHistory[]
   }),
 
   getters: {
     getPlanById: (state) => (id: number) => {
       return state.plans.find(plan => plan.id === id);
-    }
+    },
+    hasUnsavedChanges: (state) => state.unsavedChanges,
+    getCurrentPlanHistory: (state) => state.planHistory
   },
 
   actions: {
     async fetchPlans() {
+      const authStore = useAuthStore();
       this.loading = true;
-      this.error = null;
       try {
-        const response = await axios.get('/api/plans/');
+        let url = '/api/plans/';
+        if (authStore.isConcessionnaire) {
+          url += '?concessionnaire=' + authStore.user?.id;
+        } else if (authStore.isUtilisateur) {
+          url += '?utilisateur=' + authStore.user?.id;
+        }
+        const response = await axios.get(url);
         this.plans = response.data;
       } catch (error) {
         this.error = 'Erreur lors du chargement des plans';
@@ -44,9 +67,8 @@ export const useIrrigationStore = defineStore('irrigation', {
       }
     },
 
-    async createPlan(planData: NewPlan) {
+    async createPlan(planData: any) {
       this.loading = true;
-      this.error = null;
       try {
         const response = await axios.post('/api/plans/', planData);
         this.plans.push(response.data);
@@ -59,38 +81,88 @@ export const useIrrigationStore = defineStore('irrigation', {
       }
     },
 
-    async updatePlan(planId: number, planData: Partial<Plan>) {
+    startAutoSave() {
+      if (this.autoSaveInterval) return;
+      
+      this.autoSaveInterval = setInterval(async () => {
+        if (this.unsavedChanges && this.currentPlan) {
+          await this.savePlan(this.currentPlan.id);
+        }
+      }, 30000); // Sauvegarde toutes les 30 secondes
+    },
+
+    stopAutoSave() {
+      if (this.autoSaveInterval) {
+        clearInterval(this.autoSaveInterval);
+        this.autoSaveInterval = null;
+      }
+    },
+
+    async savePlan(planId: number) {
+      if (!this.unsavedChanges) return;
+
       this.loading = true;
-      this.error = null;
       try {
-        const response = await axios.patch(`/api/plans/${planId}/`, planData);
+        const response = await axios.patch(`/api/plans/${planId}/`, {
+          ...this.currentPlan,
+          version: this.currentPlan?.version || 1
+        });
+        
+        // Mettre à jour le plan dans la liste
         const index = this.plans.findIndex(p => p.id === planId);
         if (index !== -1) {
           this.plans[index] = response.data;
         }
+        
+        // Mettre à jour le plan courant
         if (this.currentPlan?.id === planId) {
           this.currentPlan = response.data;
         }
+        
+        this.unsavedChanges = false;
         return response.data;
       } catch (error) {
-        this.error = 'Erreur lors de la mise à jour du plan';
+        this.error = 'Erreur lors de la sauvegarde du plan';
         throw error;
       } finally {
         this.loading = false;
       }
     },
 
-    async deletePlan(planId: number) {
+    async fetchPlanHistory(planId: number) {
       this.loading = true;
-      this.error = null;
       try {
-        await axios.delete(`/api/plans/${planId}/`);
-        this.plans = this.plans.filter(p => p.id !== planId);
-        if (this.currentPlan?.id === planId) {
-          this.currentPlan = null;
-        }
+        const response = await axios.get(`/api/plans/${planId}/historique/`);
+        this.planHistory = response.data;
+        return response.data;
       } catch (error) {
-        this.error = 'Erreur lors de la suppression du plan';
+        this.error = 'Erreur lors de la récupération de l\'historique';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async restorePlanVersion(planId: number, versionId: number) {
+      this.loading = true;
+      try {
+        const response = await axios.post(`/api/plans/${planId}/restaurer/`, {
+          version_id: versionId
+        });
+        
+        // Mettre à jour le plan restauré
+        if (this.currentPlan?.id === planId) {
+          this.currentPlan = response.data;
+        }
+        
+        const index = this.plans.findIndex(p => p.id === planId);
+        if (index !== -1) {
+          this.plans[index] = response.data;
+        }
+        
+        return response.data;
+      } catch (error) {
+        this.error = 'Erreur lors de la restauration de la version';
         throw error;
       } finally {
         this.loading = false;
@@ -99,10 +171,16 @@ export const useIrrigationStore = defineStore('irrigation', {
 
     setCurrentPlan(plan: Plan) {
       this.currentPlan = plan;
+      this.startAutoSave();
     },
 
     clearCurrentPlan() {
       this.currentPlan = null;
+      this.stopAutoSave();
+    },
+
+    markUnsavedChanges() {
+      this.unsavedChanges = true;
     }
   }
 }); 

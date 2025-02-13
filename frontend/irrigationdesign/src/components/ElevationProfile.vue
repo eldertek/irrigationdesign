@@ -55,40 +55,42 @@
         <!-- Axe Y (élévation) -->
         <line
           x1="0"
-          y1="0"
+          :y1="padding"
           x2="0"
-          :y2="height"
-          class="stroke-gray-400"
+          :y2="height - padding"
+          stroke="#666"
+          stroke-width="1"
         />
         <text
-          v-for="label in elevationLabels"
-          :key="label.value"
+          v-for="tick in yTicks"
+          :key="tick.value"
           x="-5"
-          :y="label.y"
+          :y="tick.y"
           class="text-xs fill-gray-500"
           text-anchor="end"
           alignment-baseline="middle"
         >
-          {{ label.text }}
+          {{ tick.value }}m
         </text>
 
         <!-- Axe X (distance) -->
         <line
-          x1="0"
-          :y1="height"
-          :x2="width"
-          :y2="height"
-          class="stroke-gray-400"
+          x1="padding"
+          :y1="height - padding"
+          :x2="width - padding"
+          :y2="height - padding"
+          stroke="#666"
+          stroke-width="1"
         />
         <text
-          v-for="label in distanceLabels"
-          :key="label.value"
-          :x="label.x"
-          :y="height + 15"
+          v-for="tick in xTicks"
+          :key="tick.value"
+          :x="tick.x"
+          :y="height - padding + 15"
           class="text-xs fill-gray-500"
           text-anchor="middle"
         >
-          {{ label.text }}
+          {{ formatDistance(tick.value) }}
         </text>
       </g>
     </svg>
@@ -136,6 +138,9 @@ const props = defineProps({
   }
 })
 
+const padding = 20
+const leftPadding = 40
+
 const tooltip = ref({
   show: false,
   x: 0,
@@ -145,54 +150,67 @@ const tooltip = ref({
   elevation: 0
 })
 
-// Calcul des points mis à l'échelle
-const scaledPoints = computed(() => {
-  const xScale = props.width / Math.max(...props.points.map(p => p.distance))
-  const yScale = props.height / (props.maxElevation - props.minElevation)
+// Échelles
+const xScale = computed(() => {
+  const maxDistance = props.points[props.points.length - 1].distance
+  return (props.width - leftPadding - padding) / maxDistance
+})
 
+const yScale = computed(() => {
+  const range = props.maxElevation - props.minElevation
+  return (props.height - 2 * padding) / range
+})
+
+// Points mis à l'échelle
+const scaledPoints = computed(() => {
   return props.points.map(point => ({
-    x: point.distance * xScale,
-    y: props.height - (point.elevation - props.minElevation) * yScale,
-    original: point
+    x: point.distance * xScale.value + leftPadding,
+    y: props.height - padding - (point.elevation - props.minElevation) * yScale.value
   }))
 })
 
-// Génération du chemin SVG
+// Données du chemin SVG
 const pathData = computed(() => {
-  if (scaledPoints.value.length < 2) return ''
-  
-  return scaledPoints.value.reduce((path, point, index) => {
-    return path + (index === 0 ? 'M' : 'L') + `${point.x},${point.y}`
+  return scaledPoints.value.reduce((path, point, i) => {
+    return path + (i === 0 ? 'M' : 'L') + point.x + ',' + point.y
   }, '')
 })
 
-// Lignes de la grille
-const gridLines = computed(() => {
-  const count = 5
-  const step = props.height / (count - 1)
-  return Array.from({ length: count }, (_, i) => i * step)
+// Graduations Y
+const yTicks = computed(() => {
+  const numTicks = 5
+  const step = Math.ceil((props.maxElevation - props.minElevation) / (numTicks - 1))
+  const ticks = []
+  
+  for (let i = 0; i < numTicks; i++) {
+    const value = Math.min(props.minElevation + i * step, props.maxElevation)
+    ticks.push({
+      value,
+      y: props.height - padding - (value - props.minElevation) * yScale.value
+    })
+  }
+  
+  return ticks
 })
 
-// Étiquettes des axes
-const elevationLabels = computed(() => {
-  const count = 5
-  const step = (props.maxElevation - props.minElevation) / (count - 1)
-  return Array.from({ length: count }, (_, i) => ({
-    value: props.minElevation + i * step,
-    y: props.height - (i * props.height) / (count - 1),
-    text: formatElevation(props.minElevation + i * step)
-  }))
-})
-
-const distanceLabels = computed(() => {
-  const count = 5
-  const maxDistance = Math.max(...props.points.map(p => p.distance))
-  const step = maxDistance / (count - 1)
-  return Array.from({ length: count }, (_, i) => ({
-    value: i * step,
-    x: (i * props.width) / (count - 1),
-    text: formatDistance(i * step)
-  }))
+// Graduations X
+const xTicks = computed(() => {
+  const maxDistance = props.points[props.points.length - 1].distance
+  const numTicks = 4
+  const step = Math.ceil(maxDistance / numTicks)
+  const ticks = []
+  
+  for (let i = 0; i <= numTicks; i++) {
+    const value = i * step
+    if (value <= maxDistance) {
+      ticks.push({
+        value,
+        x: value * xScale.value + leftPadding
+      })
+    }
+  }
+  
+  return ticks
 })
 
 // Gestion du tooltip
@@ -239,4 +257,5 @@ function formatElevation(value: number): string {
   width: 100%;
   height: 100%;
 }
+</style> 
 </style> 

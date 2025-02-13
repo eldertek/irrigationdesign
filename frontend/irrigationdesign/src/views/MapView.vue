@@ -99,12 +99,14 @@
           <div
             v-for="shape in shapes"
             :key="shape.id"
-            class="p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+            class="p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors cursor-pointer"
+            :class="{ 'ring-2 ring-primary-500': selectedShapeInfo?.id === shape.id }"
+            @click="selectShape(shape)"
           >
             <div class="flex items-center justify-between mb-2">
               <span class="text-sm font-medium text-gray-700">{{ getShapeDisplayName(shape) }}</span>
               <button
-                @click="deleteShape(shape.id)"
+                @click.stop="deleteShape(shape.id)"
                 class="text-red-600 hover:text-red-800"
               >
                 <span class="sr-only">Supprimer</span>
@@ -120,39 +122,34 @@
 
             <!-- Dimensions spécifiques selon le type de forme -->
             <div class="space-y-1 text-sm text-gray-600">
-              <template v-if="shape.properties.dimensions">
-                <!-- Rectangle -->
-                <template v-if="shape.type.toLowerCase() === 'rectangle'">
-                  <div>Largeur: {{ formatDistance(shape.properties.dimensions.width) }}</div>
-                  <div>Longueur: {{ formatDistance(shape.properties.dimensions.height) }}</div>
-                </template>
+              <!-- Rectangle -->
+              <template v-if="shape.type.toLowerCase() === 'rectangle' && shape.properties?.dimensions">
+                <div>Largeur: {{ formatDistance(shape.properties.dimensions.width) }}</div>
+                <div>Longueur: {{ formatDistance(shape.properties.dimensions.height) }}</div>
+                <div>Surface: {{ formatArea(shape.properties.surfaceInterieure) }}</div>
+              </template>
 
-                <!-- Cercle -->
-                <template v-if="shape.type.toLowerCase() === 'circle'">
-                  <div>Rayon: {{ formatDistance(shape.properties.dimensions.radius) }}</div>
-                  <div>Diamètre: {{ formatDistance(shape.properties.dimensions.diameter) }}</div>
-                </template>
+              <!-- Cercle -->
+              <template v-if="shape.type.toLowerCase() === 'circle' && shape.properties?.dimensions">
+                <div>Rayon: {{ formatDistance(shape.properties.dimensions.radius) }}</div>
+                <div>Diamètre: {{ formatDistance(shape.properties.dimensions.diameter) }}</div>
+                <div>Surface: {{ formatArea(shape.properties.surfaceInterieure) }}</div>
+              </template>
 
-                <!-- Demi-cercle -->
-                <template v-if="shape.type.toLowerCase() === 'semicircle'">
-                  <div>Rayon: {{ formatDistance(shape.properties.dimensions.radius) }}</div>
-                  <div>Orientation: {{ shape.properties.dimensions.orientation }}°</div>
-                </template>
+              <!-- Demi-cercle -->
+              <template v-if="shape.type.toLowerCase() === 'semicircle' && shape.properties?.dimensions">
+                <div>Rayon: {{ formatDistance(shape.properties.dimensions.radius) }}</div>
+                <div>Orientation: {{ shape.properties.dimensions.orientation }}°</div>
+                <div>Surface: {{ formatArea(shape.properties.surfaceInterieure) }}</div>
               </template>
 
               <!-- Ligne -->
-              <template v-if="shape.type.toLowerCase() === 'line'">
+              <template v-if="shape.type.toLowerCase() === 'line' && shape.properties">
                 <div>Longueur: {{ formatDistance(shape.properties.length) }}</div>
+                <div>Largeur d'influence: {{ formatDistance(shape.properties.dimensions?.width || 0) }}</div>
                 <div>Zone d'influence: {{ formatArea(shape.properties.surfaceInfluence) }}</div>
-              </template>
-
-              <!-- Surfaces pour les formes fermées -->
-              <template v-if="shape.properties.surfaceInterieure">
-                <div class="mt-2 pt-2 border-t border-gray-200">
-                  <div>Surface intérieure: {{ formatArea(shape.properties.surfaceInterieure) }}</div>
-                  <div>Surface extérieure: {{ formatArea(shape.properties.surfaceExterieure) }}</div>
-                  <div>Périmètre: {{ formatDistance(shape.properties.perimetre) }}</div>
-                </div>
+                <div>Dénivelé: {{ formatDistance(shape.properties.elevation?.difference || 0) }}</div>
+                <div>Pente moyenne: {{ formatSlope(shape.properties.elevation?.slope || 0) }}</div>
               </template>
             </div>
           </div>
@@ -502,8 +499,47 @@ function enableSemicircleDrawing() {
   })
 }
 
-// Gestion de la création d'une forme
-function handleShapeCreated(e) {
+// Fonction pour obtenir l'élévation d'un point
+async function getElevation(lat, lng) {
+  try {
+    const response = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`)
+    const data = await response.json()
+    return data.results[0].elevation
+  } catch (error) {
+    console.error('Erreur lors de la récupération de l\'élévation:', error)
+    return 0
+  }
+}
+
+// Fonction pour obtenir le profil altimétrique d'une ligne
+async function getElevationProfile(coordinates) {
+  try {
+    const locations = coordinates.map(coord => `${coord.lat},${coord.lng}`).join('|')
+    const response = await fetch('https://api.open-elevation.com/api/v1/lookup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        locations: coordinates.map(coord => ({
+          latitude: coord.lat,
+          longitude: coord.lng
+        }))
+      })
+    })
+    const data = await response.json()
+    return data.results.map((result, index) => ({
+      distance: index === 0 ? 0 : turf.length(turf.lineString(coordinates.slice(0, index + 1).map(c => [c.lng, c.lat])), { units: 'meters' }),
+      elevation: result.elevation
+    }))
+  } catch (error) {
+    console.error('Erreur lors de la récupération du profil altimétrique:', error)
+    return []
+  }
+}
+
+// Mise à jour de la fonction handleShapeCreated pour inclure l'élévation
+async function handleShapeCreated(e) {
   const { layer, shape } = e
   if (!layer) return
   
@@ -556,11 +592,7 @@ function handleShapeCreated(e) {
       // Mettre à jour selectedShapeInfo avec les informations de la forme
       const shapeData = shapes.value.find(s => s.layer === layer)
       if (shapeData) {
-        selectedShapeInfo.value = {
-          id: shapeData.id,
-          type: shapeData.type,
-          properties: shapeData.properties
-        }
+        selectShape(shapeData)
       }
     }
   })
@@ -602,6 +634,38 @@ function handleShapeCreated(e) {
       }
     }
   })
+
+  // Pour les lignes, obtenir le profil altimétrique
+  if (shape.toLowerCase() === 'line') {
+    const coordinates = layer.getLatLngs()
+    const elevationProfile = await getElevationProfile(coordinates)
+    
+    if (elevationProfile.length > 0) {
+      const elevations = elevationProfile.map(point => point.elevation)
+      const minElevation = Math.min(...elevations)
+      const maxElevation = Math.max(...elevations)
+      const difference = maxElevation - minElevation
+      const distance = elevationProfile[elevationProfile.length - 1].distance
+      const slope = (difference / distance) * 100
+
+      // Mettre à jour les propriétés d'élévation
+      properties.elevation = {
+        profile: elevationProfile,
+        difference,
+        slope,
+        minElevation,
+        maxElevation
+      }
+
+      // Afficher le profil altimétrique
+      selectedShapeInfo.value = {
+        id: layer.id || Date.now(),
+        type: shape,
+        properties: properties,
+        elevationProfile: elevationProfile
+      }
+    }
+  }
 }
 
 // Fonction pour calculer les propriétés détaillées d'une forme
@@ -942,6 +1006,48 @@ function getShapeDisplayName(shape) {
   
   const baseType = shape.type.toLowerCase()
   return typeMap[baseType] || shape.type
+}
+
+// Ajout de la fonction formatSlope
+function formatSlope(value: number): string {
+  if (!value && value !== 0) return '0 %'
+  return `${value.toFixed(1)} %`
+}
+
+// Ajout de la fonction selectShape
+function selectShape(shape: any) {
+  // Désélectionner la forme précédente si elle existe
+  if (selectedShapeInfo.value && selectedShapeInfo.value.id !== shape.id) {
+    const previousLayer = shapes.value.find(s => s.id === selectedShapeInfo.value.id)?.layer
+    if (previousLayer) {
+      previousLayer.pm.disable()
+    }
+  }
+
+  // Sélectionner la nouvelle forme
+  selectedShapeInfo.value = {
+    id: shape.id,
+    type: shape.type,
+    properties: shape.properties,
+    elevationProfile: shape.properties.elevation?.profile
+  }
+
+  // Activer l'édition sur la forme sélectionnée
+  const layer = shape.layer
+  if (layer && map.value) {
+    layer.pm.enable({
+      allowSelfIntersection: false,
+      preventMarkerRemoval: true,
+      removeLayerOnEmpty: false
+    })
+    
+    // Centrer la carte sur la forme
+    if (layer.getBounds) {
+      map.value.fitBounds(layer.getBounds(), { padding: [50, 50] })
+    } else if (layer.getLatLng) {
+      map.value.setView(layer.getLatLng(), map.value.getZoom())
+    }
+  }
 }
 </script>
 
