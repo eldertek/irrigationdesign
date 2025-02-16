@@ -9,13 +9,17 @@ class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
     old_password = serializers.CharField(write_only=True, required=False)
     dealer_name = serializers.SerializerMethodField()
+    full_name = serializers.SerializerMethodField()
+    is_active = serializers.BooleanField(read_only=True)
+    permissions = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'password', 'old_password', 'role', 'concessionnaire',
-            'dealer_name', 'company_name', 'must_change_password'
+            'dealer_name', 'company_name', 'must_change_password', 'phone',
+            'full_name', 'is_active', 'permissions'
         ]
         read_only_fields = ['id']
         extra_kwargs = {
@@ -28,6 +32,23 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.concessionnaire:
             return obj.concessionnaire.company_name or obj.concessionnaire.get_full_name()
         return None
+
+    def get_full_name(self, obj):
+        """Retourne le nom complet de l'utilisateur."""
+        if obj.company_name:
+            return obj.company_name
+        full_name = obj.get_full_name()
+        return full_name if full_name else obj.username
+
+    def get_permissions(self, obj):
+        """Retourne les permissions de l'utilisateur basées sur son rôle."""
+        permissions = {
+            'can_manage_users': obj.role in ['ADMIN', 'CONCESSIONNAIRE'],
+            'can_manage_plans': True,  # Tous les utilisateurs peuvent gérer leurs plans
+            'can_view_all_plans': obj.role in ['ADMIN', 'CONCESSIONNAIRE'],
+            'can_manage_dealers': obj.role == 'ADMIN'
+        }
+        return permissions
 
     def validate_password(self, value):
         """Valide le mot de passe selon les règles de Django."""

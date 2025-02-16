@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import axios from 'axios';
+import api from '@/services/api';
 import { useAuthStore } from './auth';
 
 interface PlanHistory {
@@ -51,13 +51,13 @@ export const useIrrigationStore = defineStore('irrigation', {
       const authStore = useAuthStore();
       this.loading = true;
       try {
-        let url = '/api/plans/';
+        let url = '/plans/';
         if (authStore.isConcessionnaire) {
           url += '?concessionnaire=' + authStore.user?.id;
         } else if (authStore.isUtilisateur) {
           url += '?utilisateur=' + authStore.user?.id;
         }
-        const response = await axios.get(url);
+        const response = await api.get(url);
         this.plans = response.data;
       } catch (error) {
         this.error = 'Erreur lors du chargement des plans';
@@ -70,7 +70,7 @@ export const useIrrigationStore = defineStore('irrigation', {
     async createPlan(planData: any) {
       this.loading = true;
       try {
-        const response = await axios.post('/api/plans/', planData);
+        const response = await api.post('/plans/', planData);
         this.plans.push(response.data);
         return response.data;
       } catch (error) {
@@ -103,7 +103,7 @@ export const useIrrigationStore = defineStore('irrigation', {
 
       this.loading = true;
       try {
-        const response = await axios.patch(`/api/plans/${planId}/`, {
+        const response = await api.patch(`/plans/${planId}/`, {
           ...this.currentPlan,
           version: this.currentPlan?.version || 1
         });
@@ -132,7 +132,7 @@ export const useIrrigationStore = defineStore('irrigation', {
     async fetchPlanHistory(planId: number) {
       this.loading = true;
       try {
-        const response = await axios.get(`/api/plans/${planId}/historique/`);
+        const response = await api.get(`/plans/${planId}/historique/`);
         this.planHistory = response.data;
         return response.data;
       } catch (error) {
@@ -146,7 +146,7 @@ export const useIrrigationStore = defineStore('irrigation', {
     async restorePlanVersion(planId: number, versionId: number) {
       this.loading = true;
       try {
-        const response = await axios.post(`/api/plans/${planId}/restaurer/`, {
+        const response = await api.post(`/plans/${planId}/restaurer/`, {
           version_id: versionId
         });
         

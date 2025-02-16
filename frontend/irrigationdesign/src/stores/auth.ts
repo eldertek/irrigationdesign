@@ -4,6 +4,20 @@ import axios from 'axios';
 // Configuration d'Axios pour les requêtes API
 axios.defaults.baseURL = '/api';
 axios.defaults.headers.common['Content-Type'] = 'application/json';
+axios.defaults.withCredentials = true;
+
+// Fonction utilitaire pour les logs de debug
+const logRequestDetails = (config: any) => {
+  console.log('Full request URL:', `${axios.defaults.baseURL}${config.url}`);
+  console.log('Request config:', {
+    url: config.url,
+    method: config.method,
+    headers: config.headers,
+    data: config.data,
+    withCredentials: config.withCredentials,
+    baseURL: axios.defaults.baseURL
+  });
+};
 
 // Intercepteur pour ajouter le token aux requêtes
 axios.interceptors.request.use(
@@ -12,12 +26,7 @@ axios.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('Request config:', {
-      url: config.url,
-      method: config.method,
-      headers: config.headers,
-      data: config.data
-    });
+    logRequestDetails(config);
     return config;
   },
   (error) => {
@@ -85,6 +94,9 @@ interface AuthState {
   isAuthenticated: boolean;
   mustChangePassword: boolean;
   initialized: boolean;
+  loading: boolean;
+  error: string | null;
+  concessionnaires: any[];
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -93,7 +105,10 @@ export const useAuthStore = defineStore('auth', {
     token: localStorage.getItem('token'),
     isAuthenticated: false,
     mustChangePassword: false,
-    initialized: false
+    initialized: false,
+    loading: false,
+    error: null,
+    concessionnaires: []
   }),
 
   getters: {
@@ -105,19 +120,43 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    initialize(initialState: any) {
-      if (!initialState) return;
+    async initialize(initialState: any) {
+      console.log('Initializing auth store with state:', initialState);
+      
+      if (!initialState) {
+        console.log('No initial state, attempting to restore session...');
+        await this.restoreSession();
+        return;
+      }
       
       if (initialState.isAuthenticated && initialState.user) {
         this.user = initialState.user;
         this.isAuthenticated = true;
         this.mustChangePassword = initialState.user.must_change_password || false;
       } else {
-        this.user = null;
-        this.isAuthenticated = false;
-        this.mustChangePassword = false;
+        await this.restoreSession();
       }
+      
       this.initialized = true;
+    },
+
+    async restoreSession() {
+      console.log('Attempting to restore session...');
+      try {
+        // Tenter de rafraîchir le token
+        const newToken = await this.refreshToken();
+        if (newToken) {
+          // Si on a un nouveau token, récupérer le profil
+          await this.fetchUserProfile();
+          this.isAuthenticated = true;
+          console.log('Session restored successfully');
+        }
+      } catch (error) {
+        console.error('Failed to restore session:', error);
+        this.isAuthenticated = false;
+        this.user = null;
+        localStorage.removeItem('token');
+      }
     },
 
     async login(username: string, password: string) {
@@ -160,7 +199,10 @@ export const useAuthStore = defineStore('auth', {
 
     async fetchUserProfile() {
       try {
+        console.log('Fetching user profile...');
+        // S'assurer que l'URL commence par un slash mais n'inclut pas /api
         const response = await axios.get('/users/me/');
+        console.log('User profile response:', response.data);
         this.user = response.data;
         this.mustChangePassword = response.data.must_change_password;
       } catch (error) {
@@ -192,28 +234,53 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async logout() {
-      localStorage.removeItem('token');
-      localStorage.removeItem('refresh_token');
-      this.user = null;
-      this.token = null;
-      this.isAuthenticated = false;
+      console.log('Logging out...');
+      try {
+        // Tenter d'invalider le refresh token côté serveur
+        await axios.post('/token/logout/', {}, {
+          withCredentials: true
+        });
+      } catch (error) {
+        console.error('Error during logout:', error);
+      } finally {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
+        this.user = null;
+        this.token = null;
+        this.isAuthenticated = false;
+        this.mustChangePassword = false;
+      }
     },
 
     async refreshToken() {
       try {
-        const refresh = localStorage.getItem('refresh_token');
-        if (!refresh) throw new Error('No refresh token');
-
-        const response = await axios.post('/token/refresh/', { refresh });
-        const { access } = response.data;
+        console.log('Attempting to refresh token...');
+        const response = await axios.post('/token/refresh/', {}, {
+          withCredentials: true // S'assurer que les cookies sont envoyés
+        });
         
+        const { access } = response.data;
+        if (!access) {
+          throw new Error('No access token received');
+        }
+        
+        console.log('Token refreshed successfully');
         localStorage.setItem('token', access);
         this.token = access;
         
         return access;
-      } catch (error) {
-        console.error('Error refreshing token:', error);
-        await this.logout();
+      } catch (error: any) {
+        console.error('Error refreshing token:', {
+          status: error.response?.status,
+          data: error.response?.data
+        });
+        
+        // Si l'erreur est 401 ou 403, on déconnecte l'utilisateur
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          console.log('Token refresh failed with auth error, logging out');
+          await this.logout();
+        }
+        
         throw error;
       }
     },
