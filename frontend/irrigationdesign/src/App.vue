@@ -81,8 +81,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full">
-    <header v-if="isAuthenticated" class="bg-white shadow-sm fixed top-0 left-0 right-0 z-50">
+  <div class="h-screen flex flex-col overflow-hidden">
+    <header v-if="isAuthenticated" class="bg-white shadow-sm z-50">
       <nav class="mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 items-center justify-between">
           <!-- Logo et navigation principale -->
@@ -175,7 +175,7 @@ onMounted(async () => {
       </nav>
     </header>
 
-    <main :class="{ 'pt-16': isAuthenticated, 'h-full': !isAuthenticated, 'h-[calc(100%-4rem)]': isAuthenticated }">
+    <main class="flex-1 overflow-hidden">
       <router-view />
     </main>
   </div>
@@ -183,10 +183,10 @@ onMounted(async () => {
 
 <style>
 body {
-  @apply bg-gray-50;
+  @apply bg-gray-50 h-screen overflow-hidden;
 }
 
 #app {
-  @apply h-screen;
+  @apply h-screen overflow-hidden;
 }
 </style>

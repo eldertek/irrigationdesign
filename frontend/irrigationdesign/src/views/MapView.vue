@@ -1,10 +1,10 @@
 <template>
-  <div class="h-screen flex">
+  <div class="h-full flex overflow-hidden">
     <!-- Carte -->
-    <div class="flex-1 relative">
-      <div ref="mapContainer" class="absolute inset-0"></div>
+    <div class="flex-1 relative overflow-hidden">
+      <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
       <!-- Outils de dessin -->
-      <div class="drawing-tools-container">
+      <div class="drawing-tools-container absolute top-4 right-4 z-[1000]">
         <DrawingTools
           :current-tool="currentTool"
           :selected-shape="selectedShape"
@@ -397,6 +397,33 @@ function addRotationSupport(layer: any) {
     if (!map.value) return;
 
     try {
+      if (layer.properties?.type === 'Semicircle') {
+        // Pour un demi-cercle, on met à jour directement l'orientation
+        const currentOrientation = layer.properties.orientation || 0;
+        const newOrientation = (currentOrientation + angle) % 360;
+        
+        // Mettre à jour les propriétés
+        layer.properties.orientation = newOrientation;
+        layer.properties.style.startAngle = newOrientation;
+        layer.properties.style.stopAngle = newOrientation + 180;
+
+        // Si c'est un CircleArc, utiliser sa méthode setAngles
+        if (typeof layer.setAngles === 'function') {
+          layer.setAngles(newOrientation, newOrientation + 180);
+        } else {
+          // Fallback pour les autres types de couches
+          layer.setStyle({
+            startAngle: newOrientation,
+            stopAngle: newOrientation + 180
+          });
+        }
+
+        // Émettre un événement pour notifier les changements
+        layer.fire('rotate', { angle: newOrientation });
+        return;
+      }
+
+      // Pour les autres formes, rotation normale
       const center = layer.getBounds ? 
         layer.getBounds().getCenter() : 
         (layer.getLatLng ? layer.getLatLng() : null);
@@ -418,6 +445,9 @@ function addRotationSupport(layer: any) {
       } else {
         layer.setLatLngs(rotatedPoints);
       }
+
+      // Émettre un événement pour notifier les changements
+      layer.fire('rotate', { angle });
     } catch (error) {
       console.error('Error rotating shape:', error);
     }
@@ -619,16 +649,87 @@ function updateDrawingStyle() {
   transition: opacity 0.2s ease;
 }
 
-/* Styles pour les indicateurs de mesure */
+/* Styles pour les labels de mesure */
+.measurement-label-container {
+  background: transparent !important;
+  border: none !important;
+}
+
 .measurement-label {
-  background: white;
-  border: 1px solid #ccc;
-  border-radius: 3px;
-  padding: 2px 4px;
-  font-size: 11px;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 12px;
+  color: #2563eb;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid #2563eb;
   white-space: nowrap;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.measurement-label::before,
+.measurement-label::after {
+  content: '';
+  position: absolute;
+  height: 1px;
+  width: 20px;
+  background: #2563eb;
+  top: 50%;
+}
+
+.measurement-label::before {
+  left: -20px;
+}
+
+.measurement-label::after {
+  right: -20px;
+}
+
+/* Style pour les lignes de mesure */
+.measurement-line {
+  stroke: #2563eb;
+  stroke-width: 1;
+  stroke-dasharray: 4, 4;
   pointer-events: none;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* Style pour les points de mesure */
+.measurement-point {
+  fill: #2563eb;
+  stroke: white;
+  stroke-width: 2;
+  r: 4;
+}
+
+/* Animation au survol */
+.measurement-label:hover {
+  background: white;
+  transform: scale(1.05);
+  transition: all 0.2s ease;
+  z-index: 1001;
+}
+
+/* Style pour les détails de mesure */
+.measurement-details {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: white;
+  border: 1px solid #2563eb;
+  border-radius: 2px;
+  padding: 4px 8px;
+  margin-top: 4px;
+  font-size: 10px;
+  white-space: nowrap;
+  display: none;
+}
+
+.measurement-label:hover .measurement-details {
+  display: block;
 }
 
 /* Styles pour le mode dessin actif */

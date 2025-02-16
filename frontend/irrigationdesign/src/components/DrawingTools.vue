@@ -243,7 +243,7 @@ watch(() => props.selectedShape, (shape) => {
     strokeWidth.value = shape.properties.style.weight || 2;
     strokeStyle.value = getStrokeStyleFromDashArray(shape.properties.style.dashArray);
     radius.value = shape.properties.radius || 0;
-    startAngle.value = shape.properties.startAngle || 0;
+    startAngle.value = shape.properties.orientation || 0;
   }
 }, { immediate: true });
 
@@ -287,7 +287,20 @@ const updateStyle = (style: any) => {
 };
 
 const updateProperties = (properties: any) => {
-  emit('properties-update', properties);
+  if (props.selectedShape?.type === 'Semicircle') {
+    // Pour les demi-cercles, mettre à jour l'orientation et les angles
+    const orientation = properties.startAngle || startAngle.value;
+    emit('properties-update', {
+      ...properties,
+      orientation,
+      style: {
+        startAngle: orientation,
+        stopAngle: orientation + 180
+      }
+    });
+  } else {
+    emit('properties-update', properties);
+  }
 };
 
 const formatArea = (area: number): string => {

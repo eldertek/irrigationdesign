@@ -1,8 +1,11 @@
-import { ref, onUnmounted } from 'vue';
+import { ref, onUnmounted, markRaw } from 'vue';
 import L from 'leaflet';
 import '@geoman-io/leaflet-geoman-free';
+import * as turf from '@turf/turf';
 import { useShapeProperties } from './useShapeProperties';
 import { useElevationApi } from './useElevationApi';
+import { CircleArc } from '../utils/CircleArc';
+import MeasurementLabel from '../components/MeasurementLabel.vue';
 
 export function useMapDrawing() {
   const map = ref<L.Map | null>(null);
@@ -61,6 +64,9 @@ export function useMapDrawing() {
           weight: 2
         }
       };
+
+      // Ajouter les mesures
+      addMeasurementToLayer(layer);
 
       // Calculer les propriétés géométriques
       const props = calculateProperties(layer);
@@ -123,10 +129,147 @@ export function useMapDrawing() {
         map.value.pm.enableDraw('Circle');
         break;
       case 'Semicircle':
-        map.value.pm.enableDraw('Circle', {
-          // Configuration spécifique pour le demi-cercle
-          // À implémenter
-        });
+        let drawingState = 'center'; // États: 'center', 'radius', 'orientation', 'opening'
+        let center: L.LatLng | null = null;
+        let radius = 0;
+        let tempArc: CircleArc | null = null;
+        let orientation = 0;
+        let openingAngle = 180; // Angle d'ouverture par défaut
+
+        // Désactiver le mode de dessin par défaut de Leaflet.PM
+        map.value.pm.disableDraw();
+
+        // Afficher le message d'aide initial
+        const helpMsg = L.DomUtil.create('div', 'drawing-help-message');
+        helpMsg.innerHTML = 'Cliquez pour placer le centre du demi-cercle';
+        document.body.appendChild(helpMsg);
+
+        // Gestionnaire de clic pour le centre
+        const onFirstClick = (e: L.LeafletMouseEvent) => {
+          center = e.latlng;
+          drawingState = 'radius';
+          
+          // Créer l'arc temporaire
+          tempArc = new CircleArc(map.value!, center, 0, 0, 180);
+          tempArc.addTo(map.value!);
+          
+          // Mettre à jour le message d'aide
+          helpMsg.innerHTML = 'Déplacez la souris pour définir le rayon, cliquez pour valider';
+          
+          // Gestionnaire pour le rayon
+          const onMouseMove = (e: L.LeafletMouseEvent) => {
+            if (center && tempArc) {
+              radius = center.distanceTo(e.latlng);
+              tempArc.setRadius(radius);
+            }
+          };
+          
+          // Gestionnaire pour valider le rayon
+          const onSecondClick = (e: L.LeafletMouseEvent) => {
+            drawingState = 'orientation';
+            
+            // Mettre à jour le message d'aide
+            helpMsg.innerHTML = 'Déplacez la souris pour orienter le demi-cercle, cliquez pour valider';
+            
+            // Supprimer les gestionnaires précédents
+            map.value?.off('mousemove', onMouseMove);
+            map.value?.off('click', onSecondClick);
+            
+            // Gestionnaire pour l'orientation
+            const onOrientationMove = (e: L.LeafletMouseEvent) => {
+              if (center && tempArc) {
+                orientation = Math.atan2(
+                  e.latlng.lat - center.lat,
+                  e.latlng.lng - center.lng
+                ) * (180 / Math.PI);
+                
+                tempArc.setAngles(orientation, orientation + openingAngle);
+              }
+            };
+            
+            // Gestionnaire pour valider l'orientation
+            const onThirdClick = (e: L.LeafletMouseEvent) => {
+              drawingState = 'opening';
+              
+              // Mettre à jour le message d'aide
+              helpMsg.innerHTML = 'Déplacez la souris pour ajuster l\'angle d\'ouverture, cliquez pour terminer';
+              
+              // Supprimer les gestionnaires précédents
+              map.value?.off('mousemove', onOrientationMove);
+              map.value?.off('click', onThirdClick);
+              
+              // Point de référence pour le calcul de l'angle d'ouverture
+              const startPoint = e.latlng;
+              
+              // Gestionnaire pour l'angle d'ouverture
+              const onOpeningMove = (e: L.LeafletMouseEvent) => {
+                if (center && tempArc) {
+                  // Calculer l'angle entre le point de départ et la position actuelle
+                  const startAngle = Math.atan2(
+                    startPoint.lat - center.lat,
+                    startPoint.lng - center.lng
+                  ) * (180 / Math.PI);
+                  
+                  const currentAngle = Math.atan2(
+                    e.latlng.lat - center.lat,
+                    e.latlng.lng - center.lng
+                  ) * (180 / Math.PI);
+                  
+                  // Calculer l'angle d'ouverture (entre 0° et 360°)
+                  openingAngle = Math.abs(currentAngle - startAngle);
+                  if (openingAngle > 360) openingAngle = 360;
+                  
+                  // Mettre à jour l'arc
+                  tempArc.setAngles(orientation, orientation + openingAngle);
+                }
+              };
+              
+              // Gestionnaire pour finaliser la forme
+              const onFinalClick = () => {
+                // Nettoyer
+                map.value?.off('mousemove', onOpeningMove);
+                map.value?.off('click', onFinalClick);
+                document.querySelector('.drawing-help-message')?.remove();
+                
+                if (tempArc) {
+                  // Configurer les propriétés finales
+                  tempArc.properties = {
+                    type: 'Semicircle',
+                    radius,
+                    orientation,
+                    openingAngle,
+                    style: {
+                      fillColor: '#3B82F6',
+                      fillOpacity: 0.2,
+                      color: '#2563EB',
+                      weight: 2,
+                      startAngle: orientation,
+                      stopAngle: orientation + openingAngle
+                    }
+                  };
+                  
+                  // Émettre l'événement de création
+                  map.value?.fire('pm:create', { 
+                    layer: tempArc,
+                    shape: 'Semicircle',
+                    workingLayer: tempArc
+                  });
+                }
+              };
+              
+              map.value?.on('mousemove', onOpeningMove);
+              map.value?.once('click', onFinalClick);
+            };
+            
+            map.value?.on('mousemove', onOrientationMove);
+            map.value?.once('click', onThirdClick);
+          };
+          
+          map.value?.on('mousemove', onMouseMove);
+          map.value?.once('click', onSecondClick);
+        };
+        
+        map.value?.once('click', onFirstClick);
         break;
       case 'Rectangle':
         map.value.pm.enableDraw('Rectangle');
@@ -202,6 +345,57 @@ export function useMapDrawing() {
     return [];
   };
 
+  const addMeasurementToLayer = (layer: L.Layer) => {
+    if (!map.value) return;
+
+    let measurement: any = null;
+    let coords: any[] = [];
+
+    if (layer instanceof L.Polyline) {
+      coords = layer.getLatLngs().map((ll: L.LatLng) => [ll.lng, ll.lat]);
+      const line = turf.lineString(coords);
+      measurement = {
+        length: turf.length(line, { units: 'meters' })
+      };
+    } else if (layer instanceof L.Polygon) {
+      coords = (layer.getLatLngs()[0] as L.LatLng[]).map(ll => [ll.lng, ll.lat]);
+      coords.push(coords[0]); // Fermer le polygone
+      const polygon = turf.polygon([coords]);
+      measurement = {
+        area: turf.area(polygon),
+        perimeter: turf.length(turf.lineString(coords), { units: 'meters' })
+      };
+    } else if (layer instanceof L.Circle || layer instanceof CircleArc) {
+      const radius = layer.getRadius();
+      measurement = {
+        radius,
+        area: Math.PI * radius * radius,
+        perimeter: 2 * Math.PI * radius
+      };
+    }
+
+    if (measurement) {
+      layer.measurement = measurement;
+      
+      // Créer et positionner les labels de mesure
+      if (measurement.length) {
+        const center = layer.getCenter();
+        const labelPos = layer instanceof L.Polyline ? 
+          layer.getLatLngs()[Math.floor(layer.getLatLngs().length / 2)] :
+          center;
+
+        const measurementLabel = L.marker(labelPos, {
+          icon: L.divIcon({
+            className: 'measurement-label-container',
+            html: `<div class="measurement-label">${measurement.length.toFixed(2)} m</div>`
+          })
+        }).addTo(map.value);
+
+        layer.measurementLabel = measurementLabel;
+      }
+    }
+  };
+
   onUnmounted(() => {
     if (map.value) {
       map.value.remove();
@@ -218,6 +412,7 @@ export function useMapDrawing() {
     initMap,
     setDrawingTool,
     updateShapeStyle,
-    updateShapeProperties
+    updateShapeProperties,
+    addMeasurementToLayer
   };
 } 
