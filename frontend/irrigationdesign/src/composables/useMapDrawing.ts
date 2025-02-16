@@ -153,13 +153,29 @@ export function useMapDrawing() {
     if (!selectedShape.value) return;
 
     const layer = selectedShape.value;
+    
+    // Mettre à jour les propriétés stockées
+    layer.properties = layer.properties || {};
+    layer.properties.style = layer.properties.style || {};
     layer.properties.style = { ...layer.properties.style, ...style };
 
-    // Mettre à jour le style sur la carte
-    if (style.fillColor) layer.setStyle({ fillColor: style.fillColor });
-    if (style.fillOpacity) layer.setStyle({ fillOpacity: style.fillOpacity });
-    if (style.strokeColor) layer.setStyle({ color: style.strokeColor });
-    if (style.strokeWidth) layer.setStyle({ weight: style.strokeWidth });
+    // Créer l'objet de style Leaflet
+    const leafletStyle: L.PathOptions = {};
+    
+    // Gérer la couleur de remplissage
+    if (style.fillColor) leafletStyle.fillColor = style.fillColor;
+    if (style.fillOpacity !== undefined) leafletStyle.fillOpacity = style.fillOpacity;
+    
+    // Gérer la bordure
+    if (style.strokeColor) leafletStyle.color = style.strokeColor;
+    if (style.strokeOpacity !== undefined) leafletStyle.opacity = style.strokeOpacity;
+    if (style.strokeWidth !== undefined) leafletStyle.weight = style.strokeWidth;
+    
+    // Gérer le type de trait
+    if (style.dashArray) leafletStyle.dashArray = style.dashArray;
+
+    // Appliquer le style à la couche Leaflet
+    layer.setStyle(leafletStyle);
   };
 
   const updateShapeProperties = (properties: any) => {

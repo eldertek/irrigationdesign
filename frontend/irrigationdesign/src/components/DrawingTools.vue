@@ -272,13 +272,18 @@ const selectPresetColor = (color: string) => {
     fillColor.value = color;
   }
   updateStyle({
-    color: color,
+    strokeColor: color,
     fillColor: showFillOptions.value ? color : undefined
   });
 };
 
 const updateStyle = (style: any) => {
-  emit('style-update', style);
+  emit('style-update', {
+    ...style,
+    fillOpacity: style.fillOpacity !== undefined ? parseFloat(style.fillOpacity) : undefined,
+    strokeOpacity: style.strokeOpacity !== undefined ? parseFloat(style.strokeOpacity) : undefined,
+    strokeWidth: style.strokeWidth !== undefined ? parseInt(style.strokeWidth) : undefined
+  });
 };
 
 const updateProperties = (properties: any) => {

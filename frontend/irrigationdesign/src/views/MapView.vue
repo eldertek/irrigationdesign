@@ -354,31 +354,15 @@ function selectShape(shape: any) {
     }
 
     // Sélectionner la nouvelle forme
-    selectedShapeInfo.value = {
-      id: shape.id,
-      type: shape.type,
-      properties: shape.properties,
-      elevationProfile: shape.properties.elevation?.profile
-    };
-    console.log('Selected shape info updated:', selectedShapeInfo.value);
-
-    // Activer l'édition sur la forme sélectionnée
     const layer = shape.layer;
     if (layer) {
-      console.log('Enabling editing on selected shape');
-      
-      // Désactiver l'édition sur toutes les autres formes
-      shapes.value.forEach(s => {
-        if (s.layer !== layer) {
-          s.layer.pm.disable();
-        }
-      });
-
-      // S'assurer que la forme a le support de rotation
-      if (typeof layer.setRotation !== 'function') {
-        console.log('Adding rotation support to layer');
-        addRotationSupport(layer);
-      }
+      selectedShape.value = layer;
+      selectedShapeInfo.value = {
+        id: shape.id,
+        type: shape.type,
+        properties: layer.properties || {},
+        layer: layer
+      };
 
       // Activer l'édition sur la forme sélectionnée
       layer.pm.enable({
@@ -387,21 +371,18 @@ function selectShape(shape: any) {
         removeLayerOnEmpty: false
       });
 
+      // Créer le contrôle de rotation si nécessaire
+      if (typeof layer.setRotation !== 'function') {
+        addRotationSupport(layer);
+      }
+
       // Créer le contrôle de rotation après un court délai
       setTimeout(() => {
-        console.log('Creating rotation control');
         const rotationControl = createRotationControl(layer);
-        if (rotationControl) {
-          console.log('Rotation control created successfully');
-          if (layer.getBounds) {
-            map.value?.fitBounds(layer.getBounds(), { padding: [50, 50] });
-          }
-        } else {
-          console.warn('Failed to create rotation control');
+        if (rotationControl && layer.getBounds) {
+          map.value?.fitBounds(layer.getBounds(), { padding: [50, 50] });
         }
       }, 100);
-    } else {
-      console.warn('No layer found for selected shape');
     }
   } catch (error) {
     console.error('Error in selectShape:', error);
