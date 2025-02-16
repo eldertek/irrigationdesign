@@ -18,6 +18,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   mustChangePassword: boolean;
+  initialized: boolean;
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -25,7 +26,8 @@ export const useAuthStore = defineStore('auth', {
     user: null,
     token: localStorage.getItem('token'),
     isAuthenticated: false,
-    mustChangePassword: false
+    mustChangePassword: false,
+    initialized: false
   }),
 
   getters: {
@@ -37,16 +39,29 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
+    initialize(initialState: any) {
+      if (!initialState) return;
+      
+      if (initialState.isAuthenticated && initialState.user) {
+        this.user = initialState.user;
+        this.isAuthenticated = true;
+        this.mustChangePassword = initialState.user.must_change_password || false;
+      } else {
+        this.user = null;
+        this.isAuthenticated = false;
+        this.mustChangePassword = false;
+      }
+      this.initialized = true;
+    },
+
     async login(username: string, password: string) {
       try {
         const response = await axios.post('/api/token/', { username, password });
-        const { access, refresh } = response.data;
+        const { access, user } = response.data;
         
         localStorage.setItem('token', access);
-        localStorage.setItem('refresh_token', refresh);
         this.token = access;
-        
-        await this.fetchUserProfile();
+        this.user = user;
         this.isAuthenticated = true;
         
         return true;

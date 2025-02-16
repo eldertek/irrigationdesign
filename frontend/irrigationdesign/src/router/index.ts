@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import ChangePasswordForm from '@/components/auth/ChangePasswordForm.vue'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory('/'),
   routes: [
     {
       path: '/',
@@ -95,8 +95,18 @@ const router = createRouter({
 })
 
 // Navigation guard
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
+  
+  // Vérifier l'état initial au premier chargement
+  if (!authStore.initialized) {
+    try {
+      await authStore.initialize(window.INITIAL_STATE)
+    } catch (error) {
+      console.error('Error initializing auth store:', error)
+    }
+  }
+
   const isAuthenticated = authStore.isAuthenticated
   const mustChangePassword = authStore.user?.must_change_password
   const userType = authStore.user?.user_type

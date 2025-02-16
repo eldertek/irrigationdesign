@@ -480,3 +480,20 @@ files: **/*
 - `components/` : Composants réutilisables
 - `views/` : Pages de l'application
 - `
+
+# Tests et Vérification
+- Utiliser curl pour tester les endpoints et les pages :
+  ```bash
+  # Tester la page d'accueil
+  curl -v 127.0.0.1:8000/
+  
+  # Tester la page de connexion
+  curl -v 127.0.0.1:8000/login/
+  
+  # Tester les endpoints API
+  curl -v -H "Content-Type: application/json" 127.0.0.1:8000/api/token/
+  ```
+- Vérifier les réponses HTTP et les contenus retournés
+- S'assurer que les assets statiques sont bien chargés
+- Vérifier la présence des variables d'état initiales
+- Tester les redirections d'authentification

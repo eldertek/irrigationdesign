@@ -194,7 +194,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 class LoginView(TemplateView):
     """Vue de connexion qui vérifie si l'utilisateur n'est pas déjà connecté."""
-    template_name = 'login.html'
+    template_name = 'index.html'
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:

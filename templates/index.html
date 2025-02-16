@@ -4,13 +4,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IrrigationDesign</title>
+    <title>IrrigationDesign{% if request.path == '/login/' %} - Connexion{% endif %}</title>
+    <meta name="description" content="Application de conception de systèmes d'irrigation">
     <link rel="icon" href="{% static 'frontend/favicon.ico' %}">
     <link rel="stylesheet" href="{% static 'frontend/assets/index.css' %}">
     <base href="/">
 </head>
-<body>
+<body class="bg-gray-50">
     <div id="app"></div>
     <script type="module" src="{% static 'frontend/assets/index.js' %}"></script>
+    <script>
+        window.INITIAL_STATE = {
+            path: '{{ request.path }}',
+            isAuthenticated: {% if request.user.is_authenticated %}true{% else %}false{% endif %},
+            {% if request.user.is_authenticated %}
+            user: {
+                id: {{ request.user.id }},
+                username: '{{ request.user.username }}',
+                role: '{{ request.user.role }}'
+            }
+            {% else %}
+            user: null
+            {% endif %}
+        };
+    </script>
 </body>
 </html> 
