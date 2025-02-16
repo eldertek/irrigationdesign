@@ -25,19 +25,35 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 from rest_framework.documentation import include_docs_urls
+from authentication.views import SecureIndexView, LoginView
 
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/', include('api.urls')),
-    path('api-auth/', include('rest_framework.urls')),  # Pour l'authentification dans l'interface de navigation
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('docs/', include_docs_urls(title='API Documentation')),  # Documentation de l'API
-    
-    # Serve frontend
-    re_path(r'^.*$', TemplateView.as_view(template_name='index.html'), name='frontend'),
+# Routes publiques pour le frontend
+public_routes = [
+    path('login/', LoginView.as_view(), name='login'),
+    path('forgot-password/', TemplateView.as_view(template_name='index.html'), name='forgot-password'),
+    path('reset-password/<str:token>/', TemplateView.as_view(template_name='index.html'), name='reset-password'),
 ]
 
+# Routes API
+api_routes = [
+    path('api/', include('api.urls')),
+    path('api/', include('authentication.urls')),
+]
+
+# Routes d'administration et documentation
+admin_routes = [
+    path('admin/', admin.site.urls),
+    path('docs/', include_docs_urls(title='API Documentation')),
+]
+
+urlpatterns = public_routes + api_routes + admin_routes
+
+# Route par défaut - doit être authentifié
+urlpatterns += [
+    re_path(r'^(?!api/)(?!admin/)(?!static/)(?!media/).*$', SecureIndexView.as_view(), name='frontend'),
+]
+
+# Servir les fichiers statiques et média en développement
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

@@ -15,10 +15,8 @@ install:
 	cd frontend/irrigationdesign && $(NPM) install
 
 # Migrations
-migrations:
-	$(MANAGE) makemigrations
-
 migrate:
+	$(MANAGE) makemigrations
 	$(MANAGE) migrate
 
 # Compilation du frontend

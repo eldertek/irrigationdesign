@@ -56,6 +56,28 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    async checkAuth() {
+      try {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          this.isAuthenticated = false;
+          return false;
+        }
+
+        // Configure axios avec le token
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        // Vérifier si le token est valide en récupérant le profil
+        await this.fetchUserProfile();
+        this.isAuthenticated = true;
+        return true;
+      } catch (error) {
+        this.isAuthenticated = false;
+        localStorage.removeItem('access_token');
+        throw error;
+      }
+    },
+
     async fetchUserProfile() {
       try {
         const response = await axios.get('/api/users/me/');

@@ -1,11 +1,15 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from .serializers import UserSerializer, DealerListSerializer
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.shortcuts import get_object_or_404
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+from django.views.generic import TemplateView
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 
 User = get_user_model()
 
@@ -108,8 +112,63 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({'message': 'Mot de passe modifié avec succès'})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['post'])
+    def logout(self, request):
+        """Déconnexion de l'utilisateur."""
+        try:
+            refresh_token = request.COOKIES.get('refresh_token')
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            
+            response = Response({'message': 'Déconnexion réussie'})
+            response.delete_cookie('refresh_token')
+            return response
+            
+        except Exception as e:
+            return Response(
+                {'error': 'Erreur lors de la déconnexion'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+class CustomTokenRefreshView(TokenRefreshView):
+    """Vue personnalisée pour le rafraîchissement des tokens."""
+    
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.data.get('refresh')
+        
+        if not refresh_token:
+            refresh_token = request.COOKIES.get('refresh_token')
+            if not refresh_token:
+                raise InvalidToken('Aucun token de rafraîchissement fourni')
+        
+        try:
+            refresh = RefreshToken(refresh_token)
+            data = {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh)
+            }
+            
+            # Récupérer l'utilisateur pour renvoyer ses informations
+            user = User.objects.get(id=refresh.payload.get('user_id'))
+            data['user'] = UserSerializer(user).data
+            
+            response = Response(data)
+            response.set_cookie(
+                'refresh_token',
+                str(refresh),
+                httponly=True,
+                secure=True,
+                samesite='Strict',
+                max_age=24 * 60 * 60  # 1 jour
+            )
+            return response
+            
+        except TokenError as e:
+            raise InvalidToken(str(e))
+
 class CustomTokenObtainPairView(TokenObtainPairView):
-    """Vue personnalisée pour l'obtention du token avec vérification du rôle."""
+    """Vue personnalisée pour l'obtention du token avec stockage sécurisé."""
     
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
@@ -118,4 +177,43 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             user = User.objects.get(username=request.data['username'])
             response.data['user'] = UserSerializer(user).data
             
+            # Stocker le refresh token dans un cookie httpOnly
+            response.set_cookie(
+                'refresh_token',
+                response.data['refresh'],
+                httponly=True,
+                secure=True,
+                samesite='Strict',
+                max_age=24 * 60 * 60  # 1 jour
+            )
+            
+            # Supprimer le refresh token de la réponse JSON
+            del response.data['refresh']
+            
         return response
+
+class LoginView(TemplateView):
+    """Vue de connexion qui vérifie si l'utilisateur n'est pas déjà connecté."""
+    template_name = 'login.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            return redirect('/')
+        return super().dispatch(request, *args, **kwargs)
+
+class SecureIndexView(UserPassesTestMixin, TemplateView):
+    """Vue sécurisée pour servir l'application frontend."""
+    template_name = 'index.html'
+    login_url = '/login/'
+    
+    def test_func(self):
+        """Vérifie si l'utilisateur est authentifié et a un rôle valide."""
+        return (
+            self.request.user.is_authenticated and 
+            hasattr(self.request.user, 'role') and 
+            self.request.user.role in ['ADMIN', 'CONCESSIONNAIRE', 'UTILISATEUR']
+        )
+
+    def handle_no_permission(self):
+        """Redirige vers la page de connexion si l'utilisateur n'est pas autorisé."""
+        return redirect(self.login_url)

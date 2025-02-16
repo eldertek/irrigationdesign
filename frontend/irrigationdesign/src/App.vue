@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import SearchBar from '@/components/SearchBar.vue'
@@ -10,10 +10,11 @@ const authStore = useAuthStore()
 const showProfileMenu = ref(false)
 
 // Données utilisateur depuis le store d'authentification
-const userName = computed(() => authStore.user?.username || 'Utilisateur')
-const userRole = computed(() => authStore.user?.user_type || 'Utilisateur')
+const userName = computed(() => authStore.user?.username || '')
+const userRole = computed(() => authStore.user?.user_type || '')
 const isAdmin = computed(() => authStore.user?.user_type === 'admin')
 const userAvatar = ref('')
+const isAuthenticated = computed(() => authStore.isAuthenticated)
 
 // Items de navigation de base
 const baseNavigationItems = [
@@ -23,6 +24,7 @@ const baseNavigationItems = [
 
 // Items de navigation avec condition pour l'onglet Utilisateurs
 const navigationItems = computed(() => {
+  if (!isAuthenticated.value) return []
   if (isAdmin.value) {
     return [...baseNavigationItems, { name: 'Utilisateurs', to: '/users' }]
   }
@@ -30,10 +32,13 @@ const navigationItems = computed(() => {
 })
 
 // Items du menu profil
-const profileMenuItems = [
-  { name: 'Mon profil', to: '/profile' },
-  { name: 'Paramètres', to: '/settings' }
-]
+const profileMenuItems = computed(() => {
+  if (!isAuthenticated.value) return []
+  return [
+    { name: 'Mon profil', to: '/profile' },
+    { name: 'Paramètres', to: '/settings' }
+  ]
+})
 
 // Interface pour le paramètre de localisation
 interface Location {
@@ -61,11 +66,23 @@ function handleLocationSelect(location: Location) {
     }
   }))
 }
+
+// Vérifier l'authentification au chargement
+onMounted(async () => {
+  const token = localStorage.getItem('access_token')
+  if (token) {
+    try {
+      await authStore.checkAuth()
+    } catch (error) {
+      router.push('/login')
+    }
+  }
+})
 </script>
 
 <template>
   <div class="h-full">
-    <header class="bg-white shadow-sm fixed top-0 left-0 right-0 z-50">
+    <header v-if="isAuthenticated" class="bg-white shadow-sm fixed top-0 left-0 right-0 z-50">
       <nav class="mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 items-center justify-between">
           <!-- Logo et navigation principale -->
@@ -158,7 +175,7 @@ function handleLocationSelect(location: Location) {
       </nav>
     </header>
 
-    <main class="h-[calc(100%-4rem)] pt-16">
+    <main :class="{ 'pt-16': isAuthenticated, 'h-full': !isAuthenticated, 'h-[calc(100%-4rem)]': isAuthenticated }">
       <router-view />
     </main>
   </div>
