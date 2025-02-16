@@ -60,7 +60,9 @@ const drawingTools = {
     options: {
       pathOptions: {
         color: props.drawingOptions.color,
-        weight: props.drawingOptions.weight
+        weight: props.drawingOptions.weight,
+        opacity: props.drawingOptions.opacity,
+        dashArray: props.drawingOptions.dashArray
       }
     }
   },
@@ -71,7 +73,11 @@ const drawingTools = {
     options: {
       pathOptions: {
         color: props.drawingOptions.color,
-        weight: props.drawingOptions.weight
+        weight: props.drawingOptions.weight,
+        opacity: props.drawingOptions.opacity,
+        dashArray: props.drawingOptions.dashArray,
+        fillColor: props.drawingOptions.fillColor,
+        fillOpacity: props.drawingOptions.fillOpacity
       }
     }
   },
@@ -82,7 +88,11 @@ const drawingTools = {
     options: {
       pathOptions: {
         color: props.drawingOptions.color,
-        weight: props.drawingOptions.weight
+        weight: props.drawingOptions.weight,
+        opacity: props.drawingOptions.opacity,
+        dashArray: props.drawingOptions.dashArray,
+        fillColor: props.drawingOptions.fillColor,
+        fillOpacity: props.drawingOptions.fillOpacity
       },
       fixedRadius: props.drawingOptions.fixedRadius,
       radius: props.drawingOptions.radius
@@ -95,7 +105,11 @@ const drawingTools = {
     options: {
       pathOptions: {
         color: props.drawingOptions.color,
-        weight: props.drawingOptions.weight
+        weight: props.drawingOptions.weight,
+        opacity: props.drawingOptions.opacity,
+        dashArray: props.drawingOptions.dashArray,
+        fillColor: props.drawingOptions.fillColor,
+        fillOpacity: props.drawingOptions.fillOpacity
       },
       isSemicircle: true,
       startAngle: props.drawingOptions.orientation,
@@ -221,9 +235,29 @@ watch(() => props.drawingOptions, (newOptions) => {
   map.value.pm.setGlobalOptions({
     pathOptions: {
       color: newOptions.color,
-      weight: newOptions.weight
+      weight: newOptions.weight,
+      opacity: newOptions.opacity,
+      dashArray: newOptions.dashArray,
+      fillColor: newOptions.fillColor,
+      fillOpacity: newOptions.fillOpacity
     }
   })
+
+  // Mise à jour des formes existantes
+  if (drawingLayer.value) {
+    drawingLayer.value.eachLayer((layer) => {
+      if (layer.setStyle) {
+        layer.setStyle({
+          color: newOptions.color,
+          weight: newOptions.weight,
+          opacity: newOptions.opacity,
+          dashArray: newOptions.dashArray,
+          fillColor: newOptions.fillColor,
+          fillOpacity: newOptions.fillOpacity
+        })
+      }
+    })
+  }
 }, { deep: true })
 
 // Calcul des propriétés des formes

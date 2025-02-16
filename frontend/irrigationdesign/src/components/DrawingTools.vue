@@ -24,6 +24,22 @@
       <h3 class="text-lg font-semibold mb-4">Style</h3>
       
       <div class="space-y-4">
+        <!-- Couleurs prédéfinies -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Couleurs prédéfinies
+          </label>
+          <div class="grid grid-cols-6 gap-2">
+            <button
+              v-for="color in predefinedColors"
+              :key="color"
+              class="w-8 h-8 rounded-full border-2 border-gray-200"
+              :style="{ backgroundColor: color }"
+              @click="selectPresetColor(color)"
+            ></button>
+          </div>
+        </div>
+
         <!-- Couleur de remplissage -->
         <div v-if="showFillOptions">
           <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -45,6 +61,7 @@
               class="flex-1"
               @change="updateStyle({ fillOpacity })"
             />
+            <span class="text-sm">{{ (fillOpacity * 100).toFixed(0) }}%</span>
           </div>
         </div>
 
@@ -61,14 +78,48 @@
               @change="updateStyle({ strokeColor })"
             />
             <input
-              type="number"
-              v-model="strokeWidth"
-              min="1"
-              max="10"
-              class="w-20 px-2 py-1 rounded border"
-              @change="updateStyle({ strokeWidth })"
+              type="range"
+              v-model="strokeOpacity"
+              min="0"
+              max="1"
+              step="0.1"
+              class="flex-1"
+              @change="updateStyle({ strokeOpacity })"
             />
+            <span class="text-sm">{{ (strokeOpacity * 100).toFixed(0) }}%</span>
           </div>
+        </div>
+
+        <!-- Épaisseur de trait -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Épaisseur de trait
+          </label>
+          <input
+            type="range"
+            v-model="strokeWidth"
+            min="1"
+            max="10"
+            class="w-full"
+            @change="updateStyle({ strokeWidth })"
+          />
+          <span class="text-sm">{{ strokeWidth }}px</span>
+        </div>
+
+        <!-- Type de trait -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Type de trait
+          </label>
+          <select
+            v-model="strokeStyle"
+            class="w-full px-2 py-1 rounded border"
+            @change="updateStyle({ dashArray: getDashArray(strokeStyle) })"
+          >
+            <option v-for="style in strokeStyles" :key="style.value" :value="style.value">
+              {{ style.label }}
+            </option>
+          </select>
         </div>
 
         <!-- Options spécifiques aux formes -->
@@ -83,6 +134,11 @@
             class="w-full px-2 py-1 rounded border"
             @change="updateProperties({ radius })"
           />
+          <div class="mt-2 text-sm text-gray-600">
+            Diamètre: {{ (radius * 2).toFixed(1) }} m
+            <br>
+            Surface: {{ formatArea(Math.PI * radius * radius) }}
+          </div>
         </div>
 
         <div v-if="selectedShape.type === 'Semicircle'">
@@ -144,11 +200,31 @@ const drawingTools = [
   { type: 'Line', label: 'Ligne' }
 ];
 
+// Couleurs prédéfinies
+const predefinedColors = [
+  '#2563EB', // Bleu
+  '#DC2626', // Rouge
+  '#059669', // Vert
+  '#D97706', // Orange
+  '#7C3AED', // Violet
+  '#DB2777'  // Rose
+];
+
+// Types de trait
+const strokeStyles = [
+  { value: 'solid', label: 'Continu' },
+  { value: 'dashed', label: 'Tirets' },
+  { value: 'dotted', label: 'Pointillé' },
+  { value: 'dashdot', label: 'Tiret-point' }
+];
+
 // Style
 const fillColor = ref('#3B82F6');
 const fillOpacity = ref(0.2);
 const strokeColor = ref('#2563EB');
+const strokeOpacity = ref(1);
 const strokeWidth = ref(2);
+const strokeStyle = ref('solid');
 const radius = ref(0);
 const startAngle = ref(0);
 
@@ -163,11 +239,43 @@ watch(() => props.selectedShape, (shape) => {
     fillColor.value = shape.properties.style.fillColor || '#3B82F6';
     fillOpacity.value = shape.properties.style.fillOpacity || 0.2;
     strokeColor.value = shape.properties.style.color || '#2563EB';
+    strokeOpacity.value = shape.properties.style.opacity || 1;
     strokeWidth.value = shape.properties.style.weight || 2;
+    strokeStyle.value = getStrokeStyleFromDashArray(shape.properties.style.dashArray);
     radius.value = shape.properties.radius || 0;
     startAngle.value = shape.properties.startAngle || 0;
   }
 }, { immediate: true });
+
+const getDashArray = (style: string): string => {
+  switch (style) {
+    case 'dashed': return '10,10';
+    case 'dotted': return '2,5';
+    case 'dashdot': return '10,5,2,5';
+    default: return '';
+  }
+};
+
+const getStrokeStyleFromDashArray = (dashArray: string | null): string => {
+  if (!dashArray) return 'solid';
+  switch (dashArray) {
+    case '10,10': return 'dashed';
+    case '2,5': return 'dotted';
+    case '10,5,2,5': return 'dashdot';
+    default: return 'solid';
+  }
+};
+
+const selectPresetColor = (color: string) => {
+  strokeColor.value = color;
+  if (showFillOptions.value) {
+    fillColor.value = color;
+  }
+  updateStyle({
+    color: color,
+    fillColor: showFillOptions.value ? color : undefined
+  });
+};
 
 const updateStyle = (style: any) => {
   emit('style-update', style);
@@ -194,5 +302,14 @@ const formatSlope = (slope: number): string => {
 .drawing-tools {
   max-height: calc(100vh - 300px);
   overflow-y: auto;
+}
+
+/* Style pour les boutons de couleur prédéfinie */
+.color-preset {
+  transition: transform 0.1s ease-in-out;
+}
+
+.color-preset:hover {
+  transform: scale(1.1);
 }
 </style> 

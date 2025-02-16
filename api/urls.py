@@ -6,7 +6,8 @@ from .views import (
     PlanViewSet,
     FormeGeometriqueViewSet,
     ConnexionViewSet,
-    TexteAnnotationViewSet
+    TexteAnnotationViewSet,
+    elevation_proxy
 )
 
 router = DefaultRouter()
@@ -19,4 +20,5 @@ router.register(r'annotations', TexteAnnotationViewSet, basename='annotation')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('elevation/', elevation_proxy, name='elevation-proxy'),
 ] 

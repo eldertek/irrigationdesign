@@ -2,12 +2,10 @@ import { ref } from 'vue';
 import axios from 'axios';
 
 const MAX_POINTS_PER_REQUEST = 100;
-const ELEVATION_API_URL = 'https://api.open-elevation.com/api/v1/lookup';
-const FALLBACK_API_URL = 'https://elevation-api.io/api/elevation'; // API alternative
 
 interface ElevationPoint {
-  latitude: number;
-  longitude: number;
+  lat: number;
+  lng: number;
   elevation?: number;
 }
 
@@ -29,36 +27,31 @@ export function useElevationApi() {
     try {
       const processedPoints = useSimplification ? simplifyPoints(points) : points;
       
-      const response = await axios.post(ELEVATION_API_URL, {
-        locations: processedPoints.map(p => ({
-          latitude: p.latitude,
-          longitude: p.longitude
-        }))
-      });
-
-      return response.data.results;
-    } catch (primaryError) {
-      console.error('Primary elevation API failed:', primaryError);
+      // Log des points avant l'envoi
+      console.log('Points à envoyer:', processedPoints);
       
-      try {
-        // Tentative avec l'API de fallback
-        const response = await axios.post(FALLBACK_API_URL, {
-          points: points.map(p => ({
-            lat: p.latitude,
-            lng: p.longitude
-          }))
-        });
+      const payload = {
+        points: processedPoints.map(p => ({
+          latitude: p.lat,
+          longitude: p.lng
+        }))
+      };
+      
+      // Log du payload complet
+      console.log('Payload complet:', payload);
+      
+      const response = await axios.post('/elevation/', payload);
 
-        return response.data.elevations.map((e: any, i: number) => ({
-          latitude: points[i].latitude,
-          longitude: points[i].longitude,
-          elevation: e.elevation
-        }));
-      } catch (fallbackError) {
-        console.error('Fallback elevation API failed:', fallbackError);
-        error.value = 'Le service d\'élévation est temporairement indisponible. Réessayez plus tard.';
-        throw new Error('Both elevation APIs failed');
-      }
+      // Convertir la réponse au format attendu
+      return response.data.results.map((r: any) => ({
+        lat: r.latitude,
+        lng: r.longitude,
+        elevation: r.elevation
+      }));
+    } catch (err) {
+      console.error('Erreur lors de la récupération des données d\'élévation:', err);
+      error.value = 'Le service d\'élévation est temporairement indisponible. Réessayez plus tard.';
+      throw err;
     } finally {
       loading.value = false;
     }
@@ -94,7 +87,6 @@ export function useElevationApi() {
       }
     });
 
-    // Calcul de la pente moyenne
     const firstPoint = elevationData[0];
     const lastPoint = elevationData[elevationData.length - 1];
     const elevationDiff = (lastPoint.elevation || 0) - (firstPoint.elevation || 0);

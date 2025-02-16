@@ -1,20 +1,18 @@
 <template>
   <div class="h-screen flex">
-    <!-- Panneau latéral -->
-    <div class="w-80 bg-white border-r border-gray-200 p-4 flex flex-col">
-      <DrawingTools
-        :current-tool="currentTool"
-        :selected-shape="selectedShape"
-        @tool-change="setDrawingTool"
-        @style-update="updateShapeStyle"
-        @properties-update="updateShapeProperties"
-      />
-    </div>
-
     <!-- Carte -->
     <div class="flex-1 relative">
       <div ref="mapContainer" class="absolute inset-0"></div>
-      <SearchLocation @search="handleSearch" />
+      <!-- Outils de dessin -->
+      <div class="drawing-tools-container">
+        <DrawingTools
+          :current-tool="currentTool"
+          :selected-shape="selectedShape"
+          @tool-change="setDrawingTool"
+          @style-update="updateShapeStyle"
+          @properties-update="updateShapeProperties"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -24,7 +22,6 @@ import { onMounted, ref, watch } from 'vue';
 import type { LatLngTuple } from 'leaflet';
 import * as L from 'leaflet';
 import DrawingTools from '../components/DrawingTools.vue';
-import SearchLocation from '../components/SearchLocation.vue';
 import { useMapDrawing } from '../composables/useMapDrawing';
 import { useMapState } from '../composables/useMapState';
 import { useIrrigationStore } from '@/stores/irrigation';
@@ -51,15 +48,8 @@ const {
 } = useMapDrawing();
 
 const {
-  searchQuery,
-  searchLocation,
   initMap: initState
 } = useMapState();
-
-const handleSearch = (query: string) => {
-  searchQuery.value = query;
-  searchLocation();
-};
 
 onMounted(() => {
   if (mapContainer.value) {
@@ -85,16 +75,16 @@ async function loadExistingShapes() {
     const existingShapes = irrigationStore.currentPlan.elements;
     existingShapes.forEach((shape: any) => {
       if (map.value) {
-        const layer = L.geoJSON(shape.geometrie, {
-          style: shape.proprietes.style
+      const layer = L.geoJSON(shape.geometrie, {
+        style: shape.proprietes.style
         });
         if (layer instanceof L.Layer) {
           (map.value as unknown as L.LayerGroup).addLayer(layer);
-          shapes.value.push({
-            id: shape.id,
-            type: shape.type_forme,
-            layer,
-            surface: shape.surface
+      shapes.value.push({
+        id: shape.id,
+        type: shape.type_forme,
+        layer,
+        surface: shape.surface
           });
         }
       }
@@ -769,5 +759,20 @@ function updateDrawingStyle() {
 .rotation-control .leaflet-div-icon {
   background: transparent !important;
   border: none !important;
+}
+
+/* Positionnement des outils de dessin */
+.drawing-tools-container {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 16px;
+  width: 320px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  z-index: 1000;
 }
 </style> 
