@@ -21,6 +21,7 @@
 import { onMounted, ref, watch } from 'vue';
 import type { LatLngTuple } from 'leaflet';
 import * as L from 'leaflet';
+import * as turf from '@turf/turf';
 import DrawingTools from '../components/DrawingTools.vue';
 import { useMapDrawing } from '../composables/useMapDrawing';
 import { useMapState } from '../composables/useMapState';
@@ -357,10 +358,18 @@ function selectShape(shape: any) {
     const layer = shape.layer;
     if (layer) {
       selectedShape.value = layer;
+      
+      // S'assurer que les propriétés sont calculées et mises à jour
+      const properties = calculateShapeProperties(layer);
+      console.log('Calculated properties for selected shape:', properties);
+      
       selectedShapeInfo.value = {
         id: shape.id,
         type: shape.type,
-        properties: layer.properties || {},
+        properties: {
+          ...properties,
+          style: layer.options || {}
+        },
         layer: layer
       };
 
@@ -487,6 +496,63 @@ function rotatePoint(point: L.Point, center: L.Point, angle: number): L.Point {
 function updateDrawingStyle() {
   // Implémentation à ajouter
   console.log('Updating drawing style:', shapeOptions.value);
+}
+
+// Fonction pour calculer les propriétés d'une forme
+function calculateShapeProperties(layer: any) {
+  console.log('Calculating properties for layer:', layer);
+  const properties = {
+    area: 0,
+    length: 0,
+    radius: 0,
+    width: 0,
+    height: 0,
+    perimeter: 0
+  };
+
+  try {
+    if (layer instanceof L.Polygon) {
+      const latLngs = layer.getLatLngs()[0];
+      const coordinates = latLngs.map((ll: any) => [ll.lng, ll.lat]);
+      coordinates.push(coordinates[0]); // Fermer le polygone
+      const polygon = turf.polygon([coordinates]);
+      properties.area = turf.area(polygon);
+      properties.perimeter = turf.length(turf.lineString([...coordinates]), { units: 'meters' });
+      console.log('Polygon properties calculated:', properties);
+    }
+    
+    if (layer instanceof L.Polyline) {
+      const latLngs = layer.getLatLngs();
+      const coordinates = latLngs.map((ll: any) => [ll.lng, ll.lat]);
+      const line = turf.lineString(coordinates);
+      properties.length = turf.length(line, { units: 'meters' });
+      console.log('Polyline properties calculated:', properties);
+    }
+
+    if (layer instanceof L.Circle) {
+      properties.radius = layer.getRadius();
+      properties.area = Math.PI * Math.pow(properties.radius, 2);
+      properties.perimeter = 2 * Math.PI * properties.radius;
+      console.log('Circle properties calculated:', properties);
+    }
+
+    if (layer instanceof L.Rectangle) {
+      const bounds = layer.getBounds();
+      const ne = bounds.getNorthEast();
+      const sw = bounds.getSouthWest();
+      const width = turf.distance([sw.lng, sw.lat], [ne.lng, sw.lat], { units: 'meters' });
+      const height = turf.distance([sw.lng, sw.lat], [sw.lng, ne.lat], { units: 'meters' });
+      properties.width = width;
+      properties.height = height;
+      properties.area = width * height;
+      properties.perimeter = 2 * (width + height);
+      console.log('Rectangle properties calculated:', properties);
+    }
+  } catch (error) {
+    console.error('Error calculating shape properties:', error);
+  }
+
+  return properties;
 }
 </script>
 
@@ -649,87 +715,16 @@ function updateDrawingStyle() {
   transition: opacity 0.2s ease;
 }
 
-/* Styles pour les labels de mesure */
-.measurement-label-container {
-  background: transparent !important;
-  border: none !important;
-}
-
+/* Styles pour les indicateurs de mesure */
 .measurement-label {
-  font-family: 'Roboto Mono', monospace;
-  font-size: 12px;
-  color: #2563eb;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 2px 6px;
-  border-radius: 2px;
-  border: 1px solid #2563eb;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
   white-space: nowrap;
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.measurement-label::before,
-.measurement-label::after {
-  content: '';
-  position: absolute;
-  height: 1px;
-  width: 20px;
-  background: #2563eb;
-  top: 50%;
-}
-
-.measurement-label::before {
-  left: -20px;
-}
-
-.measurement-label::after {
-  right: -20px;
-}
-
-/* Style pour les lignes de mesure */
-.measurement-line {
-  stroke: #2563eb;
-  stroke-width: 1;
-  stroke-dasharray: 4, 4;
   pointer-events: none;
-}
-
-/* Style pour les points de mesure */
-.measurement-point {
-  fill: #2563eb;
-  stroke: white;
-  stroke-width: 2;
-  r: 4;
-}
-
-/* Animation au survol */
-.measurement-label:hover {
-  background: white;
-  transform: scale(1.05);
-  transition: all 0.2s ease;
-  z-index: 1001;
-}
-
-/* Style pour les détails de mesure */
-.measurement-details {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  background: white;
-  border: 1px solid #2563eb;
-  border-radius: 2px;
-  padding: 4px 8px;
-  margin-top: 4px;
-  font-size: 10px;
-  white-space: nowrap;
-  display: none;
-}
-
-.measurement-label:hover .measurement-details {
-  display: block;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
 /* Styles pour le mode dessin actif */

@@ -1,11 +1,9 @@
-import { ref, onUnmounted, markRaw } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import L from 'leaflet';
 import '@geoman-io/leaflet-geoman-free';
-import * as turf from '@turf/turf';
 import { useShapeProperties } from './useShapeProperties';
 import { useElevationApi } from './useElevationApi';
 import { CircleArc } from '../utils/CircleArc';
-import MeasurementLabel from '../components/MeasurementLabel.vue';
 
 export function useMapDrawing() {
   const map = ref<L.Map | null>(null);
@@ -64,9 +62,6 @@ export function useMapDrawing() {
           weight: 2
         }
       };
-
-      // Ajouter les mesures
-      addMeasurementToLayer(layer);
 
       // Calculer les propriétés géométriques
       const props = calculateProperties(layer);
@@ -345,57 +340,6 @@ export function useMapDrawing() {
     return [];
   };
 
-  const addMeasurementToLayer = (layer: L.Layer) => {
-    if (!map.value) return;
-
-    let measurement: any = null;
-    let coords: any[] = [];
-
-    if (layer instanceof L.Polyline) {
-      coords = layer.getLatLngs().map((ll: L.LatLng) => [ll.lng, ll.lat]);
-      const line = turf.lineString(coords);
-      measurement = {
-        length: turf.length(line, { units: 'meters' })
-      };
-    } else if (layer instanceof L.Polygon) {
-      coords = (layer.getLatLngs()[0] as L.LatLng[]).map(ll => [ll.lng, ll.lat]);
-      coords.push(coords[0]); // Fermer le polygone
-      const polygon = turf.polygon([coords]);
-      measurement = {
-        area: turf.area(polygon),
-        perimeter: turf.length(turf.lineString(coords), { units: 'meters' })
-      };
-    } else if (layer instanceof L.Circle || layer instanceof CircleArc) {
-      const radius = layer.getRadius();
-      measurement = {
-        radius,
-        area: Math.PI * radius * radius,
-        perimeter: 2 * Math.PI * radius
-      };
-    }
-
-    if (measurement) {
-      layer.measurement = measurement;
-      
-      // Créer et positionner les labels de mesure
-      if (measurement.length) {
-        const center = layer.getCenter();
-        const labelPos = layer instanceof L.Polyline ? 
-          layer.getLatLngs()[Math.floor(layer.getLatLngs().length / 2)] :
-          center;
-
-        const measurementLabel = L.marker(labelPos, {
-          icon: L.divIcon({
-            className: 'measurement-label-container',
-            html: `<div class="measurement-label">${measurement.length.toFixed(2)} m</div>`
-          })
-        }).addTo(map.value);
-
-        layer.measurementLabel = measurementLabel;
-      }
-    }
-  };
-
   onUnmounted(() => {
     if (map.value) {
       map.value.remove();
@@ -412,7 +356,6 @@ export function useMapDrawing() {
     initMap,
     setDrawingTool,
     updateShapeStyle,
-    updateShapeProperties,
-    addMeasurementToLayer
+    updateShapeProperties
   };
 } 

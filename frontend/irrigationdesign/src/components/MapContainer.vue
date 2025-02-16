@@ -262,12 +262,14 @@ watch(() => props.drawingOptions, (newOptions) => {
 
 // Calcul des propriétés des formes
 function calculateShapeProperties(layer) {
+  console.log('Calculating properties for layer:', layer);
   const properties = {
     area: 0,
     length: 0,
     radius: 0,
     width: 0,
-    height: 0
+    height: 0,
+    perimeter: 0
   }
 
   if (layer instanceof L.Polygon) {
@@ -276,6 +278,8 @@ function calculateShapeProperties(layer) {
     coordinates.push(coordinates[0]) // Fermer le polygone
     const polygon = turf.polygon([coordinates])
     properties.area = turf.area(polygon)
+    properties.perimeter = turf.length(turf.lineString([...coordinates]), { units: 'meters' })
+    console.log('Polygon properties calculated:', properties);
   }
   
   if (layer instanceof L.Polyline) {
@@ -283,14 +287,20 @@ function calculateShapeProperties(layer) {
     const coordinates = latLngs.map(ll => [ll.lng, ll.lat])
     const line = turf.lineString(coordinates)
     properties.length = turf.length(line, { units: 'meters' })
+    console.log('Polyline properties calculated:', properties);
   }
 
   if (layer instanceof L.Circle) {
     properties.radius = layer.getRadius()
     properties.area = Math.PI * Math.pow(properties.radius, 2)
+    properties.perimeter = 2 * Math.PI * properties.radius
+    console.log('Circle properties calculated:', properties);
   }
 
-  return properties
+  return {
+    ...properties,
+    style: layer.options || {}
+  };
 }
 
 // Récupération du profil d'élévation

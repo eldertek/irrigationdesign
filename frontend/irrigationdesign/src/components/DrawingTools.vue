@@ -161,17 +161,23 @@
       <h3 class="text-lg font-semibold mb-4">Propriétés</h3>
       
       <div class="space-y-2 text-sm">
-        <div v-if="selectedShape.properties.area">
+        <div v-if="selectedShape.properties?.area">
           Surface: {{ formatArea(selectedShape.properties.area) }}
         </div>
-        <div v-if="selectedShape.properties.length">
+        <div v-if="selectedShape.properties?.length">
           Longueur: {{ formatLength(selectedShape.properties.length) }}
         </div>
-        <div v-if="selectedShape.properties.perimeter">
+        <div v-if="selectedShape.properties?.perimeter">
           Périmètre: {{ formatLength(selectedShape.properties.perimeter) }}
         </div>
-        <div v-if="selectedShape.properties.slope">
-          Pente: {{ formatSlope(selectedShape.properties.slope) }}
+        <div v-if="selectedShape.properties?.radius">
+          Rayon: {{ formatLength(selectedShape.properties.radius) }}
+        </div>
+        <div v-if="selectedShape.properties?.width">
+          Largeur: {{ formatLength(selectedShape.properties.width) }}
+        </div>
+        <div v-if="selectedShape.properties?.height">
+          Hauteur: {{ formatLength(selectedShape.properties.height) }}
         </div>
       </div>
     </div>
@@ -246,6 +252,14 @@ watch(() => props.selectedShape, (shape) => {
     startAngle.value = shape.properties.orientation || 0;
   }
 }, { immediate: true });
+
+// Ajouter un watcher pour déboguer les changements de forme sélectionnée
+watch(() => props.selectedShape, (newShape) => {
+  console.log('Selected shape changed:', newShape);
+  if (newShape) {
+    console.log('Shape properties:', newShape.properties);
+  }
+}, { immediate: true, deep: true });
 
 const getDashArray = (style: string): string => {
   switch (style) {
