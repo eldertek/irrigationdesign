@@ -12,6 +12,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import L from 'leaflet'
+import type { LatLng } from 'leaflet'
 import '@geoman-io/leaflet-geoman-free'
 import 'leaflet/dist/leaflet.css'
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
@@ -261,7 +262,15 @@ watch(() => props.drawingOptions, (newOptions) => {
 }, { deep: true })
 
 // Calcul des propriétés des formes
-function calculateShapeProperties(layer) {
+function calculateShapeProperties(layer: L.Layer): {
+  area: number;
+  length: number;
+  radius: number;
+  width: number;
+  height: number;
+  perimeter: number;
+  style?: any;
+} {
   console.log('Calculating properties for layer:', layer);
   const properties = {
     area: 0,
@@ -273,27 +282,27 @@ function calculateShapeProperties(layer) {
   }
 
   if (layer instanceof L.Polygon) {
-    const latLngs = layer.getLatLngs()[0]
-    const coordinates = latLngs.map(ll => [ll.lng, ll.lat])
-    coordinates.push(coordinates[0]) // Fermer le polygone
-    const polygon = turf.polygon([coordinates])
-    properties.area = turf.area(polygon)
-    properties.perimeter = turf.length(turf.lineString([...coordinates]), { units: 'meters' })
+    const latLngs = layer.getLatLngs()[0] as LatLng[];
+    const coordinates = latLngs.map((ll: LatLng) => [ll.lng, ll.lat]);
+    coordinates.push(coordinates[0]); // Fermer le polygone
+    const polygon = turf.polygon([coordinates]);
+    properties.area = turf.area(polygon);
+    properties.perimeter = turf.length(turf.lineString([...coordinates]), { units: 'meters' });
     console.log('Polygon properties calculated:', properties);
   }
   
   if (layer instanceof L.Polyline) {
-    const latLngs = layer.getLatLngs()
-    const coordinates = latLngs.map(ll => [ll.lng, ll.lat])
-    const line = turf.lineString(coordinates)
-    properties.length = turf.length(line, { units: 'meters' })
+    const latLngs = layer.getLatLngs() as LatLng[];
+    const coordinates = latLngs.map((ll: LatLng) => [ll.lng, ll.lat]);
+    const line = turf.lineString(coordinates);
+    properties.length = turf.length(line, { units: 'meters' });
     console.log('Polyline properties calculated:', properties);
   }
 
   if (layer instanceof L.Circle) {
-    properties.radius = layer.getRadius()
-    properties.area = Math.PI * Math.pow(properties.radius, 2)
-    properties.perimeter = 2 * Math.PI * properties.radius
+    properties.radius = layer.getRadius();
+    properties.area = Math.PI * Math.pow(properties.radius, 2);
+    properties.perimeter = 2 * Math.PI * properties.radius;
     console.log('Circle properties calculated:', properties);
   }
 

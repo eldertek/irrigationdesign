@@ -36,7 +36,6 @@
     "pinia": "^2.1.7",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
-    "turf": "^3.0.14",
     "vue": "^3.4.15",
     "vue-draggable-next": "^2.2.1",
     "vue-router": "^4.2.5",

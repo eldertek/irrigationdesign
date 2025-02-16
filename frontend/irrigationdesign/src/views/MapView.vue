@@ -19,7 +19,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
-import type { LatLngTuple } from 'leaflet';
+import type { LatLngTuple, LatLng } from 'leaflet';
 import * as L from 'leaflet';
 import * as turf from '@turf/turf';
 import DrawingTools from '../components/DrawingTools.vue';
@@ -499,7 +499,14 @@ function updateDrawingStyle() {
 }
 
 // Fonction pour calculer les propriétés d'une forme
-function calculateShapeProperties(layer: any) {
+function calculateShapeProperties(layer: L.Layer): {
+  area: number;
+  length: number;
+  radius: number;
+  width: number;
+  height: number;
+  perimeter: number;
+} {
   console.log('Calculating properties for layer:', layer);
   const properties = {
     area: 0,
@@ -512,8 +519,8 @@ function calculateShapeProperties(layer: any) {
 
   try {
     if (layer instanceof L.Polygon) {
-      const latLngs = layer.getLatLngs()[0];
-      const coordinates = latLngs.map((ll: any) => [ll.lng, ll.lat]);
+      const latLngs = layer.getLatLngs()[0] as LatLng[];
+      const coordinates = latLngs.map((ll: LatLng) => [ll.lng, ll.lat]);
       coordinates.push(coordinates[0]); // Fermer le polygone
       const polygon = turf.polygon([coordinates]);
       properties.area = turf.area(polygon);
@@ -522,8 +529,8 @@ function calculateShapeProperties(layer: any) {
     }
     
     if (layer instanceof L.Polyline) {
-      const latLngs = layer.getLatLngs();
-      const coordinates = latLngs.map((ll: any) => [ll.lng, ll.lat]);
+      const latLngs = layer.getLatLngs() as LatLng[];
+      const coordinates = latLngs.map((ll: LatLng) => [ll.lng, ll.lat]);
       const line = turf.lineString(coordinates);
       properties.length = turf.length(line, { units: 'meters' });
       console.log('Polyline properties calculated:', properties);
