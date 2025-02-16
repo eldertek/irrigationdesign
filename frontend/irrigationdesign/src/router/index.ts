@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import ChangePasswordForm from '@/components/auth/ChangePasswordForm.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -47,6 +48,12 @@ const router = createRouter({
       meta: { requiresGuest: true }
     },
     {
+      path: '/change-password',
+      name: 'changePassword',
+      component: ChangePasswordForm,
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       component: () => import('@/views/NotFoundView.vue')
@@ -58,15 +65,22 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
+  const mustChangePassword = authStore.user?.must_change_password
 
-  // Redirection vers la page de connexion si l'authentification est requise
+  // If route requires auth and user is not authenticated
   if (to.meta.requiresAuth && !isAuthenticated) {
-    next({ name: 'login', query: { redirect: to.fullPath } })
+    next({ name: 'login' })
     return
   }
 
-  // Redirection vers la page d'accueil si l'utilisateur est déjà connecté
-  if (to.meta.requiresGuest && isAuthenticated) {
+  // If user must change password and is not already on change password route
+  if (isAuthenticated && mustChangePassword && to.name !== 'changePassword') {
+    next({ name: 'changePassword' })
+    return
+  }
+
+  // If user is on change password route but doesn't need to change password
+  if (to.name === 'changePassword' && !mustChangePassword) {
     next({ name: 'home' })
     return
   }

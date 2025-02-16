@@ -160,6 +160,7 @@
                 <div>Largeur: {{ formatDistance(shape.properties.dimensions.width) }}</div>
                 <div>Longueur: {{ formatDistance(shape.properties.dimensions.height) }}</div>
                 <div>Surface: {{ formatArea(shape.properties.surfaceInterieure) }}</div>
+                <div v-if="shape.properties.rotation !== undefined">Rotation: {{ formatAngle(shape.properties.rotation) }}</div>
               </template>
 
               <!-- Cercle -->
@@ -167,13 +168,15 @@
                 <div>Rayon: {{ formatDistance(shape.properties.dimensions.radius) }}</div>
                 <div>Diamètre: {{ formatDistance(shape.properties.dimensions.diameter) }}</div>
                 <div>Surface: {{ formatArea(shape.properties.surfaceInterieure) }}</div>
+                <div v-if="shape.properties.rotation !== undefined">Rotation: {{ formatAngle(shape.properties.rotation) }}</div>
               </template>
 
               <!-- Demi-cercle -->
               <template v-if="shape.type.toLowerCase() === 'semicircle' && shape.properties?.dimensions">
                 <div>Rayon: {{ formatDistance(shape.properties.dimensions.radius) }}</div>
-                <div>Orientation: {{ shape.properties.dimensions.orientation }}°</div>
+                <div>Orientation: {{ formatAngle(shape.properties.dimensions.orientation) }}</div>
                 <div>Surface: {{ formatArea(shape.properties.surfaceInterieure) }}</div>
+                <div v-if="shape.properties.rotation !== undefined">Rotation: {{ formatAngle(shape.properties.rotation) }}</div>
               </template>
 
               <!-- Ligne -->
@@ -262,22 +265,25 @@ const shapeOptions = ref({
   lineType: 'straight'
 })
 
-// Configuration des options de dessin
+// Modifier la configuration des options de dessin
 const drawingOptionsGeoman = {
   position: 'topright',
   drawControls: false,
-  editControls: false,  // On cache les contrôles d'édition par défaut
+  editControls: false,
   cutControls: false,
   dragMode: false,
   removalMode: false,
   drawText: false,
-  rotateMode: false,
+  rotateMode: true,  // Activer le mode rotation
   oneBlock: false,
   customControls: false,
   optionsControls: false,
   snappingOption: true,
   snapDistance: 20,
-  tooltips: true
+  tooltips: true,
+  rotateControlOptions: {
+    rotateEnabled: true
+  }
 }
 
 // Ajout du fond de carte OpenStreetMap
@@ -370,18 +376,21 @@ function startDrawing(shapeType) {
 
   const drawOptions = {
     templineStyle: { 
-      color: drawingOptions.value.color,
-      dashArray: [5, 5]
+      color: shapeOptions.value.color,
+      weight: shapeOptions.value.weight,
+      dashArray: shapeOptions.value.dashArray
     },
     hintlineStyle: { 
-      color: drawingOptions.value.color,
-      dashArray: [5, 5]
+      color: shapeOptions.value.color,
+      weight: shapeOptions.value.weight,
+      dashArray: shapeOptions.value.dashArray
     },
     pathOptions: {
-      color: drawingOptions.value.color,
-      fillColor: drawingOptions.value.color,
-      fillOpacity: drawingOptions.value.fillOpacity,
-      weight: drawingOptions.value.weight
+      color: shapeOptions.value.color,
+      fillColor: shapeOptions.value.color,
+      fillOpacity: 0.2,
+      weight: shapeOptions.value.weight,
+      dashArray: shapeOptions.value.dashArray
     },
     tooltips: true,
     snapDistance: 20,
@@ -415,7 +424,7 @@ function startDrawing(shapeType) {
       map.value.pm.enableDraw('Line', drawOptions)
       break
     case 'Demi-cercle':
-      enableSemicircleDrawing()
+      enableSemicircleDrawing(drawOptions)
       break
   }
 }
@@ -427,7 +436,7 @@ let semicircleEvents = {
   mouseup: null
 }
 
-function enableSemicircleDrawing() {
+function enableSemicircleDrawing(drawOptions = {}) {
   if (!map.value) return
 
   let center = null
@@ -459,11 +468,11 @@ function enableSemicircleDrawing() {
     // Créer le cercle temporaire
     tempCircle = L.circle(center, {
       radius: 0,
-      color: drawingOptions.value.color,
-      fillColor: drawingOptions.value.color,
-      fillOpacity: drawingOptions.value.fillOpacity,
-      weight: drawingOptions.value.weight,
-      dashArray: '5, 5'
+      color: shapeOptions.value.color,
+      fillColor: shapeOptions.value.color,
+      fillOpacity: 0.2,
+      weight: shapeOptions.value.weight,
+      dashArray: shapeOptions.value.dashArray
     }).addTo(map.value)
 
     // Gestionnaire de mouvement pour le rayon
@@ -492,13 +501,13 @@ function enableSemicircleDrawing() {
         // Créer le demi-cercle temporaire
         tempCircle = L.semiCircle(center, {
           radius: radius,
-          color: drawingOptions.value.color,
-          fillColor: drawingOptions.value.color,
-          fillOpacity: drawingOptions.value.fillOpacity,
-          weight: drawingOptions.value.weight,
+          color: shapeOptions.value.color,
+          fillColor: shapeOptions.value.color,
+          fillOpacity: 0.2,
+          weight: shapeOptions.value.weight,
           startAngle: 0,
           stopAngle: 180,
-          dashArray: '5, 5'
+          dashArray: shapeOptions.value.dashArray
         }).addTo(map.value)
 
         updateTooltip(e.latlng, 'Move mouse to set orientation')
@@ -522,10 +531,10 @@ function enableSemicircleDrawing() {
           // Créer le demi-cercle final
           const semicircle = L.semiCircle(center, {
             radius: radius,
-            color: drawingOptions.value.color,
-            fillColor: drawingOptions.value.color,
-            fillOpacity: drawingOptions.value.fillOpacity,
-            weight: drawingOptions.value.weight,
+            color: shapeOptions.value.color,
+            fillColor: shapeOptions.value.color,
+            fillOpacity: 0.2,
+            weight: shapeOptions.value.weight,
             startAngle: angle - 90,
             stopAngle: angle + 90
           })
@@ -599,128 +608,122 @@ async function handleShapeCreated(e) {
   const { layer, shape } = e
   if (!layer) return
   
-  // Mise à jour des états
-  isDrawing.value = false
-  drawingState.value = 'idle'
-  currentShape.value = null
-
-  // Retirer la classe de mode dessin
-  if (map.value) {
-    map.value.getContainer().classList.remove('drawing-mode')
-  }
-
-  // Déterminer le type de forme en français
-  const typeMap = {
-    'rectangle': 'Rectangle',
-    'circle': 'Cercle',
-    'semicircle': 'Demi-cercle',
-    'line': 'Ligne'
-  }
-  
-  const baseType = shape.toLowerCase()
-  const frenchType = typeMap[baseType] || shape
-  
-  // Calculer les propriétés détaillées de la forme
-  const properties = calculateShapeProperties(layer, baseType)
-
-  // Ajouter un effet de confirmation visuelle
-  layer.getElement()?.classList.add('shape-created')
-  setTimeout(() => {
-    layer.getElement()?.classList.remove('shape-created')
-  }, 1000)
-  
-  // Rendre la forme modifiable
-  layer.on('click', () => {
-    if (map.value) {
-      // Désactiver l'édition sur toutes les autres formes d'abord
-      featureGroup.value.eachLayer((l) => {
-        if (l !== layer) {
-          l.pm.disable()
-        }
-      })
-      // Activer l'édition sur la forme cliquée
-      layer.pm.enable({
-        allowSelfIntersection: false,
-        preventMarkerRemoval: true,
-        removeLayerOnEmpty: false
-      })
-      
-      // Mettre à jour selectedShapeInfo avec les informations de la forme
-      const shapeData = shapes.value.find(s => s.layer === layer)
-      if (shapeData) {
-        selectShape(shapeData)
-      }
-    }
-  })
-  
-  // Ajouter un gestionnaire pour désélectionner la forme
-  if (!map.value._clickHandler) {
-    map.value._clickHandler = (e) => {
-      // Vérifier si le clic n'est pas sur une forme
-      if (!e.originalEvent.target.closest('.leaflet-interactive')) {
-        selectedShapeInfo.value = null
-      }
-    }
-    map.value.on('click', map.value._clickHandler)
-  }
-  
-  // Ajouter la forme au groupe
-  featureGroup.value.addLayer(layer)
-  
-  // Sauvegarder la forme si un plan est sélectionné
-  if (irrigationStore.currentPlan) {
-    saveShape(layer, baseType, properties)
-  }
-
-  // Ajouter la forme à la liste des formes
-  shapes.value.push({
-    id: layer.id || Date.now(),
-    type: frenchType,
-    layer: layer,
-    properties: properties
-  })
-
-  // Ajouter des gestionnaires d'événements pour l'édition
-  layer.on('pm:edit', (event) => {
-    const updatedProperties = calculateShapeProperties(event.target, baseType)
-    if (selectedShapeInfo.value && event.target.id === selectedShapeInfo.value.id) {
-      selectedShapeInfo.value = {
-        ...selectedShapeInfo.value,
-        properties: updatedProperties
-      }
-    }
-  })
-
-  // Pour les lignes, obtenir le profil altimétrique
-  if (shape.toLowerCase() === 'line') {
-    const coordinates = layer.getLatLngs()
-    const elevationProfile = await getElevationProfile(coordinates)
+  try {
+    console.log('Creating shape:', shape, 'Layer:', layer)
     
-    if (elevationProfile.length > 0) {
-      const elevations = elevationProfile.map(point => point.elevation)
-      const minElevation = Math.min(...elevations)
-      const maxElevation = Math.max(...elevations)
-      const difference = maxElevation - minElevation
-      const distance = elevationProfile[elevationProfile.length - 1].distance
-      const slope = (difference / distance) * 100
+    // Ajouter le support de rotation AVANT toute autre opération
+    addRotationSupport(layer)
+    console.log('Rotation support added to layer')
 
-      // Mettre à jour les propriétés d'élévation
-      properties.elevation = {
-        profile: elevationProfile,
-        difference,
-        slope,
-        minElevation,
-        maxElevation
+    // Mise à jour des états
+    isDrawing.value = false
+    drawingState.value = 'idle'
+    currentShape.value = null
+
+    // Retirer la classe de mode dessin
+    if (map.value) {
+      map.value.getContainer().classList.remove('drawing-mode')
+    }
+
+    // Déterminer le type de forme en français
+    const typeMap = {
+      'rectangle': 'Rectangle',
+      'circle': 'Cercle',
+      'semicircle': 'Demi-cercle',
+      'line': 'Ligne'
+    }
+    
+    const baseType = shape.toLowerCase()
+    const frenchType = typeMap[baseType] || shape
+    
+    // Calculer les propriétés détaillées de la forme
+    const properties = calculateShapeProperties(layer, baseType)
+
+    // Ajouter un effet de confirmation visuelle
+    layer.getElement()?.classList.add('shape-created')
+    setTimeout(() => {
+      layer.getElement()?.classList.remove('shape-created')
+    }, 1000)
+    
+    // Rendre la forme modifiable
+    layer.on('click', () => {
+      console.log('Shape clicked, enabling editing')
+      if (map.value) {
+        // Désactiver l'édition sur toutes les autres formes d'abord
+        featureGroup.value.eachLayer((l) => {
+          if (l !== layer) {
+            l.pm.disable()
+          }
+        })
+        // Activer l'édition sur la forme cliquée
+        layer.pm.enable({
+          allowSelfIntersection: false,
+          preventMarkerRemoval: true,
+          removeLayerOnEmpty: false
+        })
+        
+        // Mettre à jour selectedShapeInfo avec les informations de la forme
+        const shapeData = shapes.value.find(s => s.layer === layer)
+        if (shapeData) {
+          selectShape(shapeData)
+        }
       }
+    })
+    
+    // Ajouter la forme au groupe
+    featureGroup.value.addLayer(layer)
+    
+    // Sauvegarder la forme si un plan est sélectionné
+    if (irrigationStore.currentPlan) {
+      saveShape(layer, baseType, properties)
+    }
 
-      // Afficher le profil altimétrique
-      selectedShapeInfo.value = {
-        id: layer.id || Date.now(),
-        type: shape,
-        properties: properties,
-        elevationProfile: elevationProfile
+    // Ajouter la forme à la liste des formes
+    const newShape = {
+      id: layer.id || Date.now(),
+      type: frenchType,
+      layer: layer,
+      properties: properties
+    }
+    shapes.value.push(newShape)
+    console.log('Shape added to shapes list:', newShape)
+
+    // Pour les lignes, obtenir le profil altimétrique
+    if (shape.toLowerCase() === 'line') {
+      const coordinates = layer.getLatLngs()
+      const elevationProfile = await getElevationProfile(coordinates)
+      
+      if (elevationProfile.length > 0) {
+        const elevations = elevationProfile.map(point => point.elevation)
+        const minElevation = Math.min(...elevations)
+        const maxElevation = Math.max(...elevations)
+        const difference = maxElevation - minElevation
+        const distance = elevationProfile[elevationProfile.length - 1].distance
+        const slope = (difference / distance) * 100
+
+        // Mettre à jour les propriétés d'élévation
+        properties.elevation = {
+          profile: elevationProfile,
+          difference,
+          slope,
+          minElevation,
+          maxElevation
+        }
+
+        // Afficher le profil altimétrique
+        selectedShapeInfo.value = {
+          id: layer.id || Date.now(),
+          type: shape,
+          properties: properties,
+          elevationProfile: elevationProfile
+        }
       }
     }
+
+    // Sélectionner automatiquement la forme créée
+    selectShape(newShape)
+  } catch (error) {
+    console.error('Error in handleShapeCreated:', error)
   }
 }
 
@@ -935,24 +938,39 @@ function handleShapeChange() {
 }
 
 function updateDrawingStyle() {
-  if (!map.value || !map.value._toolbars || !map.value._toolbars.draw || !map.value._toolbars.draw.options.draw) return
-  
-  const newOptions = {
-    shapeOptions: {
-      color: drawingOptions.value.color,
-      weight: drawingOptions.value.weight,
-      opacity: drawingOptions.value.opacity,
-      fillOpacity: drawingOptions.value.fillOpacity
+  if (!map.value) return
+
+  const drawOptions = {
+    templineStyle: { 
+      color: shapeOptions.value.color,
+      weight: shapeOptions.value.weight,
+      dashArray: shapeOptions.value.dashArray
+    },
+    hintlineStyle: { 
+      color: shapeOptions.value.color,
+      weight: shapeOptions.value.weight,
+      dashArray: shapeOptions.value.dashArray
+    },
+    pathOptions: {
+      color: shapeOptions.value.color,
+      fillColor: shapeOptions.value.color,
+      fillOpacity: 0.2,
+      weight: shapeOptions.value.weight,
+      dashArray: shapeOptions.value.dashArray
     }
   }
 
-  // Mettre à jour les options pour chaque type de forme
-  const drawOptions = map.value._toolbars.draw.options.draw
-  Object.keys(drawOptions).forEach((type) => {
-    if (drawOptions[type]) {
-      drawOptions[type].shapeOptions = { ...newOptions.shapeOptions }
-    }
+  // Mettre à jour les options globales de Leaflet-Geoman
+  map.value.pm.setGlobalOptions({
+    templineStyle: drawOptions.templineStyle,
+    hintlineStyle: drawOptions.hintlineStyle,
+    pathOptions: drawOptions.pathOptions
   })
+
+  // Si une forme est en cours de dessin, mettre à jour son style
+  if (currentDrawing.value?.layer) {
+    currentDrawing.value.layer.setStyle(drawOptions.pathOptions)
+  }
 }
 
 // Chargement des formes existantes
@@ -1070,54 +1088,302 @@ function formatSlope(value: number): string {
   return `${value.toFixed(1)} %`
 }
 
-// Ajout de la fonction selectShape
-function selectShape(shape: any) {
-  // Désélectionner la forme précédente si elle existe
-  if (selectedShapeInfo.value && selectedShapeInfo.value.id !== shape.id) {
-    const previousLayer = shapes.value.find(s => s.id === selectedShapeInfo.value.id)?.layer
-    if (previousLayer) {
-      previousLayer.pm.disable()
+// Fonction utilitaire pour obtenir le centre d'une forme
+function getLayerCenter(layer) {
+  if (layer.getCenter) return layer.getCenter()
+  if (layer.getBounds) return layer.getBounds().getCenter()
+  if (layer.getLatLng) return layer.getLatLng()
+  if (layer.getLatLngs) {
+    const latLngs = layer.getLatLngs()
+    const points = Array.isArray(latLngs[0]) ? latLngs[0] : latLngs
+    const sumLat = points.reduce((sum, p) => sum + p.lat, 0)
+    const sumLng = points.reduce((sum, p) => sum + p.lng, 0)
+    return L.latLng(sumLat / points.length, sumLng / points.length)
+  }
+  return null
+}
+
+// Fonction utilitaire pour décaler un point en mètres
+function offsetLatLng(latlng, meters) {
+  // Conversion approximative de mètres en degrés (à l'équateur)
+  const earthRadius = 6378137 // rayon de la Terre en mètres
+  const latOffset = (meters / earthRadius) * (180 / Math.PI)
+  return L.latLng(latlng.lat + latOffset, latlng.lng)
+}
+
+// Fonction utilitaire pour calculer l'angle entre deux points
+function getAngle(center, latlng) {
+  return Math.atan2(latlng.lat - center.lat, latlng.lng - center.lng) * 180 / Math.PI
+}
+
+// Fonction pour mettre à jour les propriétés de rotation d'une forme
+function updateShapeRotationProperty(layer, angle) {
+  const shape = shapes.value.find(s => s.layer === layer)
+  if (shape && shape.properties) {
+    shape.properties.rotation = angle
+    if (selectedShapeInfo.value && selectedShapeInfo.value.id === shape.id) {
+      selectedShapeInfo.value.properties = shape.properties
+    }
+  }
+}
+
+// Fonction pour créer le contrôle de rotation
+function createRotationControl(layer) {
+  if (!map.value || !layer) {
+    console.warn('Map or layer not initialized')
+    return null
+  }
+
+  // Supprimer l'ancien contrôle de rotation s'il existe
+  if (layer._rotationControl) {
+    map.value.removeLayer(layer._rotationControl)
+    delete layer._rotationControl
+  }
+
+  // Obtenir le centre de la forme
+  const center = getLayerCenter(layer)
+  if (!center) {
+    console.warn('Cannot determine center of layer')
+    return null
+  }
+
+  // Calculer la position du contrôle de rotation
+  let radiusPx = 50 // valeur par défaut
+  if (layer.getRadius) {
+    const radiusMeters = layer.getRadius()
+    const centerPoint = map.value.latLngToLayerPoint(center)
+    const testLatLng = offsetLatLng(center, radiusMeters)
+    const testPoint = map.value.latLngToLayerPoint(testLatLng)
+    radiusPx = centerPoint.distanceTo(testPoint)
+  } else if (layer.getBounds) {
+    const bounds = layer.getBounds()
+    const northPoint = map.value.latLngToLayerPoint(bounds.getNorth())
+    const centerPoint = map.value.latLngToLayerPoint(center)
+    radiusPx = centerPoint.distanceTo(northPoint)
+  }
+
+  // Créer un identifiant unique pour cette instance
+  const controlId = `rotation-control-${Date.now()}`
+
+  // Créer l'icône de rotation
+  const rotationIcon = L.divIcon({
+    className: `rotation-control ${controlId}`,
+    html: `<svg viewBox="0 0 24 24" width="24" height="24">
+      <path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+    </svg>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
+  })
+
+  // Calculer la position du contrôle
+  const controlPoint = map.value.latLngToLayerPoint(center).subtract([0, radiusPx + 40])
+  const controlLatLng = map.value.layerPointToLatLng(controlPoint)
+
+  // Créer le marqueur de rotation (non draggable)
+  const rotationControl = L.marker(controlLatLng, {
+    icon: rotationIcon,
+    draggable: false,
+    zIndexOffset: 1000,
+    pmIgnore: true, // Empêcher Leaflet-Geoman d'interférer avec ce marker
+    interactive: true // S'assurer que le marker reste interactif
+  })
+
+  let rotationActive = false
+  let startAngle = 0
+
+  function onRotateMove(e) {
+    if (!rotationActive) return
+    const currentAngle = getAngle(center, e.latlng)
+    const angleDiff = currentAngle - startAngle
+    const roundedAngle = Math.round(angleDiff / 5) * 5
+    
+    if (typeof layer.setRotation === 'function') {
+      layer.setRotation(roundedAngle)
+      updateShapeRotationProperty(layer, roundedAngle)
     }
   }
 
-  // Sélectionner la nouvelle forme
-  selectedShapeInfo.value = {
-    id: shape.id,
-    type: shape.type,
-    properties: shape.properties,
-    elevationProfile: shape.properties.elevation?.profile
+  function endRotation() {
+    rotationActive = false
+    const rotationElement = document.querySelector(`.${controlId}`)
+    if (rotationElement) {
+      rotationElement.classList.remove('rotating')
+    }
+    map.value.off('mousemove', onRotateMove)
+    
+    // Réactiver l'édition de la forme après la rotation
+    if (layer.pm) {
+      layer.pm.enable({
+        allowSelfIntersection: false,
+        preventMarkerRemoval: true,
+        removeLayerOnEmpty: false
+      })
+    }
   }
 
-  // Activer l'édition sur la forme sélectionnée
-  const layer = shape.layer
-  if (layer && map.value) {
-    layer.pm.enable({
-      allowSelfIntersection: false,
-      preventMarkerRemoval: true,
-      removeLayerOnEmpty: false
-    })
+  // Gestionnaire de clic pour démarrer/arrêter la rotation
+  rotationControl.on('click', (e) => {
+    L.DomEvent.stopPropagation(e) // Empêcher la propagation du clic
     
-    // Centrer la carte sur la forme
-    if (layer.getBounds) {
-      map.value.fitBounds(layer.getBounds(), { padding: [50, 50] })
-    } else if (layer.getLatLng) {
-      map.value.setView(layer.getLatLng(), map.value.getZoom())
+    if (!rotationActive) {
+      // Désactiver temporairement l'édition pendant la rotation
+      if (layer.pm) {
+        layer.pm.disable()
+      }
+
+      // Démarrer la rotation
+      rotationActive = true
+      startAngle = getAngle(center, rotationControl.getLatLng())
+      
+      const rotationElement = document.querySelector(`.${controlId}`)
+      if (rotationElement) {
+        rotationElement.classList.add('rotating')
+      }
+
+      map.value.on('mousemove', onRotateMove)
+      map.value.once('click', endRotation)
+    }
+  })
+
+  // Ajouter le contrôle directement à la carte, PAS au FeatureGroup
+  rotationControl.addTo(map.value)
+
+  // Sauvegarder la référence au contrôle
+  layer._rotationControl = rotationControl
+
+  return rotationControl
+}
+
+// Modifier la fonction selectShape pour mieux gérer la création/suppression du contrôle
+function selectShape(shape: any) {
+  if (!map.value) {
+    console.warn('Map not initialized')
+    return
+  }
+
+  try {
+    console.log('Selecting shape:', shape)
+
+    // Désélectionner la forme précédente
+    if (selectedShapeInfo.value && selectedShapeInfo.value.id !== shape.id) {
+      const previousLayer = shapes.value.find(s => s.id === selectedShapeInfo.value.id)?.layer
+      if (previousLayer) {
+        console.log('Disabling previous shape')
+        previousLayer.pm.disable()
+        if (previousLayer._rotationControl) {
+          console.log('Removing previous rotation control')
+          map.value.removeLayer(previousLayer._rotationControl)
+          delete previousLayer._rotationControl
+        }
+      }
+    }
+
+    // Sélectionner la nouvelle forme
+    selectedShapeInfo.value = {
+      id: shape.id,
+      type: shape.type,
+      properties: shape.properties,
+      elevationProfile: shape.properties.elevation?.profile
+    }
+    console.log('Selected shape info updated:', selectedShapeInfo.value)
+
+    // Activer l'édition sur la forme sélectionnée
+    const layer = shape.layer
+    if (layer) {
+      console.log('Enabling editing on selected shape')
+      
+      // Désactiver l'édition sur toutes les autres formes
+      shapes.value.forEach(s => {
+        if (s.layer !== layer) {
+          s.layer.pm.disable()
+        }
+      })
+
+      // S'assurer que la forme a le support de rotation
+      if (typeof layer.setRotation !== 'function') {
+        console.log('Adding rotation support to layer')
+        addRotationSupport(layer)
+      }
+
+      // Activer l'édition sur la forme sélectionnée
+      layer.pm.enable({
+        allowSelfIntersection: false,
+        preventMarkerRemoval: true,
+        removeLayerOnEmpty: false
+      })
+
+      // Créer le contrôle de rotation après un court délai pour s'assurer que la forme est bien initialisée
+      setTimeout(() => {
+        console.log('Creating rotation control')
+        const rotationControl = createRotationControl(layer)
+        if (rotationControl) {
+          console.log('Rotation control created successfully')
+          if (layer.getBounds) {
+            map.value.fitBounds(layer.getBounds(), { padding: [50, 50] })
+          }
+        } else {
+          console.warn('Failed to create rotation control')
+        }
+      }, 100)
+    } else {
+      console.warn('No layer found for selected shape')
+    }
+  } catch (error) {
+    console.error('Error in selectShape:', error)
+  }
+}
+
+// Ajouter la fonction setRotation à la couche Leaflet
+function addRotationSupport(layer) {
+  if (!layer || typeof layer.setRotation === 'function') return
+
+  layer.setRotation = function(angle) {
+    if (!map.value) return
+
+    try {
+      const center = layer.getBounds ? 
+        layer.getBounds().getCenter() : 
+        (layer.getLatLng ? layer.getLatLng() : null)
+
+      if (!center) return
+
+      const centerPoint = map.value.latLngToLayerPoint(center)
+      const latLngs = layer.getLatLngs()
+      const points = Array.isArray(latLngs[0]) ? latLngs[0] : latLngs
+
+      const rotatedPoints = points.map(latLng => {
+        const point = map.value.latLngToLayerPoint(latLng)
+        const rotatedPoint = rotatePoint(point, centerPoint, angle)
+        return map.value.layerPointToLatLng(rotatedPoint)
+      })
+
+      if (Array.isArray(latLngs[0])) {
+        layer.setLatLngs([rotatedPoints])
+      } else {
+        layer.setLatLngs(rotatedPoints)
+      }
+    } catch (error) {
+      console.error('Error rotating shape:', error)
     }
   }
 }
 
 // Mise à jour du style de dessin
 watch(() => shapeOptions, (newOptions) => {
-  if (map.value) {
-    map.value.pm.setGlobalOptions({
-      pathOptions: {
-        color: newOptions.color,
-        weight: newOptions.weight,
-        dashArray: newOptions.dashArray
-      }
-    })
-  }
+  updateDrawingStyle()
 }, { deep: true })
+
+// Fonction pour sélectionner une couleur
+function selectColor(color: string) {
+  shapeOptions.value.color = color
+  updateDrawingStyle()
+}
+
+// Ajouter la fonction formatAngle
+function formatAngle(angle: number): string {
+  if (!angle && angle !== 0) return '0°'
+  return `${Math.round(angle)}°`
+}
 </script>
 
 <style>
@@ -1327,5 +1593,78 @@ watch(() => shapeOptions, (newOptions) => {
 
 .drawing-tooltip::before {
   border-top-color: rgba(0, 0, 0, 0.8);
+}
+
+/* Styles pour le contrôle de rotation */
+.rotation-control {
+  width: 32px !important;
+  height: 32px !important;
+  margin-left: -16px !important;
+  margin-top: -16px !important;
+  cursor: pointer !important;
+  background: white !important;
+  border: 2px solid #3388ff !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2) !important;
+  transition: all 0.2s ease !important;
+  pointer-events: auto !important;
+  z-index: 1000 !important;
+}
+
+.rotation-control:hover {
+  transform: scale(1.1) !important;
+  background: #e6f0ff !important;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.rotation-control.rotating {
+  background: #e6f0ff !important;
+  transform: scale(1.1) !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2) !important;
+}
+
+.rotation-control svg {
+  width: 24px !important;
+  height: 24px !important;
+  color: #3388ff !important;
+  transition: transform 0.2s ease !important;
+  pointer-events: none !important;
+}
+
+.rotation-control.rotating svg {
+  animation: rotate 2s linear infinite !important;
+}
+
+/* Styles pour la forme en cours de rotation */
+.leaflet-interactive.rotating {
+  transition: transform 0.1s ease-out !important;
+}
+
+/* Curseur personnalisé pendant la rotation */
+.map-rotating {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="%233388ff"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>') 16 16, auto !important;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* S'assurer que le contrôle de rotation est toujours visible */
+.leaflet-marker-icon.rotation-control {
+  z-index: 1000 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: flex !important;
+}
+
+/* Ajuster la position de l'icône dans le contrôle */
+.rotation-control .leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
 }
 </style> 

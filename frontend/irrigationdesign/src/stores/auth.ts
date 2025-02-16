@@ -5,136 +5,111 @@ interface User {
   id: number;
   username: string;
   email: string;
-  role: 'ADMIN' | 'CONCESSIONNAIRE' | 'UTILISATEUR';
-  concessionnaire?: number;
-  fullName?: string;
+  user_type: 'admin' | 'dealer' | 'client';
+  dealer?: number;
+  dealer_name?: string;
+  first_name: string;
+  last_name: string;
+  company_name?: string;
 }
 
-interface LoginCredentials {
-  username: string;
-  password: string;
-}
-
-interface RegisterData {
-  username: string;
-  email: string;
-  password: string;
-  password2: string;
+interface AuthState {
+  user: User | null;
+  token: string | null;
+  isAuthenticated: boolean;
+  mustChangePassword: boolean;
 }
 
 export const useAuthStore = defineStore('auth', {
-  state: () => ({
-    user: null as User | null,
+  state: (): AuthState => ({
+    user: null,
     token: localStorage.getItem('token'),
-    loading: false,
-    error: null as string | null,
-    concessionnaires: [] as User[]
+    isAuthenticated: false,
+    mustChangePassword: false
   }),
 
   getters: {
-    isAuthenticated: (state) => !!state.token,
-    isAdmin: (state) => state.user?.role === 'ADMIN',
-    isConcessionnaire: (state) => state.user?.role === 'CONCESSIONNAIRE',
-    isUtilisateur: (state) => state.user?.role === 'UTILISATEUR',
-    getUser: (state) => state.user,
-    getConcessionnaires: (state) => state.concessionnaires
+    isAdmin: (state) => state.user?.user_type === 'admin',
+    isDealer: (state) => state.user?.user_type === 'dealer',
+    isClient: (state) => state.user?.user_type === 'client',
+    currentUser: (state) => state.user,
+    hasDealer: (state) => Boolean(state.user?.dealer)
   },
 
   actions: {
-    async login(credentials: LoginCredentials) {
-      this.loading = true;
-      this.error = null;
+    async login(username: string, password: string) {
       try {
-        const response = await axios.post('/api/auth/login/', credentials);
-        this.token = response.data.token;
-        localStorage.setItem('token', response.data.token);
-        axios.defaults.headers.common['Authorization'] = `Token ${response.data.token}`;
-        await this.fetchUser();
+        const response = await axios.post('/api/token/', { username, password });
+        const { access, refresh } = response.data;
+        
+        localStorage.setItem('token', access);
+        localStorage.setItem('refresh_token', refresh);
+        this.token = access;
+        
+        await this.fetchUserProfile();
+        this.isAuthenticated = true;
+        
+        return true;
       } catch (error) {
-        this.error = 'Erreur lors de la connexion';
+        console.error('Login error:', error);
         throw error;
-      } finally {
-        this.loading = false;
       }
     },
 
-    async register(data: RegisterData) {
-      this.loading = true;
-      this.error = null;
+    async fetchUserProfile() {
       try {
-        const response = await axios.post('/api/auth/register/', data);
-        this.token = response.data.token;
-        localStorage.setItem('token', response.data.token);
-        axios.defaults.headers.common['Authorization'] = `Token ${response.data.token}`;
-        await this.fetchUser();
-      } catch (error) {
-        this.error = 'Erreur lors de l\'inscription';
-        throw error;
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    async fetchUser() {
-      if (!this.token) return;
-
-      this.loading = true;
-      this.error = null;
-      try {
-        const response = await axios.get('/api/auth/user/');
+        const response = await axios.get('/api/users/me/');
         this.user = response.data;
+        this.mustChangePassword = response.data.must_change_password;
       } catch (error) {
-        this.error = 'Erreur lors de la récupération des informations utilisateur';
+        console.error('Error fetching user profile:', error);
         throw error;
-      } finally {
-        this.loading = false;
+      }
+    },
+
+    async changePassword(oldPassword: string, newPassword: string) {
+      try {
+        const response = await axios.post('/api/auth/change-password/', {
+          old_password: oldPassword,
+          new_password: newPassword
+        })
+        
+        // Update the user state to reflect that password change is no longer required
+        this.user = {
+          ...this.user,
+          must_change_password: false
+        }
+        
+        return response.data
+      } catch (error) {
+        throw error
       }
     },
 
     async logout() {
-      try {
-        await axios.post('/api/auth/logout/');
-      } catch (error) {
-        console.error('Erreur lors de la déconnexion:', error);
-      } finally {
-        this.token = null;
-        this.user = null;
-        localStorage.removeItem('token');
-        delete axios.defaults.headers.common['Authorization'];
-      }
+      localStorage.removeItem('token');
+      localStorage.removeItem('refresh_token');
+      this.user = null;
+      this.token = null;
+      this.isAuthenticated = false;
     },
 
-    async updateProfile(data: Partial<User>) {
-      this.loading = true;
-      this.error = null;
+    async refreshToken() {
       try {
-        const response = await axios.patch('/api/auth/user/', data);
-        this.user = response.data;
+        const refresh = localStorage.getItem('refresh_token');
+        if (!refresh) throw new Error('No refresh token');
+
+        const response = await axios.post('/api/token/refresh/', { refresh });
+        const { access } = response.data;
+        
+        localStorage.setItem('token', access);
+        this.token = access;
+        
+        return access;
       } catch (error) {
-        this.error = 'Erreur lors de la mise à jour du profil';
+        console.error('Error refreshing token:', error);
+        await this.logout();
         throw error;
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    async changePassword(data: { old_password: string; new_password: string }) {
-      this.loading = true;
-      this.error = null;
-      try {
-        await axios.post('/api/auth/password/change/', data);
-      } catch (error) {
-        this.error = 'Erreur lors du changement de mot de passe';
-        throw error;
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    initializeAuth() {
-      if (this.token) {
-        axios.defaults.headers.common['Authorization'] = `Token ${this.token}`;
-        this.fetchUser();
       }
     },
 
@@ -160,7 +135,7 @@ export const useAuthStore = defineStore('auth', {
           concessionnaire: concessionnaireId
         });
         if (this.user && this.user.id === userId) {
-          this.user.concessionnaire = concessionnaireId;
+          this.user.dealer = concessionnaireId;
         }
       } catch (error) {
         this.error = 'Erreur lors de la mise à jour du concessionnaire';
@@ -196,7 +171,7 @@ export const useAuthStore = defineStore('auth', {
           role
         });
         if (this.user && this.user.id === userId) {
-          this.user.role = role as User['role'];
+          this.user.user_type = role as User['user_type'];
         }
         return response.data;
       } catch (error) {
@@ -209,7 +184,7 @@ export const useAuthStore = defineStore('auth', {
 
     checkAccess(requiredRole: string[]): boolean {
       if (!this.user) return false;
-      return requiredRole.includes(this.user.role);
+      return requiredRole.includes(this.user.user_type);
     }
   }
 }); 

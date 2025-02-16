@@ -25,7 +25,12 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true
       }
-    }
+    },
+    origin: 'http://localhost:5173',
+    host: 'localhost',
+    port: 5173,
+    strictPort: true,
+    cors: true
   },
   build: {
     outDir: '../../static/frontend',
@@ -38,5 +43,5 @@ export default defineConfig({
       }
     }
   },
-  base: process.env.NODE_ENV === 'production' ? '/static/frontend/' : '/'
+  base: '/static/frontend/'
 })
