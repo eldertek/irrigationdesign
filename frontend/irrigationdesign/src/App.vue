@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
-import HelloWorld from './components/HelloWorld.vue'
 import { ref, computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import SearchBar from '@/components/SearchBar.vue'
 
@@ -12,8 +11,8 @@ const showProfileMenu = ref(false)
 
 // Données utilisateur depuis le store d'authentification
 const userName = computed(() => authStore.user?.username || 'Utilisateur')
-const userRole = computed(() => authStore.user?.role || 'Utilisateur')
-const isAdmin = computed(() => authStore.user?.role === 'ADMIN')
+const userRole = computed(() => authStore.user?.user_type || 'Utilisateur')
+const isAdmin = computed(() => authStore.user?.user_type === 'admin')
 const userAvatar = ref('')
 
 // Items de navigation de base
@@ -36,6 +35,12 @@ const profileMenuItems = [
   { name: 'Paramètres', to: '/settings' }
 ]
 
+// Interface pour le paramètre de localisation
+interface Location {
+  lat: number
+  lng: number
+}
+
 async function handleLogout() {
   try {
     await authStore.logout()
@@ -46,7 +51,7 @@ async function handleLogout() {
 }
 
 // Fonction pour gérer la sélection d'une adresse
-function handleLocationSelect(location) {
+function handleLocationSelect(location: Location) {
   // Émettre un événement personnalisé pour la carte
   window.dispatchEvent(new CustomEvent('map-set-location', { 
     detail: { 

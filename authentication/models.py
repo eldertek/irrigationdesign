@@ -26,6 +26,22 @@ class Utilisateur(AbstractUser):
         related_name='utilisateurs',
         verbose_name='Concessionnaire associé'
     )
+    company_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name='Nom de l\'entreprise'
+    )
+    must_change_password = models.BooleanField(
+        default=True,
+        verbose_name='Doit changer le mot de passe'
+    )
+    phone = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name='Numéro de téléphone'
+    )
 
     class Meta:
         verbose_name = 'Utilisateur'
@@ -33,3 +49,28 @@ class Utilisateur(AbstractUser):
 
     def __str__(self):
         return f"{self.get_full_name()} ({self.get_role_display()})"
+
+    def save(self, *args, **kwargs):
+        # Si c'est un nouveau utilisateur (pas encore d'ID)
+        if not self.pk:
+            self.must_change_password = True
+        super().save(*args, **kwargs)
+
+    @property
+    def is_admin(self):
+        return self.role == self.Role.ADMIN
+
+    @property
+    def is_dealer(self):
+        return self.role == self.Role.CONCESSIONNAIRE
+
+    @property
+    def is_client(self):
+        return self.role == self.Role.UTILISATEUR
+
+    def get_display_name(self):
+        """Retourne le nom d'affichage de l'utilisateur."""
+        if self.company_name:
+            return self.company_name
+        full_name = self.get_full_name()
+        return full_name if full_name else self.username

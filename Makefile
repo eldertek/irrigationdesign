@@ -36,6 +36,7 @@ clean-static:
 
 # Lancement du serveur Django
 run:
+	lsof -ti:8000 | xargs kill -9 2>/dev/null || true
 	$(MANAGE) runserver --insecure
 
 # Lancement du serveur de développement frontend
@@ -43,7 +44,10 @@ dev-frontend:
 	cd frontend/irrigationdesign && $(NPM) run dev
 
 # Lancement des deux serveurs en développement (nécessite tmux)
-dev: frontend collectstatic
+dev: clean-static frontend
+	mkdir -p static/frontend
+	$(MAKE) collectstatic
+	tmux kill-session -t irrigation 2>/dev/null || true
 	tmux new-session -d -s irrigation '$(MAKE) run' \; \
 	split-window -h '$(MAKE) dev-frontend' \; \
 	attach

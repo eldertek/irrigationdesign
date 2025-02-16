@@ -189,3 +189,213 @@ files: **/*
   - Sélection obligatoire d'un concessionnaire
   - Création et modification de ses propres plans
   - Accès limité aux fonctionnalités de base
+
+# Structure du Projet
+## Organisation des Dossiers
+- `api/` : Gestion des endpoints REST et modèles principaux
+- `authentication/` : Gestion de l'authentification et des utilisateurs
+- `plans/` : Modèles et logique pour les plans d'irrigation
+- `templates/` : Templates Django, notamment pour le SPA Vue.js
+- `frontend/irrigationdesign/` : Application Vue.js
+- `irrigation_design/` : Configuration principale Django
+
+## Modèles de Données
+### Utilisateurs (`api/models.py`)
+- Trois rôles : admin, dealer (concessionnaire), client
+- Champs spécifiques :
+  - `role` : Type d'utilisateur
+  - `concessionnaire` : Lien vers le concessionnaire (pour les clients)
+  - `must_change_password` : Indicateur de changement de mot de passe obligatoire
+  - `company_name` : Nom de l'entreprise
+  - `phone` : Numéro de téléphone
+
+### Plans (`plans/models.py`)
+- `Plan` : Structure principale d'un plan d'irrigation
+  - Nom, description, dates de création/modification
+  - Lien vers le créateur
+- `FormeGeometrique` : Formes géométriques sur le plan
+  - Types : Rectangle, Cercle, Demi-cercle, Ligne
+  - Géométrie (PostGIS)
+  - Surface calculée
+  - Propriétés spécifiques en JSON
+- `Connexion` : Liens entre formes
+  - Forme source et destination
+  - Géométrie de la connexion (LineString)
+- `TexteAnnotation` : Annotations textuelles
+  - Position (Point)
+  - Rotation
+  - Texte
+
+## API REST (`api/views.py`, `api/urls.py`)
+### Points d'Accès
+- `/api/users/` : Gestion des utilisateurs
+- `/api/dealers/` : Gestion des concessionnaires
+- `/api/clients/` : Gestion des clients
+- `/api/plans/` : Gestion des plans
+- `/api/formes/` : Gestion des formes géométriques
+- `/api/connexions/` : Gestion des connexions
+- `/api/annotations/` : Gestion des annotations
+
+### Permissions
+- Admin : Accès complet à tous les endpoints
+- Dealer : 
+  - Accès à ses clients
+  - Accès aux plans de ses clients
+  - Création de clients
+- Client :
+  - Accès à ses propres données
+  - Création et modification de ses plans
+
+## Frontend (Vue.js)
+### Routes Principales
+- `/` : Vue principale (authentification requise)
+- `/projects` : Liste des projets
+- `/profile` : Profil utilisateur
+- `/settings` : Paramètres
+- `/login` : Connexion
+- `/forgot-password` : Récupération de mot de passe
+- `/reset-password/:token` : Réinitialisation de mot de passe
+- `/change-password` : Changement de mot de passe
+
+### Sécurité
+- Authentification JWT
+- Durée des tokens :
+  - Access : 60 minutes
+  - Refresh : 1 jour
+- Routes protégées avec guards Vue Router
+- Vérification du changement de mot de passe obligatoire
+
+## Développement
+### Commandes Make
+- `make install` : Installation des dépendances
+- `make dev` : Lancement des serveurs de développement
+- `make frontend` : Build du frontend
+- `make collectstatic` : Collecte des fichiers statiques
+- `make clean-static` : Nettoyage des fichiers statiques
+- `make migrations` : Création des migrations
+- `make migrate` : Application des migrations
+
+### Configuration
+- Base de données : PostgreSQL avec PostGIS
+- Serveur de développement : Django (8000) + Vite (5173)
+- Proxy Vite configuré pour `/api` et `/media`
+- CORS configuré pour les domaines de développement
+
+## Déploiement
+### Fichiers Statiques
+- Build dans `static/frontend/`
+- Assets dans `static/frontend/assets/`
+- Collecte dans `staticfiles/`
+
+### Sécurité
+- Debug désactivé en production
+- HTTPS requis
+- Variables d'environnement pour les secrets
+- CORS limité aux domaines autorisés
+
+# Spécifications Techniques
+## Frontend
+### Dépendances Principales
+- Vue.js 3.4+ avec Composition API
+- Vue Router 4.2+ pour le routage
+- Pinia pour la gestion d'état
+- Leaflet avec plugins :
+  - @geoman-io/leaflet-geoman-free
+  - @raruto/leaflet-elevation
+  - leaflet-draw
+  - leaflet-geometryutil
+  - leaflet-semicircle
+- TailwindCSS 3.4+ pour le style
+- Axios pour les requêtes HTTP
+- TypeScript pour le typage statique
+
+### Configuration TailwindCSS
+- Thème personnalisé :
+  - Palette de couleurs primary
+  - Espacements personnalisés
+  - Indices z personnalisés
+  - Ombres personnalisées
+- Plugins :
+  - @tailwindcss/forms
+  - @tailwindcss/typography
+
+### Scripts NPM
+- `dev` : Développement avec Vite
+- `build` : Build de production
+- `test:unit` : Tests unitaires avec Vitest
+- `test:e2e` : Tests end-to-end avec Cypress
+- `lint` : Linting avec ESLint
+- `format` : Formatage avec Prettier
+
+## Backend
+### Dépendances Principales
+- Django 5.1+
+- Django REST Framework 3.15+
+- DRF GIS 1.0+ pour les fonctionnalités géospatiales
+- Simple JWT 5.3+ pour l'authentification
+- CORS Headers 4.7+ pour la gestion CORS
+- PostgreSQL avec PostGIS
+- Python-dotenv pour la gestion des variables d'environnement
+
+### Outils de Développement
+- Black pour le formatage
+- Flake8 pour le linting
+- Pytest pour les tests
+- Coverage pour la couverture de code
+
+# Structure Frontend Détaillée
+## Composants Vue.js
+### Composants Principaux
+- `MapContainer.vue` : Conteneur principal de la carte
+- `MapComponent.vue` : Composant de carte Leaflet
+- `ElevationProfile.vue` : Profil d'élévation
+- `ShapeInfo.vue` : Informations sur les formes
+- `SearchBar.vue` : Barre de recherche
+- `TextAnnotation.vue` : Annotations textuelles
+- `Sidebar.vue` : Barre latérale
+
+### Composants d'Authentification
+- Dossier `auth/` pour les composants liés à l'authentification
+- Gestion des formulaires de connexion/inscription
+- Composants de changement de mot de passe
+
+### Tests
+- Dossier `__tests__/` pour les tests unitaires
+- Tests des composants individuels
+- Tests d'intégration
+
+## Stores Pinia
+### Store d'Authentification (`auth.ts`)
+- Gestion de l'état de connexion
+- Stockage des informations utilisateur
+- Gestion des tokens JWT
+- Actions d'authentification
+
+### Store d'Irrigation (`irrigation.ts`)
+- Gestion des plans d'irrigation
+- État des formes géométriques
+- Actions de modification du plan
+- Gestion des connexions
+
+## Organisation du Code Frontend
+### Structure des Dossiers
+- `components/` : Composants réutilisables
+- `views/` : Pages de l'application
+- `stores/` : Stores Pinia
+- `router/` : Configuration du routeur
+- `assets/` : Ressources statiques
+- `types/` : Types TypeScript
+- `utils/` : Fonctions utilitaires
+
+### Conventions de Nommage
+- Composants : PascalCase
+- Fichiers de store : camelCase
+- Fichiers de test : `.spec.ts` ou `.test.ts`
+- Types : Interface{NomType}
+
+### Pratiques de Développement
+- Utiliser la Composition API
+- Typer strictement avec TypeScript
+- Documenter les props et les émissions
+- Tester les composants critiques
+- Utiliser les composables pour la logique réutilisable

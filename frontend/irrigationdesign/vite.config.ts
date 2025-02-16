@@ -39,9 +39,17 @@ export default defineConfig({
     manifest: true,
     rollupOptions: {
       output: {
-        manualChunks: undefined
+        manualChunks: undefined,
+        entryFileNames: 'assets/index.js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name === 'index.css') {
+            return 'assets/index.css'
+          }
+          return 'assets/[name].[ext]'
+        }
       }
     }
   },
-  base: '/static/frontend/'
+  base: '/'
 })

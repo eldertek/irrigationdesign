@@ -3,31 +3,61 @@ import { useAuthStore } from '@/stores/auth'
 import ChangePasswordForm from '@/components/auth/ChangePasswordForm.vue'
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(),
   routes: [
     {
       path: '/',
       name: 'home',
       component: () => import('@/views/HomeView.vue'),
-      meta: { requiresAuth: true }
+      meta: { 
+        requiresAuth: true,
+        allowedRoles: ['admin', 'dealer', 'client']
+      }
     },
     {
       path: '/projects',
       name: 'projects',
       component: () => import('@/views/ProjectsView.vue'),
-      meta: { requiresAuth: true }
+      meta: { 
+        requiresAuth: true,
+        allowedRoles: ['admin', 'dealer', 'client']
+      }
+    },
+    {
+      path: '/users',
+      name: 'users',
+      component: () => import('@/views/UsersView.vue'),
+      meta: { 
+        requiresAuth: true,
+        allowedRoles: ['admin', 'dealer']
+      }
     },
     {
       path: '/profile',
       name: 'profile',
       component: () => import('@/views/ProfileView.vue'),
-      meta: { requiresAuth: true }
+      meta: { 
+        requiresAuth: true,
+        allowedRoles: ['admin', 'dealer', 'client']
+      }
     },
     {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),
-      meta: { requiresAuth: true }
+      meta: { 
+        requiresAuth: true,
+        allowedRoles: ['admin', 'dealer', 'client']
+      }
+    },
+    {
+      path: '/select-dealer',
+      name: 'selectDealer',
+      component: () => import('@/views/SelectDealerView.vue'),
+      meta: { 
+        requiresAuth: true,
+        allowedRoles: ['client']
+      }
     },
     {
       path: '/login',
@@ -51,7 +81,10 @@ const router = createRouter({
       path: '/change-password',
       name: 'changePassword',
       component: ChangePasswordForm,
-      meta: { requiresAuth: true }
+      meta: { 
+        requiresAuth: true,
+        allowedRoles: ['admin', 'dealer', 'client']
+      }
     },
     {
       path: '/:pathMatch(.*)*',
@@ -66,21 +99,43 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
   const mustChangePassword = authStore.user?.must_change_password
+  const userType = authStore.user?.user_type
+  const hasDealer = authStore.hasDealer
 
-  // If route requires auth and user is not authenticated
+  // Si la route nécessite une authentification et que l'utilisateur n'est pas authentifié
   if (to.meta.requiresAuth && !isAuthenticated) {
     next({ name: 'login' })
     return
   }
 
-  // If user must change password and is not already on change password route
+  // Si l'utilisateur doit changer son mot de passe
   if (isAuthenticated && mustChangePassword && to.name !== 'changePassword') {
     next({ name: 'changePassword' })
     return
   }
 
-  // If user is on change password route but doesn't need to change password
+  // Si l'utilisateur est sur la route de changement de mot de passe mais n'a pas besoin de le changer
   if (to.name === 'changePassword' && !mustChangePassword) {
+    next({ name: 'home' })
+    return
+  }
+
+  // Vérification des rôles autorisés
+  if (to.meta.allowedRoles && userType) {
+    if (!to.meta.allowedRoles.includes(userType)) {
+      next({ name: 'home' })
+      return
+    }
+  }
+
+  // Redirection vers la sélection du concessionnaire pour les clients sans concessionnaire
+  if (isAuthenticated && userType === 'client' && !hasDealer && to.name !== 'selectDealer') {
+    next({ name: 'selectDealer' })
+    return
+  }
+
+  // Si l'utilisateur est authentifié et essaie d'accéder à une route guest
+  if (to.meta.requiresGuest && isAuthenticated) {
     next({ name: 'home' })
     return
   }
