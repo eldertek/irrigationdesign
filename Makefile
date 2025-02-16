@@ -13,7 +13,6 @@ install:
 	test -d $(VENV) || $(PYTHON) -m venv $(VENV)
 	$(ACTIVATE) && $(PIP) install -r requirements.txt
 	cd frontend/irrigationdesign && $(NPM) install
-	cd frontend/irrigationdesign && $(NPM) install -D vue-tsc typescript @types/node
 
 # Migrations
 migrations:
