@@ -1,4 +1,4 @@
-.PHONY: install migrate run test shell clean frontend serve dev
+.PHONY: install migrate run test shell clean frontend serve dev list-files
 
 # Variables
 PYTHON = python
@@ -13,6 +13,40 @@ install:
 	test -d $(VENV) || $(PYTHON) -m venv $(VENV)
 	$(ACTIVATE) && $(PIP) install -r requirements.txt
 	cd frontend/irrigationdesign && $(NPM) install
+
+# Liste des fichiers pertinents
+list-files:
+	@echo "=== Liste des fichiers du projet ===" > out.txt
+	@echo "\n=== Backend Django ===" >> out.txt
+	@echo "\n--- Fichiers principaux ---" >> out.txt
+	@find . -maxdepth 1 -name "manage.py" >> out.txt
+	@echo "\n--- Configuration Django ---" >> out.txt
+	@find ./irrigation_design -type f -name "*.py" ! -path "*/migrations/*" >> out.txt
+	@echo "\n--- Applications Django ---\n" >> out.txt
+	@echo "api:" >> out.txt
+	@find ./api -type f -name "*.py" ! -path "*/migrations/*" ! -path "*/__pycache__/*" >> out.txt
+	@echo "\nauthentication:" >> out.txt
+	@find ./authentication -type f -name "*.py" ! -path "*/migrations/*" ! -path "*/__pycache__/*" >> out.txt
+	@echo "\nplans:" >> out.txt
+	@find ./plans -type f -name "*.py" ! -path "*/migrations/*" ! -path "*/__pycache__/*" >> out.txt
+	@echo "\n=== Frontend Vue.js ===" >> out.txt
+	@echo "\n--- Templates Django ---" >> out.txt
+	@find ./templates -type f -name "*.html" >> out.txt
+	@echo "\n--- Composants Vue ---" >> out.txt
+	@find frontend/irrigationdesign/src/components -type f -name "*.vue" ! -path "*/node_modules/*" >> out.txt
+	@echo "\n--- Vues Vue ---" >> out.txt
+	@find frontend/irrigationdesign/src/views -type f -name "*.vue" ! -path "*/node_modules/*" >> out.txt
+	@echo "\n--- Store et État ---" >> out.txt
+	@find frontend/irrigationdesign/src/stores -type f -name "*.ts" ! -path "*/node_modules/*" >> out.txt
+	@echo "\n--- Services et Types ---" >> out.txt
+	@find frontend/irrigationdesign/src/services frontend/irrigationdesign/src/types -type f -name "*.ts" ! -path "*/node_modules/*" >> out.txt
+	@echo "\n--- Configuration Frontend ---" >> out.txt
+	@find frontend/irrigationdesign -maxdepth 1 -type f \( -name "*.json" -o -name "*.ts" -o -name "*.config.*" \) ! -path "*/node_modules/*" >> out.txt
+	@echo "\n--- Routes ---" >> out.txt
+	@find frontend/irrigationdesign/src/router -type f -name "*.ts" ! -path "*/node_modules/*" >> out.txt
+	@echo "\n--- Styles ---" >> out.txt
+	@find frontend/irrigationdesign/src/assets -type f \( -name "*.css" -o -name "*.scss" \) ! -path "*/node_modules/*" >> out.txt
+	@echo "\nContenu généré dans out.txt"
 
 # Migrations
 migrate:
