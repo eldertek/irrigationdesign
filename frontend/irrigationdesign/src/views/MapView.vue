@@ -1,1064 +1,147 @@
 <template>
-  <div class="h-full flex">
-    <!-- Carte -->
-    <div class="flex-1 relative">
-      <div ref="mapContainer" class="h-full w-full"></div>
-      <ShapeInfo v-if="selectedShapeInfo" :shape="selectedShapeInfo" />
+  <div class="h-screen flex">
+    <!-- Panneau latéral -->
+    <div class="w-80 bg-white border-r border-gray-200 p-4 flex flex-col">
+      <DrawingTools
+        :current-tool="currentTool"
+        :selected-shape="selectedShape"
+        @tool-change="setDrawingTool"
+        @style-update="updateShapeStyle"
+        @properties-update="updateShapeProperties"
+      />
     </div>
 
-    <!-- Panneau latéral -->
-    <div class="w-80 bg-white shadow-lg flex flex-col">
-      <!-- En-tête -->
-      <div class="p-4 border-b border-gray-200">
-        <h2 class="text-lg font-medium text-gray-900">Outils de dessin</h2>
-      </div>
-
-      <!-- Sélection de la forme -->
-      <div class="p-4 border-b border-gray-200">
-        <label class="block text-sm font-medium text-gray-700 mb-2">
-          Type de forme
-        </label>
-        <div class="grid grid-cols-2 gap-2">
-          <button
-            v-for="shape in ['Rectangle', 'Cercle', 'Demi-cercle', 'Ligne']"
-            :key="shape"
-            @click="selectedShape = shape"
-            class="px-3 py-2 rounded-md text-sm font-medium"
-            :class="[
-              selectedShape === shape
-                ? 'bg-primary-100 text-primary-700 border-primary-500'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            ]"
-          >
-            {{ shape }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Options de style -->
-      <div class="p-4 border-b border-gray-200">
-        <h3 class="text-sm font-medium text-gray-700 mb-4">Style</h3>
-        
-        <!-- Couleur avec préréglages -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Couleur</label>
-          <div class="flex flex-wrap gap-2">
-            <button
-              v-for="color in presetColors"
-              :key="color.value"
-              @click="selectColor(color.value)"
-              class="w-8 h-8 rounded-full border-2 transition-all transform hover:scale-110"
-              :style="{ backgroundColor: color.value }"
-              :class="[shapeOptions.color === color.value ? 'border-primary-500 scale-110' : 'border-transparent']"
-              :title="color.label"
-            />
-            <div class="relative">
-              <input
-                type="color"
-                v-model="shapeOptions.color"
-                class="w-8 h-8 rounded-full cursor-pointer"
-              >
-            </div>
-          </div>
-        </div>
-
-        <!-- Type de trait -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Type de trait</label>
-          <select
-            v-model="shapeOptions.dashArray"
-            class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-          >
-            <option value="">Trait continu</option>
-            <option value="5,5">Pointillé simple</option>
-            <option value="10,5">Pointillé long</option>
-            <option value="2,5">Pointillé court</option>
-            <option value="15,10,5,10">Pointillé mixte</option>
-            <option value="20,5,5,5">Trait-point</option>
-          </select>
-        </div>
-
-        <!-- Épaisseur avec prévisualisation -->
-        <div>
-          <div class="flex items-center justify-between mb-2">
-            <label class="block text-sm font-medium text-gray-700">Épaisseur</label>
-            <span class="text-sm text-gray-500">{{ shapeOptions.weight }}px</span>
-          </div>
-          <div class="relative">
-            <input
-              type="range"
-              v-model="shapeOptions.weight"
-              min="1"
-              max="10"
-              step="0.5"
-              class="w-full accent-primary-600"
-            >
-            <div 
-              class="mt-2 bg-current rounded-full" 
-              :style="{ 
-                height: shapeOptions.weight + 'px',
-                strokeDasharray: shapeOptions.dashArray
-              }"
-            ></div>
-          </div>
-        </div>
-
-        <!-- Opacité -->
-        <div>
-          <label class="block text-sm text-gray-600 mb-1">
-            Opacité
-          </label>
-          <input
-            type="range"
-            v-model="drawingOptions.opacity"
-            min="0"
-            max="1"
-            step="0.1"
-            class="w-full"
-            @change="updateDrawingStyle"
-          />
-          <div class="text-sm text-gray-500 text-right">
-            {{ Math.round(drawingOptions.opacity * 100) }}%
-          </div>
-        </div>
-      </div>
-
-      <!-- Liste des formes -->
-      <div class="flex-1 p-4 overflow-y-auto">
-        <h3 class="text-sm font-medium text-gray-700 mb-2">
-          Formes dessinées
-        </h3>
-        <div class="space-y-2">
-          <div
-            v-for="shape in shapes"
-            :key="shape.id"
-            class="p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors cursor-pointer"
-            :class="{ 'ring-2 ring-primary-500': selectedShapeInfo?.id === shape.id }"
-            @click="selectShape(shape)"
-          >
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-sm font-medium text-gray-700">{{ getShapeDisplayName(shape) }}</span>
-              <button
-                @click.stop="deleteShape(shape.id)"
-                class="text-red-600 hover:text-red-800"
-              >
-                <span class="sr-only">Supprimer</span>
-                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path
-                    fill-rule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <!-- Dimensions spécifiques selon le type de forme -->
-            <div class="space-y-1 text-sm text-gray-600">
-              <!-- Rectangle -->
-              <template v-if="shape.type.toLowerCase() === 'rectangle' && shape.properties?.dimensions">
-                <div>Largeur: {{ formatDistance(shape.properties.dimensions.width) }}</div>
-                <div>Longueur: {{ formatDistance(shape.properties.dimensions.height) }}</div>
-                <div>Surface: {{ formatArea(shape.properties.surfaceInterieure) }}</div>
-                <div v-if="shape.properties.rotation !== undefined">Rotation: {{ formatAngle(shape.properties.rotation) }}</div>
-              </template>
-
-              <!-- Cercle -->
-              <template v-if="shape.type.toLowerCase() === 'circle' && shape.properties?.dimensions">
-                <div>Rayon: {{ formatDistance(shape.properties.dimensions.radius) }}</div>
-                <div>Diamètre: {{ formatDistance(shape.properties.dimensions.diameter) }}</div>
-                <div>Surface: {{ formatArea(shape.properties.surfaceInterieure) }}</div>
-                <div v-if="shape.properties.rotation !== undefined">Rotation: {{ formatAngle(shape.properties.rotation) }}</div>
-              </template>
-
-              <!-- Demi-cercle -->
-              <template v-if="shape.type.toLowerCase() === 'semicircle' && shape.properties?.dimensions">
-                <div>Rayon: {{ formatDistance(shape.properties.dimensions.radius) }}</div>
-                <div>Orientation: {{ formatAngle(shape.properties.dimensions.orientation) }}</div>
-                <div>Surface: {{ formatArea(shape.properties.surfaceInterieure) }}</div>
-                <div v-if="shape.properties.rotation !== undefined">Rotation: {{ formatAngle(shape.properties.rotation) }}</div>
-              </template>
-
-              <!-- Ligne -->
-              <template v-if="shape.type.toLowerCase() === 'line' && shape.properties">
-                <div>Longueur: {{ formatDistance(shape.properties.length) }}</div>
-                <div>Largeur d'influence: {{ formatDistance(shape.properties.dimensions?.width || 0) }}</div>
-                <div>Zone d'influence: {{ formatArea(shape.properties.surfaceInfluence) }}</div>
-                <div>Dénivelé: {{ formatDistance(shape.properties.elevation?.difference || 0) }}</div>
-                <div>Pente moyenne: {{ formatSlope(shape.properties.elevation?.slope || 0) }}</div>
-              </template>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Actions -->
-      <div class="p-4 border-t border-gray-200">
-        <button
-          @click="cancelDrawing"
-          class="w-full mb-2 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-        >
-          Annuler le dessin
-        </button>
-        <button
-          @click="savePlan"
-          class="w-full px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700"
-        >
-          Sauvegarder le plan
-        </button>
-      </div>
+    <!-- Carte -->
+    <div class="flex-1 relative">
+      <div ref="mapContainer" class="absolute inset-0"></div>
+      <SearchLocation @search="handleSearch" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { useIrrigationStore } from '@/stores/irrigation'
-import L from 'leaflet'
-import '@geoman-io/leaflet-geoman-free'
-import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
-import 'leaflet-semicircle'
-import * as turf from '@turf/turf'
-import ShapeInfo from '@/components/ShapeInfo.vue'
+import { onMounted, ref, watch } from 'vue';
+import type { LatLngTuple } from 'leaflet';
+import * as L from 'leaflet';
+import DrawingTools from '../components/DrawingTools.vue';
+import SearchLocation from '../components/SearchLocation.vue';
+import { useMapDrawing } from '../composables/useMapDrawing';
+import { useMapState } from '../composables/useMapState';
+import { useIrrigationStore } from '@/stores/irrigation';
 
-// Définition des couleurs prédéfinies
-const presetColors = [
-  { value: '#3388ff', label: 'Bleu' },
-  { value: '#33c9ff', label: 'Bleu clair' },
-  { value: '#ff3333', label: 'Rouge' },
-  { value: '#ff8033', label: 'Orange' },
-  { value: '#33ff33', label: 'Vert' },
-  { value: '#ffff33', label: 'Jaune' },
-  { value: '#9933ff', label: 'Violet' },
-  { value: '#ff33ff', label: 'Rose' }
-]
-
-const mapContainer = ref<HTMLElement | null>(null)
-const map = ref<L.Map | null>(null)
-const featureGroup = ref<L.FeatureGroup | null>(null)
-const searchQuery = ref('')
-const selectedShape = ref('Rectangle')
-const shapes = ref([])
-const irrigationStore = useIrrigationStore()
-const currentDrawing = ref(null)
-const selectedShapeInfo = ref(null)
-
-const drawingOptions = ref({
-  color: '#3388ff',
-  weight: 3,
-  opacity: 0.8,
-  fillOpacity: 0.2
-})
-
-const isDrawing = ref(false)
-const drawingState = ref('idle') // 'idle', 'drawing', 'editing'
-const currentShape = ref(null)
-
-const shapeOptions = ref({
-  color: presetColors[0].value,
-  weight: 3,
-  opacity: 0.8,
-  dashArray: '', // Trait continu par défaut
-  radius: 10,
-  orientation: 0,
-  fixedRadius: false,
-  lineType: 'straight'
-})
-
-// Modifier la configuration des options de dessin
-const drawingOptionsGeoman = {
-  position: 'topright',
-  drawControls: false,
-  editControls: false,
-  cutControls: false,
-  dragMode: false,
-  removalMode: false,
-  drawText: false,
-  rotateMode: true,  // Activer le mode rotation
-  oneBlock: false,
-  customControls: false,
-  optionsControls: false,
-  snappingOption: true,
-  snapDistance: 20,
-  tooltips: true,
-  rotateControlOptions: {
-    rotateEnabled: true
-  }
-}
-
-// Ajout du fond de carte OpenStreetMap
-const baseMaps = {
-  'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
-  }),
-  'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    attribution: '© Esri'
-  }),
-  'Terrain': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenTopoMap contributors'
-  })
-}
-
-// Initialisation de la carte
-onMounted(() => {
-  if (!mapContainer.value) return
-
-  // Création de la carte
-  map.value = L.map(mapContainer.value, {
-    layers: [baseMaps['Satellite']] // Fond satellite par défaut
-  }).setView([48.8566, 2.3522], 13)
-
-  // Ajout du contrôle de couches
-  L.control.layers(baseMaps).addTo(map.value)
-
-  // Initialisation du groupe de formes
-  featureGroup.value = new L.FeatureGroup()
-  map.value.addLayer(featureGroup.value)
-
-  // Initialisation de Leaflet-Geoman
-  map.value.pm.addControls(drawingOptionsGeoman)
-
-  // Gestionnaire d'événements pour le dessin et les modifications
-  map.value.on('pm:create', handleShapeCreated)
-  map.value.on('pm:remove', handleShapeRemoved)
-  map.value.on('pm:edit', (e) => {
-    const layer = e.layer
-    // Recalculer les propriétés
-    const updatedProperties = calculateShapeProperties(layer, layer.shape || layer.options.shape || 'unknown')
-    
-    // Mettre à jour selectedShapeInfo si c'est la forme actuellement sélectionnée
-    if (selectedShapeInfo.value && layer.id === selectedShapeInfo.value.id) {
-      selectedShapeInfo.value = {
-        ...selectedShapeInfo.value,
-        properties: updatedProperties
-      }
-    }
-    
-    // Mettre à jour la forme dans la liste
-    const shapeIndex = shapes.value.findIndex(s => s.layer === layer)
-    if (shapeIndex !== -1) {
-      shapes.value[shapeIndex].properties = updatedProperties
-    }
-  })
-
-  // Écouter l'événement de changement de position de la carte
-  window.addEventListener('map-set-location', ((event: CustomEvent) => {
-    if (map.value && event.detail) {
-      const { lat, lng, zoom } = event.detail
-      map.value.setView([lat, lng], zoom)
-    }
-  }) as EventListener)
-
-  // Chargement des formes existantes si un plan est sélectionné
-  if (irrigationStore.currentPlan) {
-    loadExistingShapes()
-  }
-})
-
-// Fonctions de dessin
-function startDrawing(shapeType) {
-  if (!map.value) return
-
-  // Mise à jour des états
-  isDrawing.value = true
-  drawingState.value = 'drawing'
-  currentShape.value = shapeType
-
-  // Ajouter une classe pour le mode dessin
-  map.value.getContainer().classList.add('drawing-mode')
-
-  // Désactiver tous les modes de dessin et nettoyage
-  map.value.pm.disableDraw()
-  cleanupSemicircleEvents()
-  
-  // Ajout d'un curseur personnalisé pour indiquer le mode dessin
-  map.value.getContainer().style.cursor = 'crosshair'
-
-  const drawOptions = {
-    templineStyle: { 
-      color: shapeOptions.value.color,
-      weight: shapeOptions.value.weight,
-      dashArray: shapeOptions.value.dashArray
-    },
-    hintlineStyle: { 
-      color: shapeOptions.value.color,
-      weight: shapeOptions.value.weight,
-      dashArray: shapeOptions.value.dashArray
-    },
-    pathOptions: {
-      color: shapeOptions.value.color,
-      fillColor: shapeOptions.value.color,
-      fillOpacity: 0.2,
-      weight: shapeOptions.value.weight,
-      dashArray: shapeOptions.value.dashArray
-    },
-    tooltips: true,
-    snapDistance: 20,
-    finishOn: 'contextmenu'
-  }
-
-  // Afficher un message d'aide selon le type de forme
-  const helpMessage = {
-    'Rectangle': 'Cliquez et glissez pour dessiner un rectangle',
-    'Cercle': 'Cliquez et glissez pour définir le rayon du cercle',
-    'Ligne': 'Cliquez pour commencer la ligne, double-cliquez pour terminer',
-    'Demi-cercle': 'Cliquez pour placer le centre, glissez pour définir le rayon'
-  }
-
-  // Afficher le message d'aide
-  if (map.value && helpMessage[shapeType]) {
-    const helpDiv = document.createElement('div')
-    helpDiv.className = 'drawing-help-message'
-    helpDiv.textContent = helpMessage[shapeType]
-    map.value.getContainer().appendChild(helpDiv)
-  }
-
-  switch (shapeType) {
-    case 'Rectangle':
-      map.value.pm.enableDraw('Rectangle', drawOptions)
-      break
-    case 'Cercle':
-      map.value.pm.enableDraw('Circle', drawOptions)
-      break
-    case 'Ligne':
-      map.value.pm.enableDraw('Line', drawOptions)
-      break
-    case 'Demi-cercle':
-      enableSemicircleDrawing(drawOptions)
-      break
-  }
-}
-
-// Gestion du dessin du demi-cercle
-let semicircleEvents = {
+const mapContainer = ref<HTMLElement | null>(null);
+const irrigationStore = useIrrigationStore();
+const shapes = ref<any[]>([]);
+const selectedShapeInfo = ref<any>(null);
+const shapeOptions = ref<any>({});
+const semicircleEvents = ref<any>({
   mousedown: null,
   mousemove: null,
   mouseup: null
-}
+});
 
-function enableSemicircleDrawing(drawOptions = {}) {
-  if (!map.value) return
+const {
+  currentTool,
+  selectedShape,
+  map,
+  initMap: initDrawing,
+  setDrawingTool,
+  updateShapeStyle,
+  updateShapeProperties
+} = useMapDrawing();
 
-  let center = null
-  let tempCircle = null
-  let drawingStep = 0
-  let radius = 0
-  let helpTooltip = L.tooltip({
-    permanent: true,
-    direction: 'right',
-    className: 'drawing-tooltip'
-  })
+const {
+  searchQuery,
+  searchLocation,
+  initMap: initState
+} = useMapState();
 
-  // Fonction pour mettre à jour le tooltip
-  const updateTooltip = (latlng, text) => {
-    helpTooltip.setLatLng(latlng)
-    helpTooltip.setContent(text)
-  }
+const handleSearch = (query: string) => {
+  searchQuery.value = query;
+  searchLocation();
+};
 
-  map.value.once('click', (e) => {
-    // Premier clic pour définir le centre
-    center = e.latlng
-    drawingStep = 1
+onMounted(() => {
+  if (mapContainer.value) {
+    // Coordonnées centrées sur la France
+    const center: LatLngTuple = [46.603354, 1.888334];
+    const zoom = 6;
+
+    // Initialiser les outils de dessin (qui crée aussi la carte)
+    const mapInstance = initDrawing(mapContainer.value, center, zoom) as L.Map;
     
-    // Ajouter le tooltip
-    helpTooltip.setLatLng(e.latlng)
-    helpTooltip.setContent('Move mouse to set radius')
-    helpTooltip.addTo(map.value)
-    
-    // Créer le cercle temporaire
-    tempCircle = L.circle(center, {
-      radius: 0,
-      color: shapeOptions.value.color,
-      fillColor: shapeOptions.value.color,
-      fillOpacity: 0.2,
-      weight: shapeOptions.value.weight,
-      dashArray: shapeOptions.value.dashArray
-    }).addTo(map.value)
-
-    // Gestionnaire de mouvement pour le rayon
-    const handleMouseMove = (e) => {
-      if (drawingStep === 1) {
-        radius = center.distanceTo(e.latlng)
-        tempCircle.setRadius(radius)
-        updateTooltip(e.latlng, 'Click to set radius')
-      }
-    }
-
-    map.value.on('mousemove', handleMouseMove)
-
-    // Gestionnaire pour définir le rayon
-    map.value.once('click', (e) => {
-      if (drawingStep === 1) {
-        radius = center.distanceTo(e.latlng)
-        drawingStep = 2
-        map.value.off('mousemove', handleMouseMove)
-
-        // Convertir en demi-cercle
-        if (tempCircle) {
-          map.value.removeLayer(tempCircle)
-        }
-
-        // Créer le demi-cercle temporaire
-        tempCircle = L.semiCircle(center, {
-          radius: radius,
-          color: shapeOptions.value.color,
-          fillColor: shapeOptions.value.color,
-          fillOpacity: 0.2,
-          weight: shapeOptions.value.weight,
-          startAngle: 0,
-          stopAngle: 180,
-          dashArray: shapeOptions.value.dashArray
-        }).addTo(map.value)
-
-        updateTooltip(e.latlng, 'Move mouse to set orientation')
-
-        // Gestionnaire de mouvement pour l'orientation
-        const handleOrientation = (e) => {
-          if (drawingStep === 2) {
-            const angle = Math.atan2(e.latlng.lat - center.lat, e.latlng.lng - center.lng) * 180 / Math.PI
-            tempCircle.setStartAngle(angle - 90)
-            tempCircle.setStopAngle(angle + 90)
-            updateTooltip(e.latlng, 'Click to finish')
-          }
-        }
-
-        map.value.on('mousemove', handleOrientation)
-
-        // Gestionnaire pour finaliser le demi-cercle
-        map.value.once('click', (e) => {
-          const angle = Math.atan2(e.latlng.lat - center.lat, e.latlng.lng - center.lng) * 180 / Math.PI
-          
-          // Créer le demi-cercle final
-          const semicircle = L.semiCircle(center, {
-            radius: radius,
-            color: shapeOptions.value.color,
-            fillColor: shapeOptions.value.color,
-            fillOpacity: 0.2,
-            weight: shapeOptions.value.weight,
-            startAngle: angle - 90,
-            stopAngle: angle + 90
-          })
-          
-          // Nettoyer les éléments temporaires
-          map.value.removeLayer(tempCircle)
-          map.value.removeLayer(helpTooltip)
-          map.value.off('mousemove', handleOrientation)
-          
-          featureGroup.value.addLayer(semicircle)
-          
-          handleShapeCreated({
-            layer: semicircle,
-            shape: 'semicircle',
-            radius: radius,
-            center: center,
-            angle: angle
-          })
-
-          // Réinitialiser les variables
-          center = null
-          tempCircle = null
-          drawingStep = 0
-        })
-      }
-    })
-  })
-}
-
-// Fonction pour obtenir l'élévation d'un point
-async function getElevation(lat, lng) {
-  try {
-    const response = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`)
-    const data = await response.json()
-    return data.results[0].elevation
-  } catch (error) {
-    console.error('Erreur lors de la récupération de l\'élévation:', error)
-    return 0
-  }
-}
-
-// Fonction pour obtenir le profil altimétrique d'une ligne
-async function getElevationProfile(coordinates) {
-  try {
-    const locations = coordinates.map(coord => `${coord.lat},${coord.lng}`).join('|')
-    const response = await fetch('https://api.open-elevation.com/api/v1/lookup', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        locations: coordinates.map(coord => ({
-          latitude: coord.lat,
-          longitude: coord.lng
-        }))
-      })
-    })
-    const data = await response.json()
-    return data.results.map((result, index) => ({
-      distance: index === 0 ? 0 : turf.length(turf.lineString(coordinates.slice(0, index + 1).map(c => [c.lng, c.lat]))),
-      elevation: result.elevation
-    }))
-  } catch (error) {
-    console.error('Erreur lors de la récupération du profil altimétrique:', error)
-    return []
-  }
-}
-
-// Mise à jour de la fonction handleShapeCreated pour inclure l'élévation
-async function handleShapeCreated(e) {
-  const { layer, shape } = e
-  if (!layer) return
-  
-  try {
-    console.log('Creating shape:', shape, 'Layer:', layer)
-    
-    // Ajouter le support de rotation AVANT toute autre opération
-    addRotationSupport(layer)
-    console.log('Rotation support added to layer')
-
-    // Mise à jour des états
-    isDrawing.value = false
-    drawingState.value = 'idle'
-    currentShape.value = null
-
-    // Retirer la classe de mode dessin
-    if (map.value) {
-      map.value.getContainer().classList.remove('drawing-mode')
-    }
-
-    // Déterminer le type de forme en français
-    const typeMap = {
-      'rectangle': 'Rectangle',
-      'circle': 'Cercle',
-      'semicircle': 'Demi-cercle',
-      'line': 'Ligne'
-    }
-    
-    const baseType = shape.toLowerCase()
-    const frenchType = typeMap[baseType] || shape
-    
-    // Calculer les propriétés détaillées de la forme
-    const properties = calculateShapeProperties(layer, baseType)
-
-    // Ajouter un effet de confirmation visuelle
-    layer.getElement()?.classList.add('shape-created')
-    setTimeout(() => {
-      layer.getElement()?.classList.remove('shape-created')
-    }, 1000)
-    
-    // Rendre la forme modifiable
-    layer.on('click', () => {
-      console.log('Shape clicked, enabling editing')
-      if (map.value) {
-        // Désactiver l'édition sur toutes les autres formes d'abord
-        featureGroup.value.eachLayer((l) => {
-          if (l !== layer) {
-            l.pm.disable()
-          }
-        })
-        // Activer l'édition sur la forme cliquée
-        layer.pm.enable({
-          allowSelfIntersection: false,
-          preventMarkerRemoval: true,
-          removeLayerOnEmpty: false
-        })
-        
-        // Mettre à jour selectedShapeInfo avec les informations de la forme
-        const shapeData = shapes.value.find(s => s.layer === layer)
-        if (shapeData) {
-          selectShape(shapeData)
-        }
-      }
-    })
-    
-    // Ajouter la forme au groupe
-    featureGroup.value.addLayer(layer)
-    
-    // Sauvegarder la forme si un plan est sélectionné
-    if (irrigationStore.currentPlan) {
-      saveShape(layer, baseType, properties)
-    }
-
-    // Ajouter la forme à la liste des formes
-    const newShape = {
-      id: layer.id || Date.now(),
-      type: frenchType,
-      layer: layer,
-      properties: properties
-    }
-    shapes.value.push(newShape)
-    console.log('Shape added to shapes list:', newShape)
-
-    // Pour les lignes, obtenir le profil altimétrique
-    if (shape.toLowerCase() === 'line') {
-      const coordinates = layer.getLatLngs()
-      const elevationProfile = await getElevationProfile(coordinates)
-      
-      if (elevationProfile.length > 0) {
-        const elevations = elevationProfile.map(point => point.elevation)
-        const minElevation = Math.min(...elevations)
-        const maxElevation = Math.max(...elevations)
-        const difference = maxElevation - minElevation
-        const distance = elevationProfile[elevationProfile.length - 1].distance
-        const slope = (difference / distance) * 100
-
-        // Mettre à jour les propriétés d'élévation
-        properties.elevation = {
-          profile: elevationProfile,
-          difference,
-          slope,
-          minElevation,
-          maxElevation
-        }
-
-        // Afficher le profil altimétrique
-        selectedShapeInfo.value = {
-          id: layer.id || Date.now(),
-          type: shape,
-          properties: properties,
-          elevationProfile: elevationProfile
-        }
-      }
-    }
-
-    // Sélectionner automatiquement la forme créée
-    selectShape(newShape)
-  } catch (error) {
-    console.error('Error in handleShapeCreated:', error)
-  }
-}
-
-// Fonction pour calculer les propriétés détaillées d'une forme
-function calculateShapeProperties(layer, shapeType) {
-  const properties = {
-    type: shapeType,
-    surfaceInterieure: 0,
-    surfaceExterieure: 0,
-    perimetre: 0,
-    dimensions: {},
-    elevation: {
-      difference: 0,
-      slope: 0
+    // Initialiser l'état de la carte avec l'instance existante
+    if (mapInstance) {
+      initState(mapInstance);
     }
   }
-
-  // Convertir la forme en GeoJSON pour utiliser Turf.js
-  const geoJson = layer.toGeoJSON()
-
-  switch (shapeType.toLowerCase()) {
-    case 'rectangle':
-      const bbox = turf.bbox(geoJson)
-      const poly = turf.bboxPolygon(bbox)
-      properties.surfaceInterieure = turf.area(poly)
-      // Ajouter une marge de 1 mètre pour la surface extérieure
-      const buffered = turf.buffer(poly, 1, { units: 'meters' })
-      properties.surfaceExterieure = turf.area(buffered)
-      properties.perimetre = turf.length(turf.polygonToLine(poly), { units: 'meters' })
-      
-      // Calculer les dimensions en mètres
-      const sw = turf.point([bbox[0], bbox[1]])
-      const se = turf.point([bbox[2], bbox[1]])
-      const nw = turf.point([bbox[0], bbox[3]])
-      properties.dimensions = {
-        width: turf.distance(sw, se, { units: 'meters' }),
-        height: turf.distance(sw, nw, { units: 'meters' })
-      }
-      break
-
-    case 'circle':
-      const radius = layer.getRadius()
-      properties.surfaceInterieure = Math.PI * Math.pow(radius, 2)
-      properties.surfaceExterieure = Math.PI * Math.pow(radius + 1, 2)
-      properties.perimetre = 2 * Math.PI * radius
-      properties.dimensions = {
-        radius: radius,
-        diameter: radius * 2
-      }
-      break
-
-    case 'semicircle':
-      const semiRadius = layer.getRadius()
-      properties.surfaceInterieure = (Math.PI * Math.pow(semiRadius, 2)) / 2
-      properties.surfaceExterieure = (Math.PI * Math.pow(semiRadius + 1, 2)) / 2
-      properties.perimetre = Math.PI * semiRadius + 2 * semiRadius
-      properties.dimensions = {
-        radius: semiRadius,
-        orientation: layer.options.startAngle + 90
-      }
-      break
-
-    case 'line':
-      const line = turf.lineString(layer.getLatLngs().map(ll => [ll.lng, ll.lat]))
-      properties.length = turf.length(line, { units: 'meters' })
-      // Calculer la zone d'influence de 1 mètre de chaque côté
-      const bufferedLine = turf.buffer(line, 1, { units: 'meters' })
-      properties.surfaceInfluence = turf.area(bufferedLine)
-      properties.dimensions = {
-        width: 2,
-      }
-      
-      // Simuler les données d'élévation (à remplacer par des données réelles d'API d'élévation)
-      properties.elevation = {
-        difference: 0, // Différence d'altitude en mètres
-        slope: 0 // Pente en pourcentage
-      }
-      
-      // Si l'API d'élévation est disponible, calculer le dénivelé et la pente
-      if (map.value) {
-        const coords = layer.getLatLngs()
-        if (coords.length >= 2) {
-          // TODO: Appeler l'API d'élévation pour obtenir les altitudes
-          // Pour l'instant, on utilise des valeurs simulées
-          const startPoint = coords[0]
-          const endPoint = coords[coords.length - 1]
-          const distance = properties.length // en mètres
-          
-          // Simulation : pente de 2%
-          properties.elevation.difference = distance * 0.02
-          properties.elevation.slope = 2
-        }
-      }
-      break
-  }
-
-  return properties
-}
-
-// Sauvegarde d'une forme
-async function saveShape(layer, shapeType, properties) {
-  try {
-    const shapeData = {
-      plan_id: irrigationStore.currentPlan.id,
-      type_forme: shapeType.toUpperCase(),
-      geometrie: layer.toGeoJSON().geometry,
-      proprietes: {
-        ...properties,
-        style: layer.options
-      }
-    }
-    
-    const response = await irrigationStore.createShape(shapeData)
-    layer.id = response.data.id
-  } catch (error) {
-    console.error('Erreur lors de la sauvegarde de la forme:', error)
-    featureGroup.value.removeLayer(layer)
-  }
-}
-
-// Gestion de la suppression d'une forme
-function handleShapeRemoved(e) {
-  const { layer } = e
-  if (irrigationStore.currentPlan) {
-    deleteShape(layer)
-  }
-}
-
-// Suppression d'une forme
-function deleteShape(shapeId) {
-  const shape = shapes.value.find(s => s.id === shapeId)
-  if (!shape || !map.value || !featureGroup.value) return
-  
-  featureGroup.value.removeLayer(shape.layer)
-  shapes.value = shapes.value.filter(s => s.id !== shapeId)
-}
-
-// Fonction pour annuler le dessin en cours
-function cancelDrawing() {
-  if (!currentDrawing.value || !map.value) return
-  
-  // Mise à jour des états
-  isDrawing.value = false
-  drawingState.value = 'idle'
-  currentShape.value = null
-
-  // Nettoyer l'interface
-  map.value.getContainer().classList.remove('drawing-mode')
-  cleanupSemicircleEvents()
-  
-  map.value.removeLayer(currentDrawing.value.layer)
-  currentDrawing.value = null
-  map.value.pm.disableDraw()
-}
-
-// Fonction pour calculer la surface
-function calculateArea(layer) {
-  if (layer instanceof L.Polygon) {
-    return L.GeometryUtil.geodesicArea(layer.getLatLngs()[0])
-  } else if (layer instanceof L.Circle) {
-    return Math.PI * Math.pow(layer.getRadius(), 2)
-  }
-  return 0
-}
-
-// Fonction pour formater la surface
-function formatArea(surface) {
-  if (!surface) return ''
-  return `${surface.toFixed(2)} m²`
-}
-
-// Nettoyage lors du démontage du composant
-onUnmounted(() => {
-  if (map.value) {
-    window.removeEventListener('map-set-location', ((event: CustomEvent) => {
-      if (map.value && event.detail) {
-        const { lat, lng, zoom } = event.detail
-        map.value.setView([lat, lng], zoom)
-      }
-    }) as EventListener)
-    map.value.remove()
-  }
-})
-
-// Recherche d'adresse
-async function searchLocation() {
-  if (!searchQuery.value || !map.value) return
-  try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery.value)}`
-    )
-    const data = await response.json()
-    if (data && data[0]) {
-      map.value.setView([data[0].lat, data[0].lon], 16)
-    }
-  } catch (error) {
-    console.error('Erreur lors de la recherche d\'adresse:', error)
-  }
-}
-
-// Surveiller les changements de forme sélectionnée
-watch(selectedShape, (newShape) => {
-  if (newShape) {
-    startDrawing(newShape)
-  }
-})
-
-// Fonctions de gestion du dessin
-function handleShapeChange() {
-  if (!map.value) return
-  cancelDrawing()
-}
-
-function updateDrawingStyle() {
-  if (!map.value) return
-
-  const drawOptions = {
-    templineStyle: { 
-      color: shapeOptions.value.color,
-      weight: shapeOptions.value.weight,
-      dashArray: shapeOptions.value.dashArray
-    },
-    hintlineStyle: { 
-      color: shapeOptions.value.color,
-      weight: shapeOptions.value.weight,
-      dashArray: shapeOptions.value.dashArray
-    },
-    pathOptions: {
-      color: shapeOptions.value.color,
-      fillColor: shapeOptions.value.color,
-      fillOpacity: 0.2,
-      weight: shapeOptions.value.weight,
-      dashArray: shapeOptions.value.dashArray
-    }
-  }
-
-  // Mettre à jour les options globales de Leaflet-Geoman
-  map.value.pm.setGlobalOptions({
-    templineStyle: drawOptions.templineStyle,
-    hintlineStyle: drawOptions.hintlineStyle,
-    pathOptions: drawOptions.pathOptions
-  })
-
-  // Si une forme est en cours de dessin, mettre à jour son style
-  if (currentDrawing.value?.layer) {
-    currentDrawing.value.layer.setStyle(drawOptions.pathOptions)
-  }
-}
+});
 
 // Chargement des formes existantes
 async function loadExistingShapes() {
-  if (!map.value) return
+  if (!map.value || !irrigationStore.currentPlan) return;
 
   try {
-    const response = await irrigationStore.getShapes(irrigationStore.currentPlan.id)
-    response.data.forEach((shape: any) => {
-      const layer = L.geoJSON(shape.geometrie, {
-        style: shape.proprietes.style
-      }).addTo(map.value)
-      shapes.value.push({
-        id: shape.id,
-        type: shape.type_forme,
-        layer,
-        surface: shape.surface
-      })
-    })
+    const existingShapes = irrigationStore.currentPlan.elements;
+    existingShapes.forEach((shape: any) => {
+      if (map.value) {
+        const layer = L.geoJSON(shape.geometrie, {
+          style: shape.proprietes.style
+        });
+        if (layer instanceof L.Layer) {
+          (map.value as unknown as L.LayerGroup).addLayer(layer);
+          shapes.value.push({
+            id: shape.id,
+            type: shape.type_forme,
+            layer,
+            surface: shape.surface
+          });
+        }
+      }
+    });
   } catch (error) {
-    console.error('Erreur lors du chargement des formes:', error)
+    console.error('Erreur lors du chargement des formes:', error);
   }
 }
-
-function savePlan() {
-  // Implementation de la sauvegarde du plan
-}
-
-// Ajout d'un watcher pour les changements d'état
-watch(drawingState, (newState, oldState) => {
-  if (!map.value) return
-
-  // Mettre à jour les classes CSS selon l'état
-  const container = map.value.getContainer()
-  container.classList.remove(`state-${oldState}`)
-  container.classList.add(`state-${newState}`)
-
-  // Mettre à jour le curseur selon l'état
-  switch (newState) {
-    case 'drawing':
-      container.style.cursor = 'crosshair'
-      break
-    case 'editing':
-      container.style.cursor = 'pointer'
-      break
-    default:
-      container.style.cursor = ''
-  }
-})
 
 function cleanupSemicircleEvents() {
-  if (!map.value) return
+  if (!map.value) return;
   
   // Réactiver le déplacement de la carte
-  map.value.dragging.enable()
+  map.value.dragging.enable();
   
   // Réinitialiser le curseur
-  map.value.getContainer().style.cursor = ''
+  map.value.getContainer().style.cursor = '';
   
   // Supprimer le message d'aide
-  const helpMessage = map.value.getContainer().querySelector('.drawing-help-message')
+  const helpMessage = map.value.getContainer().querySelector('.drawing-help-message');
   if (helpMessage) {
-    helpMessage.remove()
+    helpMessage.remove();
   }
   
   // Détacher les événements précédents
-  if (semicircleEvents.mousedown) {
-    map.value.off('mousedown', semicircleEvents.mousedown)
+  if (semicircleEvents.value.mousedown) {
+    map.value.off('mousedown', semicircleEvents.value.mousedown);
   }
-  if (semicircleEvents.mousemove) {
-    map.value.off('mousemove', semicircleEvents.mousemove)
+  if (semicircleEvents.value.mousemove) {
+    map.value.off('mousemove', semicircleEvents.value.mousemove);
   }
-  if (semicircleEvents.mouseup) {
-    map.value.off('mouseup', semicircleEvents.mouseup)
+  if (semicircleEvents.value.mouseup) {
+    map.value.off('mouseup', semicircleEvents.value.mouseup);
   }
   
   // Réinitialiser les gestionnaires
-  semicircleEvents = {
+  semicircleEvents.value = {
     mousedown: null,
     mousemove: null,
     mouseup: null
-  }
+  };
 }
 
 // Fonction pour formater les distances
-function formatDistance(value) {
-  if (!value) return ''
-  return `${value.toFixed(2)} m`
+function formatDistance(value: number): string {
+  if (!value) return '';
+  return `${value.toFixed(2)} m`;
 }
 
 // Ajout des compteurs pour chaque type de forme
@@ -1067,103 +150,103 @@ const shapeCounters = ref({
   'circle': 0,
   'semicircle': 0,
   'line': 0
-})
+});
 
 // Fonction pour obtenir le nom d'affichage de la forme
-function getShapeDisplayName(shape) {
-  const typeMap = {
+function getShapeDisplayName(shape: any): string {
+  const typeMap: Record<string, string> = {
     'rectangle': 'Rectangle',
     'circle': 'Cercle',
     'semicircle': 'Demi-cercle',
     'line': 'Ligne'
-  }
+  };
   
-  const baseType = shape.type.toLowerCase()
-  return typeMap[baseType] || shape.type
+  const baseType = shape.type.toLowerCase();
+  return typeMap[baseType] || shape.type;
 }
 
 // Ajout de la fonction formatSlope
 function formatSlope(value: number): string {
-  if (!value && value !== 0) return '0 %'
-  return `${value.toFixed(1)} %`
+  if (!value && value !== 0) return '0 %';
+  return `${value.toFixed(1)} %`;
 }
 
 // Fonction utilitaire pour obtenir le centre d'une forme
-function getLayerCenter(layer) {
-  if (layer.getCenter) return layer.getCenter()
-  if (layer.getBounds) return layer.getBounds().getCenter()
-  if (layer.getLatLng) return layer.getLatLng()
+function getLayerCenter(layer: any): L.LatLng {
+  if (layer.getCenter) return layer.getCenter();
+  if (layer.getBounds) return layer.getBounds().getCenter();
+  if (layer.getLatLng) return layer.getLatLng();
   if (layer.getLatLngs) {
-    const latLngs = layer.getLatLngs()
-    const points = Array.isArray(latLngs[0]) ? latLngs[0] : latLngs
-    const sumLat = points.reduce((sum, p) => sum + p.lat, 0)
-    const sumLng = points.reduce((sum, p) => sum + p.lng, 0)
-    return L.latLng(sumLat / points.length, sumLng / points.length)
+    const latLngs = layer.getLatLngs();
+    const points = Array.isArray(latLngs[0]) ? latLngs[0] : latLngs;
+    const sumLat = points.reduce((sum: number, p: L.LatLng) => sum + p.lat, 0);
+    const sumLng = points.reduce((sum: number, p: L.LatLng) => sum + p.lng, 0);
+    return L.latLng(sumLat / points.length, sumLng / points.length);
   }
-  return null
+  // Retourner une position par défaut au lieu de null
+  return L.latLng(0, 0);
 }
 
 // Fonction utilitaire pour décaler un point en mètres
-function offsetLatLng(latlng, meters) {
-  // Conversion approximative de mètres en degrés (à l'équateur)
-  const earthRadius = 6378137 // rayon de la Terre en mètres
-  const latOffset = (meters / earthRadius) * (180 / Math.PI)
-  return L.latLng(latlng.lat + latOffset, latlng.lng)
+function offsetLatLng(latlng: L.LatLng, meters: number): L.LatLng {
+  const earthRadius = 6378137; // rayon de la Terre en mètres
+  const latOffset = (meters / earthRadius) * (180 / Math.PI);
+  return L.latLng(latlng.lat + latOffset, latlng.lng);
 }
 
 // Fonction utilitaire pour calculer l'angle entre deux points
-function getAngle(center, latlng) {
-  return Math.atan2(latlng.lat - center.lat, latlng.lng - center.lng) * 180 / Math.PI
+function getAngle(center: L.LatLng, latlng: L.LatLng): number {
+  return Math.atan2(latlng.lat - center.lat, latlng.lng - center.lng) * 180 / Math.PI;
 }
 
 // Fonction pour mettre à jour les propriétés de rotation d'une forme
-function updateShapeRotationProperty(layer, angle) {
-  const shape = shapes.value.find(s => s.layer === layer)
+function updateShapeRotationProperty(layer: any, angle: number) {
+  const shape = shapes.value.find(s => s.layer === layer);
   if (shape && shape.properties) {
-    shape.properties.rotation = angle
+    shape.properties.rotation = angle;
     if (selectedShapeInfo.value && selectedShapeInfo.value.id === shape.id) {
-      selectedShapeInfo.value.properties = shape.properties
+      selectedShapeInfo.value.properties = shape.properties;
     }
   }
 }
 
 // Fonction pour créer le contrôle de rotation
-function createRotationControl(layer) {
+function createRotationControl(layer: any) {
   if (!map.value || !layer) {
-    console.warn('Map or layer not initialized')
-    return null
+    console.warn('Map or layer not initialized');
+    return null;
   }
 
   // Supprimer l'ancien contrôle de rotation s'il existe
   if (layer._rotationControl) {
-    map.value.removeLayer(layer._rotationControl)
-    delete layer._rotationControl
+    map.value.removeLayer(layer._rotationControl);
+    delete layer._rotationControl;
   }
 
   // Obtenir le centre de la forme
-  const center = getLayerCenter(layer)
+  const center = getLayerCenter(layer);
   if (!center) {
-    console.warn('Cannot determine center of layer')
-    return null
+    console.warn('Cannot determine center of layer');
+    return null;
   }
 
   // Calculer la position du contrôle de rotation
-  let radiusPx = 50 // valeur par défaut
+  let radiusPx = 50; // valeur par défaut
   if (layer.getRadius) {
-    const radiusMeters = layer.getRadius()
-    const centerPoint = map.value.latLngToLayerPoint(center)
-    const testLatLng = offsetLatLng(center, radiusMeters)
-    const testPoint = map.value.latLngToLayerPoint(testLatLng)
-    radiusPx = centerPoint.distanceTo(testPoint)
+    const radiusMeters = layer.getRadius();
+    const centerPoint = map.value.latLngToLayerPoint(center);
+    const testLatLng = offsetLatLng(center, radiusMeters);
+    const testPoint = map.value.latLngToLayerPoint(testLatLng);
+    radiusPx = centerPoint.distanceTo(testPoint);
   } else if (layer.getBounds) {
-    const bounds = layer.getBounds()
-    const northPoint = map.value.latLngToLayerPoint(bounds.getNorth())
-    const centerPoint = map.value.latLngToLayerPoint(center)
-    radiusPx = centerPoint.distanceTo(northPoint)
+    const bounds = layer.getBounds();
+    const northPoint = map.value.latLngToLayerPoint(bounds.getNorth());
+    const centerPoint = map.value.latLngToLayerPoint(center);
+    radiusPx = centerPoint.distanceTo(northPoint);
   }
 
   // Créer un identifiant unique pour cette instance
-  const controlId = `rotation-control-${Date.now()}`
+  const controlId = `rotation-control-${Date.now()}`;
 
   // Créer l'icône de rotation
   const rotationIcon = L.divIcon({
@@ -1173,43 +256,43 @@ function createRotationControl(layer) {
     </svg>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16]
-  })
+  });
 
   // Calculer la position du contrôle
-  const controlPoint = map.value.latLngToLayerPoint(center).subtract([0, radiusPx + 40])
-  const controlLatLng = map.value.layerPointToLatLng(controlPoint)
+  const controlPoint = map.value.latLngToLayerPoint(center).subtract([0, radiusPx + 40]);
+  const controlLatLng = map.value.layerPointToLatLng(controlPoint);
 
   // Créer le marqueur de rotation (non draggable)
   const rotationControl = L.marker(controlLatLng, {
     icon: rotationIcon,
     draggable: false,
     zIndexOffset: 1000,
-    pmIgnore: true, // Empêcher Leaflet-Geoman d'interférer avec ce marker
-    interactive: true // S'assurer que le marker reste interactif
-  })
+    pmIgnore: true,
+    interactive: true
+  });
 
-  let rotationActive = false
-  let startAngle = 0
+  let rotationActive = false;
+  let startAngle = 0;
 
-  function onRotateMove(e) {
-    if (!rotationActive) return
-    const currentAngle = getAngle(center, e.latlng)
-    const angleDiff = currentAngle - startAngle
-    const roundedAngle = Math.round(angleDiff / 5) * 5
+  function onRotateMove(e: L.LeafletMouseEvent) {
+    if (!rotationActive) return;
+    const currentAngle = getAngle(center, e.latlng);
+    const angleDiff = currentAngle - startAngle;
+    const roundedAngle = Math.round(angleDiff / 5) * 5;
     
     if (typeof layer.setRotation === 'function') {
-      layer.setRotation(roundedAngle)
-      updateShapeRotationProperty(layer, roundedAngle)
+      layer.setRotation(roundedAngle);
+      updateShapeRotationProperty(layer, roundedAngle);
     }
   }
 
   function endRotation() {
-    rotationActive = false
-    const rotationElement = document.querySelector(`.${controlId}`)
+    rotationActive = false;
+    const rotationElement = document.querySelector(`.${controlId}`);
     if (rotationElement) {
-      rotationElement.classList.remove('rotating')
+      rotationElement.classList.remove('rotating');
     }
-    map.value.off('mousemove', onRotateMove)
+    map.value?.off('mousemove', onRotateMove);
     
     // Réactiver l'édition de la forme après la rotation
     if (layer.pm) {
@@ -1217,63 +300,65 @@ function createRotationControl(layer) {
         allowSelfIntersection: false,
         preventMarkerRemoval: true,
         removeLayerOnEmpty: false
-      })
+      });
     }
   }
 
   // Gestionnaire de clic pour démarrer/arrêter la rotation
-  rotationControl.on('click', (e) => {
-    L.DomEvent.stopPropagation(e) // Empêcher la propagation du clic
+  rotationControl.on('click', (e: L.LeafletMouseEvent) => {
+    L.DomEvent.stopPropagation(e);
     
     if (!rotationActive) {
       // Désactiver temporairement l'édition pendant la rotation
       if (layer.pm) {
-        layer.pm.disable()
+        layer.pm.disable();
       }
 
       // Démarrer la rotation
-      rotationActive = true
-      startAngle = getAngle(center, rotationControl.getLatLng())
+      rotationActive = true;
+      startAngle = getAngle(center, rotationControl.getLatLng());
       
-      const rotationElement = document.querySelector(`.${controlId}`)
+      const rotationElement = document.querySelector(`.${controlId}`);
       if (rotationElement) {
-        rotationElement.classList.add('rotating')
+        rotationElement.classList.add('rotating');
       }
 
-      map.value.on('mousemove', onRotateMove)
-      map.value.once('click', endRotation)
+      map.value?.on('mousemove', onRotateMove);
+      map.value?.once('click', endRotation);
     }
-  })
+  });
 
-  // Ajouter le contrôle directement à la carte, PAS au FeatureGroup
-  rotationControl.addTo(map.value)
+  // Ajouter le contrôle directement à la carte
+  if (rotationControl instanceof L.Layer) {
+    (map.value as unknown as L.LayerGroup).addLayer(rotationControl);
+  }
 
   // Sauvegarder la référence au contrôle
-  layer._rotationControl = rotationControl
+  layer._rotationControl = rotationControl;
 
-  return rotationControl
+  return rotationControl;
 }
 
-// Modifier la fonction selectShape pour mieux gérer la création/suppression du contrôle
+// Fonction pour sélectionner une forme
 function selectShape(shape: any) {
   if (!map.value) {
-    console.warn('Map not initialized')
-    return
+    console.warn('Map not initialized');
+    return;
   }
 
   try {
-    console.log('Selecting shape:', shape)
+    console.log('Selecting shape:', shape);
 
     // Désélectionner la forme précédente
     if (selectedShapeInfo.value && selectedShapeInfo.value.id !== shape.id) {
-      const previousLayer = shapes.value.find(s => s.id === selectedShapeInfo.value.id)?.layer
+      const previousLayer = shapes.value.find(s => s.id === selectedShapeInfo.value.id)?.layer;
       if (previousLayer) {
-        console.log('Disabling previous shape')
-        previousLayer.pm.disable()
+        console.log('Disabling previous shape');
+        previousLayer.pm.disable();
         if (previousLayer._rotationControl) {
-          console.log('Removing previous rotation control')
-          map.value.removeLayer(previousLayer._rotationControl)
-          delete previousLayer._rotationControl
+          console.log('Removing previous rotation control');
+          map.value.removeLayer(previousLayer._rotationControl);
+          delete previousLayer._rotationControl;
         }
       }
     }
@@ -1284,25 +369,25 @@ function selectShape(shape: any) {
       type: shape.type,
       properties: shape.properties,
       elevationProfile: shape.properties.elevation?.profile
-    }
-    console.log('Selected shape info updated:', selectedShapeInfo.value)
+    };
+    console.log('Selected shape info updated:', selectedShapeInfo.value);
 
     // Activer l'édition sur la forme sélectionnée
-    const layer = shape.layer
+    const layer = shape.layer;
     if (layer) {
-      console.log('Enabling editing on selected shape')
+      console.log('Enabling editing on selected shape');
       
       // Désactiver l'édition sur toutes les autres formes
       shapes.value.forEach(s => {
         if (s.layer !== layer) {
-          s.layer.pm.disable()
+          s.layer.pm.disable();
         }
-      })
+      });
 
       // S'assurer que la forme a le support de rotation
       if (typeof layer.setRotation !== 'function') {
-        console.log('Adding rotation support to layer')
-        addRotationSupport(layer)
+        console.log('Adding rotation support to layer');
+        addRotationSupport(layer);
       }
 
       // Activer l'édition sur la forme sélectionnée
@@ -1310,79 +395,97 @@ function selectShape(shape: any) {
         allowSelfIntersection: false,
         preventMarkerRemoval: true,
         removeLayerOnEmpty: false
-      })
+      });
 
-      // Créer le contrôle de rotation après un court délai pour s'assurer que la forme est bien initialisée
+      // Créer le contrôle de rotation après un court délai
       setTimeout(() => {
-        console.log('Creating rotation control')
-        const rotationControl = createRotationControl(layer)
+        console.log('Creating rotation control');
+        const rotationControl = createRotationControl(layer);
         if (rotationControl) {
-          console.log('Rotation control created successfully')
+          console.log('Rotation control created successfully');
           if (layer.getBounds) {
-            map.value.fitBounds(layer.getBounds(), { padding: [50, 50] })
+            map.value?.fitBounds(layer.getBounds(), { padding: [50, 50] });
           }
         } else {
-          console.warn('Failed to create rotation control')
+          console.warn('Failed to create rotation control');
         }
-      }, 100)
+      }, 100);
     } else {
-      console.warn('No layer found for selected shape')
+      console.warn('No layer found for selected shape');
     }
   } catch (error) {
-    console.error('Error in selectShape:', error)
+    console.error('Error in selectShape:', error);
   }
 }
 
 // Ajouter la fonction setRotation à la couche Leaflet
-function addRotationSupport(layer) {
-  if (!layer || typeof layer.setRotation === 'function') return
+function addRotationSupport(layer: any) {
+  if (!layer || typeof layer.setRotation === 'function') return;
 
-  layer.setRotation = function(angle) {
-    if (!map.value) return
+  layer.setRotation = function(angle: number) {
+    if (!map.value) return;
 
     try {
       const center = layer.getBounds ? 
         layer.getBounds().getCenter() : 
-        (layer.getLatLng ? layer.getLatLng() : null)
+        (layer.getLatLng ? layer.getLatLng() : null);
 
-      if (!center) return
+      if (!center) return;
 
-      const centerPoint = map.value.latLngToLayerPoint(center)
-      const latLngs = layer.getLatLngs()
-      const points = Array.isArray(latLngs[0]) ? latLngs[0] : latLngs
+      const centerPoint = map.value.latLngToLayerPoint(center);
+      const latLngs = layer.getLatLngs();
+      const points = Array.isArray(latLngs[0]) ? latLngs[0] : latLngs;
 
-      const rotatedPoints = points.map(latLng => {
-        const point = map.value.latLngToLayerPoint(latLng)
-        const rotatedPoint = rotatePoint(point, centerPoint, angle)
-        return map.value.layerPointToLatLng(rotatedPoint)
-      })
+      const rotatedPoints = points.map((latLng: L.LatLng) => {
+        const point = map.value!.latLngToLayerPoint(latLng);
+        const rotatedPoint = rotatePoint(point, centerPoint, angle);
+        return map.value!.layerPointToLatLng(rotatedPoint);
+      });
 
       if (Array.isArray(latLngs[0])) {
-        layer.setLatLngs([rotatedPoints])
+        layer.setLatLngs([rotatedPoints]);
       } else {
-        layer.setLatLngs(rotatedPoints)
+        layer.setLatLngs(rotatedPoints);
       }
     } catch (error) {
-      console.error('Error rotating shape:', error)
+      console.error('Error rotating shape:', error);
     }
-  }
+  };
 }
 
 // Mise à jour du style de dessin
-watch(() => shapeOptions, (newOptions) => {
-  updateDrawingStyle()
-}, { deep: true })
+watch(() => shapeOptions.value, (newOptions) => {
+  updateDrawingStyle();
+}, { deep: true });
 
 // Fonction pour sélectionner une couleur
 function selectColor(color: string) {
-  shapeOptions.value.color = color
-  updateDrawingStyle()
+  shapeOptions.value.color = color;
+  updateDrawingStyle();
 }
 
 // Ajouter la fonction formatAngle
 function formatAngle(angle: number): string {
-  if (!angle && angle !== 0) return '0°'
-  return `${Math.round(angle)}°`
+  if (!angle && angle !== 0) return '0°';
+  return `${Math.round(angle)}°`;
+}
+
+// Fonction utilitaire pour faire pivoter un point autour d'un centre
+function rotatePoint(point: L.Point, center: L.Point, angle: number): L.Point {
+  const rad = angle * Math.PI / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return new L.Point(
+    center.x + dx * cos - dy * sin,
+    center.y + dx * sin + dy * cos
+  );
+}
+
+function updateDrawingStyle() {
+  // Implémentation à ajouter
+  console.log('Updating drawing style:', shapeOptions.value);
 }
 </script>
 

@@ -1,24 +1,15 @@
 {
-  "_irrigation.js": {
-    "file": "assets/irrigation.js",
-    "name": "irrigation",
-    "imports": [
-      "index.html"
-    ]
-  },
   "index.html": {
     "file": "assets/index.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
     "dynamicImports": [
-      "src/views/HomeView.vue",
       "src/views/ProjectsView.vue",
       "src/views/UsersView.vue",
       "src/views/ProfileView.vue",
       "src/views/SettingsView.vue",
       "src/views/SelectDealerView.vue",
-      "src/views/LoginView.vue",
       "src/views/ForgotPasswordView.vue",
       "src/views/ResetPasswordView.vue",
       "src/views/NotFoundView.vue"
@@ -31,28 +22,6 @@
     "file": "assets/ForgotPasswordView.js",
     "name": "ForgotPasswordView",
     "src": "src/views/ForgotPasswordView.vue",
-    "isDynamicEntry": true,
-    "imports": [
-      "index.html"
-    ]
-  },
-  "src/views/HomeView.vue": {
-    "file": "assets/HomeView.js",
-    "name": "HomeView",
-    "src": "src/views/HomeView.vue",
-    "isDynamicEntry": true,
-    "imports": [
-      "index.html",
-      "_irrigation.js"
-    ],
-    "css": [
-      "assets/HomeView.css"
-    ]
-  },
-  "src/views/LoginView.vue": {
-    "file": "assets/LoginView.js",
-    "name": "LoginView",
-    "src": "src/views/LoginView.vue",
     "isDynamicEntry": true,
     "imports": [
       "index.html"
@@ -82,8 +51,7 @@
     "src": "src/views/ProjectsView.vue",
     "isDynamicEntry": true,
     "imports": [
-      "index.html",
-      "_irrigation.js"
+      "index.html"
     ]
   },
   "src/views/ResetPasswordView.vue": {

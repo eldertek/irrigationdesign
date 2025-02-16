@@ -1,14 +1,16 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import ChangePasswordForm from '@/components/auth/ChangePasswordForm.vue'
+import LoginView from '../views/LoginView.vue'
+import MapView from '../views/MapView.vue'
 
 const router = createRouter({
-  history: createWebHistory('/'),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
       name: 'home',
-      component: () => import('@/views/HomeView.vue'),
+      component: MapView,
       meta: { 
         requiresAuth: true,
         allowedRoles: ['admin', 'dealer', 'client']
@@ -62,7 +64,7 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: () => import('@/views/LoginView.vue'),
+      component: LoginView,
       meta: { requiresGuest: true }
     },
     {
@@ -85,6 +87,12 @@ const router = createRouter({
         requiresAuth: true,
         allowedRoles: ['admin', 'dealer', 'client']
       }
+    },
+    {
+      path: '/map',
+      name: 'map',
+      component: MapView,
+      meta: { requiresAuth: true }
     },
     {
       path: '/:pathMatch(.*)*',
@@ -121,7 +129,7 @@ router.beforeEach(async (to, from, next) => {
 
   // Si la route nécessite une authentification et que l'utilisateur n'est pas authentifié
   if (to.meta.requiresAuth && !isAuthenticated) {
-    next({ name: 'login' })
+    next('/login')
     return
   }
 
@@ -154,6 +162,12 @@ router.beforeEach(async (to, from, next) => {
   // Si l'utilisateur est authentifié et essaie d'accéder à une route guest
   if (to.meta.requiresGuest && isAuthenticated) {
     next({ name: 'home' })
+    return
+  }
+
+  // Si l'utilisateur est authentifié et essaie d'accéder à la page de login
+  if (to.path === '/login' && isAuthenticated) {
+    next('/')
     return
   }
 
