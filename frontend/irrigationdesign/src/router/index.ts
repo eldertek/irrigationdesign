@@ -98,6 +98,13 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   
+  // Ajouter un log pour déboguer
+  console.log('Route:', to.path, 'Auth state:', {
+    initialized: authStore.initialized,
+    isAuthenticated: authStore.isAuthenticated,
+    user: authStore.user
+  })
+  
   // Vérifier l'état initial au premier chargement
   if (!authStore.initialized) {
     try {

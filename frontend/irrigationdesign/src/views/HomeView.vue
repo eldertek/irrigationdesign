@@ -1,3 +1,84 @@
+<template>
+  <div class="h-full">
+    <!-- Barre d'outils -->
+    <div class="fixed top-16 left-4 z-10 bg-white rounded-lg shadow-lg p-2">
+      <div class="space-y-2">
+        <button
+          v-for="tool in drawingTools"
+          :key="tool.name"
+          @click="selectTool(tool)"
+          class="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100"
+          :class="{ 'bg-primary-100': currentTool?.name === tool.name }"
+          :title="tool.label"
+        >
+          <component :is="tool.icon" class="w-6 h-6 text-gray-600" />
+        </button>
+      </div>
+    </div>
+
+    <!-- Carte -->
+    <div ref="mapContainer" class="h-full"></div>
+
+    <!-- Panneau latéral -->
+    <div
+      v-if="showSidebar"
+      class="fixed top-16 right-0 w-80 h-[calc(100vh-4rem)] bg-white shadow-lg p-4 overflow-y-auto"
+    >
+      <div class="space-y-6">
+        <!-- Calques -->
+        <div>
+          <h3 class="text-lg font-medium text-gray-900 mb-4">Calques</h3>
+          <div class="space-y-2">
+            <div
+              v-for="layer in layers"
+              :key="layer.id"
+              class="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+            >
+              <div class="flex items-center space-x-2">
+                <input
+                  :id="layer.id"
+                  v-model="layer.visible"
+                  type="checkbox"
+                  class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                />
+                <label :for="layer.id" class="text-sm font-medium text-gray-700">
+                  {{ layer.name }}
+                </label>
+              </div>
+              <button
+                @click="toggleLayerLock(layer)"
+                class="p-1 rounded-md hover:bg-gray-200"
+                :title="layer.locked ? 'Déverrouiller' : 'Verrouiller'"
+              >
+                <component
+                  :is="layer.locked ? 'LockClosedIcon' : 'LockOpenIcon'"
+                  class="w-4 h-4 text-gray-500"
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="space-y-2">
+          <button
+            @click="savePlan"
+            class="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            Sauvegarder
+          </button>
+          <button
+            @click="exportPlan"
+            class="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            Exporter
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useIrrigationStore } from '@/stores/irrigation'
@@ -195,8 +276,4 @@ function exportPlan() {
     downloadAnchorNode.remove()
   }
 }
-<template>
-  <main>
-    <TheWelcome />
-  </main>
-</template>
+</script>

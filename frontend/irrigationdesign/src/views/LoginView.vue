@@ -158,20 +158,26 @@ const form = reactive({
 })
 
 onMounted(() => {
+  console.log('LoginView mounted')
+  console.log('INITIAL_STATE:', window.INITIAL_STATE)
   // Vérifier si l'utilisateur est déjà authentifié
   if (window.INITIAL_STATE?.isAuthenticated) {
+    console.log('User is authenticated, redirecting to home')
     router.push('/')
   }
 })
 
 async function handleSubmit() {
+  console.log('Attempting login...')
   loading.value = true
   error.value = null
 
   try {
     await authStore.login(form.username, form.password)
+    console.log('Login successful, redirecting to home')
     router.push('/')
   } catch (err: any) {
+    console.error('Login error:', err)
     error.value = err.response?.data?.detail || 'Identifiants incorrects'
   } finally {
     loading.value = false

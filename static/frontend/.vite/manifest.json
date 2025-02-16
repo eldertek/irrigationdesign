@@ -1,11 +1,125 @@
 {
+  "_irrigation.js": {
+    "file": "assets/irrigation.js",
+    "name": "irrigation",
+    "imports": [
+      "index.html"
+    ]
+  },
   "index.html": {
     "file": "assets/index.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
+    "dynamicImports": [
+      "src/views/HomeView.vue",
+      "src/views/ProjectsView.vue",
+      "src/views/UsersView.vue",
+      "src/views/ProfileView.vue",
+      "src/views/SettingsView.vue",
+      "src/views/SelectDealerView.vue",
+      "src/views/LoginView.vue",
+      "src/views/ForgotPasswordView.vue",
+      "src/views/ResetPasswordView.vue",
+      "src/views/NotFoundView.vue"
+    ],
     "css": [
       "assets/index.css"
+    ]
+  },
+  "src/views/ForgotPasswordView.vue": {
+    "file": "assets/ForgotPasswordView.js",
+    "name": "ForgotPasswordView",
+    "src": "src/views/ForgotPasswordView.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ]
+  },
+  "src/views/HomeView.vue": {
+    "file": "assets/HomeView.js",
+    "name": "HomeView",
+    "src": "src/views/HomeView.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_irrigation.js"
+    ],
+    "css": [
+      "assets/HomeView.css"
+    ]
+  },
+  "src/views/LoginView.vue": {
+    "file": "assets/LoginView.js",
+    "name": "LoginView",
+    "src": "src/views/LoginView.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ]
+  },
+  "src/views/NotFoundView.vue": {
+    "file": "assets/NotFoundView.js",
+    "name": "NotFoundView",
+    "src": "src/views/NotFoundView.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ]
+  },
+  "src/views/ProfileView.vue": {
+    "file": "assets/ProfileView.js",
+    "name": "ProfileView",
+    "src": "src/views/ProfileView.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ]
+  },
+  "src/views/ProjectsView.vue": {
+    "file": "assets/ProjectsView.js",
+    "name": "ProjectsView",
+    "src": "src/views/ProjectsView.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_irrigation.js"
+    ]
+  },
+  "src/views/ResetPasswordView.vue": {
+    "file": "assets/ResetPasswordView.js",
+    "name": "ResetPasswordView",
+    "src": "src/views/ResetPasswordView.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ]
+  },
+  "src/views/SelectDealerView.vue": {
+    "file": "assets/SelectDealerView.js",
+    "name": "SelectDealerView",
+    "src": "src/views/SelectDealerView.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ]
+  },
+  "src/views/SettingsView.vue": {
+    "file": "assets/SettingsView.js",
+    "name": "SettingsView",
+    "src": "src/views/SettingsView.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ]
+  },
+  "src/views/UsersView.vue": {
+    "file": "assets/UsersView.js",
+    "name": "UsersView",
+    "src": "src/views/UsersView.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
     ]
   }
 }

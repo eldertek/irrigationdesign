@@ -1,3 +1,6 @@
+# Force l'utilisation de bash
+SHELL := /bin/bash
+
 .PHONY: install migrate run test shell clean frontend serve dev list-files
 
 # Variables
@@ -18,34 +21,121 @@ install:
 list-files:
 	@echo "=== Liste des fichiers du projet ===" > out.txt
 	@echo "\n=== Backend Django ===" >> out.txt
+	
 	@echo "\n--- Fichiers principaux ---" >> out.txt
-	@find . -maxdepth 1 -name "manage.py" >> out.txt
+	@for f in $$(find . -maxdepth 1 -name "manage.py"); do \
+		echo "\n$$f:" >> out.txt; \
+		echo "\`\`\`python" >> out.txt; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\n--- Configuration Django ---" >> out.txt
-	@find ./irrigation_design -type f -name "*.py" ! -path "*/migrations/*" >> out.txt
+	@for f in $$(find ./irrigation_design -type f -name "*.py" ! -path "*/migrations/*"); do \
+		echo "\n$$f:" >> out.txt; \
+		echo "\`\`\`python" >> out.txt; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\n--- Applications Django ---\n" >> out.txt
+	
 	@echo "api:" >> out.txt
-	@find ./api -type f -name "*.py" ! -path "*/migrations/*" ! -path "*/__pycache__/*" >> out.txt
+	@for f in $$(find ./api -type f -name "*.py" ! -path "*/migrations/*" ! -path "*/__pycache__/*"); do \
+		echo "\n$$f:" >> out.txt; \
+		echo "\`\`\`python" >> out.txt; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\nauthentication:" >> out.txt
-	@find ./authentication -type f -name "*.py" ! -path "*/migrations/*" ! -path "*/__pycache__/*" >> out.txt
+	@for f in $$(find ./authentication -type f -name "*.py" ! -path "*/migrations/*" ! -path "*/__pycache__/*"); do \
+		echo "\n$$f:" >> out.txt; \
+		echo "\`\`\`python" >> out.txt; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\nplans:" >> out.txt
-	@find ./plans -type f -name "*.py" ! -path "*/migrations/*" ! -path "*/__pycache__/*" >> out.txt
+	@for f in $$(find ./plans -type f -name "*.py" ! -path "*/migrations/*" ! -path "*/__pycache__/*"); do \
+		echo "\n$$f:" >> out.txt; \
+		echo "\`\`\`python" >> out.txt; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\n=== Frontend Vue.js ===" >> out.txt
+	
 	@echo "\n--- Templates Django ---" >> out.txt
-	@find ./templates -type f -name "*.html" >> out.txt
+	@for f in $$(find ./templates -type f -name "*.html"); do \
+		echo "\n$$f:" >> out.txt; \
+		echo "\`\`\`html" >> out.txt; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\n--- Composants Vue ---" >> out.txt
-	@find frontend/irrigationdesign/src/components -type f -name "*.vue" ! -path "*/node_modules/*" >> out.txt
+	@for f in $$(find frontend/irrigationdesign/src/components -type f -name "*.vue" ! -path "*/node_modules/*"); do \
+		echo "\n$$f:" >> out.txt; \
+		echo "\`\`\`vue" >> out.txt; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\n--- Vues Vue ---" >> out.txt
-	@find frontend/irrigationdesign/src/views -type f -name "*.vue" ! -path "*/node_modules/*" >> out.txt
+	@for f in $$(find frontend/irrigationdesign/src/views -type f -name "*.vue" ! -path "*/node_modules/*"); do \
+		echo "\n$$f:" >> out.txt; \
+		echo "\`\`\`vue" >> out.txt; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\n--- Store et État ---" >> out.txt
-	@find frontend/irrigationdesign/src/stores -type f -name "*.ts" ! -path "*/node_modules/*" >> out.txt
+	@for f in $$(find frontend/irrigationdesign/src/stores -type f -name "*.ts" ! -path "*/node_modules/*"); do \
+		echo "\n$$f:" >> out.txt; \
+		echo "\`\`\`typescript" >> out.txt; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\n--- Services et Types ---" >> out.txt
-	@find frontend/irrigationdesign/src/services frontend/irrigationdesign/src/types -type f -name "*.ts" ! -path "*/node_modules/*" >> out.txt
+	@for f in $$(find frontend/irrigationdesign/src/services frontend/irrigationdesign/src/types -type f -name "*.ts" ! -path "*/node_modules/*"); do \
+		echo "\n$$f:" >> out.txt; \
+		echo "\`\`\`typescript" >> out.txt; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\n--- Configuration Frontend ---" >> out.txt
-	@find frontend/irrigationdesign -maxdepth 1 -type f \( -name "*.json" -o -name "*.ts" -o -name "*.config.*" \) ! -path "*/node_modules/*" >> out.txt
+	@for f in $$(find frontend/irrigationdesign -maxdepth 1 -type f \( -name "*.json" -o -name "*.ts" -o -name "*.config.*" \) ! -path "*/node_modules/*"); do \
+		echo "\n$$f:" >> out.txt; \
+		if [[ $$f == *.json ]]; then \
+			echo "\`\`\`json" >> out.txt; \
+		elif [[ $$f == *.ts ]]; then \
+			echo "\`\`\`typescript" >> out.txt; \
+		else \
+			echo "\`\`\`" >> out.txt; \
+		fi; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\n--- Routes ---" >> out.txt
-	@find frontend/irrigationdesign/src/router -type f -name "*.ts" ! -path "*/node_modules/*" >> out.txt
+	@for f in $$(find frontend/irrigationdesign/src/router -type f -name "*.ts" ! -path "*/node_modules/*"); do \
+		echo "\n$$f:" >> out.txt; \
+		echo "\`\`\`typescript" >> out.txt; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\n--- Styles ---" >> out.txt
-	@find frontend/irrigationdesign/src/assets -type f \( -name "*.css" -o -name "*.scss" \) ! -path "*/node_modules/*" >> out.txt
+	@for f in $$(find frontend/irrigationdesign/src/assets -type f \( -name "*.css" -o -name "*.scss" \) ! -path "*/node_modules/*"); do \
+		echo "\n$$f:" >> out.txt; \
+		echo "\`\`\`css" >> out.txt; \
+		cat "$$f" >> out.txt; \
+		echo "\`\`\`" >> out.txt; \
+	done
+	
 	@echo "\nContenu généré dans out.txt"
 
 # Migrations
