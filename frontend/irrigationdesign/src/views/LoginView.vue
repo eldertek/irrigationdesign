@@ -174,11 +174,28 @@ async function handleSubmit() {
 
   try {
     await authStore.login(form.username, form.password)
-    console.log('Login successful, redirecting to home')
-    router.push('/')
+    console.log('Login successful, checking user type...')
+    
+    // Redirection en fonction du type d'utilisateur
+    if (authStore.user?.must_change_password) {
+      console.log('User must change password, redirecting...')
+      router.push('/change-password')
+    } else if (authStore.isClient && !authStore.hasDealer) {
+      console.log('Client without dealer, redirecting to dealer selection...')
+      router.push('/select-dealer')
+    } else {
+      console.log('Normal login flow, redirecting to home...')
+      router.push('/')
+    }
   } catch (err: any) {
     console.error('Login error:', err)
-    error.value = err.response?.data?.detail || 'Identifiants incorrects'
+    if (err.response?.status === 401) {
+      error.value = 'Identifiants incorrects'
+    } else if (err.response?.data?.detail) {
+      error.value = err.response.data.detail
+    } else {
+      error.value = 'Une erreur est survenue lors de la connexion'
+    }
   } finally {
     loading.value = false
   }

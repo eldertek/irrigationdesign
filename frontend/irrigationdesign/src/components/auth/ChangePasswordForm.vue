@@ -10,47 +10,90 @@
         </p>
       </div>
       <form class="mt-8 space-y-6" @submit.prevent="handleSubmit">
-        <div class="rounded-md shadow-sm -space-y-px">
+        <div class="space-y-4">
           <div>
-            <label for="old-password" class="sr-only">Ancien mot de passe</label>
-            <input
-              id="old-password"
-              v-model="form.oldPassword"
-              name="old-password"
-              type="password"
-              required
-              class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-              placeholder="Ancien mot de passe"
-            />
+            <label for="old-password" class="block text-sm font-medium text-gray-700">Ancien mot de passe</label>
+            <div class="mt-1">
+              <input
+                id="old-password"
+                v-model="form.oldPassword"
+                name="old-password"
+                type="password"
+                required
+                autocomplete="current-password"
+                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                placeholder="Entrez votre mot de passe actuel"
+              />
+            </div>
           </div>
+          
           <div>
-            <label for="new-password" class="sr-only">Nouveau mot de passe</label>
-            <input
-              id="new-password"
-              v-model="form.newPassword"
-              name="new-password"
-              type="password"
-              required
-              class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-              placeholder="Nouveau mot de passe"
-            />
+            <label for="new-password" class="block text-sm font-medium text-gray-700">Nouveau mot de passe</label>
+            <div class="mt-1">
+              <input
+                id="new-password"
+                v-model="form.newPassword"
+                name="new-password"
+                type="password"
+                required
+                autocomplete="new-password"
+                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                placeholder="Entrez votre nouveau mot de passe"
+              />
+            </div>
+            <p class="mt-1 text-sm text-gray-500">
+              Le mot de passe doit contenir au moins 8 caractères
+            </p>
           </div>
+          
           <div>
-            <label for="confirm-password" class="sr-only">Confirmer le mot de passe</label>
-            <input
-              id="confirm-password"
-              v-model="form.confirmPassword"
-              name="confirm-password"
-              type="password"
-              required
-              class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-              placeholder="Confirmer le mot de passe"
-            />
+            <label for="confirm-password" class="block text-sm font-medium text-gray-700">Confirmer le mot de passe</label>
+            <div class="mt-1">
+              <input
+                id="confirm-password"
+                v-model="form.confirmPassword"
+                name="confirm-password"
+                type="password"
+                required
+                autocomplete="new-password"
+                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                placeholder="Confirmez votre nouveau mot de passe"
+              />
+            </div>
           </div>
         </div>
 
-        <div v-if="error" class="text-red-600 text-sm text-center">
-          {{ error }}
+        <div v-if="error" class="rounded-md bg-red-50 p-4">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-red-800">{{ error }}</h3>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="validationErrors.length > 0" class="rounded-md bg-yellow-50 p-4">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-yellow-800">Attention</h3>
+              <div class="mt-2 text-sm text-yellow-700">
+                <ul class="list-disc pl-5 space-y-1">
+                  <li v-for="(error, index) in validationErrors" :key="index">
+                    {{ error }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div>
@@ -104,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -120,9 +163,31 @@ const form = reactive({
 const loading = ref(false)
 const error = ref('')
 
+onMounted(() => {
+  console.log('ChangePasswordForm mounted, auth state:', {
+    isAuthenticated: authStore.isAuthenticated,
+    userId: authStore.user?.id,
+    mustChangePassword: authStore.user?.must_change_password
+  })
+})
+
+const validationErrors = computed(() => {
+  const errors = []
+  
+  if (form.newPassword && form.newPassword.length < 8) {
+    errors.push('Le nouveau mot de passe doit contenir au moins 8 caractères')
+  }
+  
+  if (form.newPassword && form.confirmPassword && form.newPassword !== form.confirmPassword) {
+    errors.push('Les mots de passe ne correspondent pas')
+  }
+  
+  return errors
+})
+
 const isValid = computed(() => {
   return (
-    form.oldPassword.length >= 8 &&
+    form.oldPassword.length > 0 &&
     form.newPassword.length >= 8 &&
     form.newPassword === form.confirmPassword
   )
@@ -130,7 +195,12 @@ const isValid = computed(() => {
 
 async function handleSubmit() {
   if (!isValid.value) {
-    error.value = 'Veuillez vérifier vos entrées'
+    error.value = 'Veuillez corriger les erreurs avant de continuer'
+    return
+  }
+
+  if (!authStore.user?.id) {
+    error.value = 'Erreur : utilisateur non identifié'
     return
   }
 
@@ -138,10 +208,25 @@ async function handleSubmit() {
   error.value = ''
 
   try {
+    console.log('Submitting password change...')
     await authStore.changePassword(form.oldPassword, form.newPassword)
+    console.log('Password changed successfully')
     router.push('/')
   } catch (err: any) {
-    error.value = err.response?.data?.detail || 'Erreur lors du changement de mot de passe'
+    console.error('Password change failed:', err)
+    if (err.response?.data?.detail) {
+      error.value = err.response.data.detail
+    } else if (err.response?.data?.old_password) {
+      error.value = err.response.data.old_password[0]
+    } else if (err.response?.data?.password) {
+      error.value = err.response.data.password[0]
+    } else if (err.response?.status === 401) {
+      error.value = 'Session expirée, veuillez vous reconnecter'
+      await authStore.logout()
+      router.push('/login')
+    } else {
+      error.value = 'Une erreur est survenue lors du changement de mot de passe'
+    }
   } finally {
     loading.value = false
   }
