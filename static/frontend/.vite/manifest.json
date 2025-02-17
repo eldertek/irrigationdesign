@@ -6,7 +6,6 @@
     "isEntry": true,
     "dynamicImports": [
       "src/views/ProjectsView.vue",
-      "src/views/UsersView.vue",
       "src/views/ProfileView.vue",
       "src/views/SettingsView.vue",
       "src/views/SelectDealerView.vue",
@@ -76,15 +75,6 @@
     "file": "assets/SettingsView.js",
     "name": "SettingsView",
     "src": "src/views/SettingsView.vue",
-    "isDynamicEntry": true,
-    "imports": [
-      "index.html"
-    ]
-  },
-  "src/views/UsersView.vue": {
-    "file": "assets/UsersView.js",
-    "name": "UsersView",
-    "src": "src/views/UsersView.vue",
     "isDynamicEntry": true,
     "imports": [
       "index.html"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import SearchBar from '@/components/SearchBar.vue'
@@ -10,8 +10,27 @@ const authStore = useAuthStore()
 const showProfileMenu = ref(false)
 
 // Données utilisateur depuis le store d'authentification
-const userName = computed(() => authStore.user?.username || '')
-const userRole = computed(() => authStore.user?.user_type || '')
+const userName = computed(() => {
+  const user = authStore.user
+  if (user?.first_name && user?.last_name) {
+    return `${user.first_name} ${user.last_name.toUpperCase()}`
+  }
+  return user?.username || ''
+})
+const userRole = computed(() => {
+  const userType = authStore.user?.user_type
+  console.log('User type:', userType)
+  switch (userType) {
+    case 'admin':
+      return 'Accès administrateur'
+    case 'dealer':
+      return 'Accès concessionnaire'
+    case 'client':
+      return 'Accès client'
+    default:
+      return ''
+  }
+})
 const isAdmin = computed(() => authStore.user?.user_type === 'admin')
 const userAvatar = ref('')
 const isAuthenticated = computed(() => authStore.isAuthenticated)
@@ -69,15 +88,49 @@ function handleLocationSelect(location: Location) {
 
 // Vérifier l'authentification au chargement
 onMounted(async () => {
-  const token = localStorage.getItem('access_token')
-  if (token) {
-    try {
+  console.log('App mounted, checking auth...')
+  try {
+    // Vérifier si un token existe
+    const token = localStorage.getItem('token')
+    if (token) {
+      console.log('Token found, checking auth...')
       await authStore.checkAuth()
-    } catch (error) {
-      router.push('/login')
+      // Forcer la récupération du profil utilisateur
+      await authStore.fetchUserProfile()
+    } else {
+      console.log('No token found')
     }
+  } catch (error) {
+    console.error('Auth check error:', error)
+    router.push('/login')
   }
 })
+
+// Titre de la page
+const pageTitle = computed(() => {
+  const baseTitle = 'IrrigationDesign'
+  if (!isAuthenticated.value) return `${baseTitle} - Connexion`
+  
+  const currentRoute = router.currentRoute.value
+  const routeTitles: Record<string, string> = {
+    home: 'Carte',
+    projects: 'Projets',
+    users: 'Utilisateurs',
+    profile: 'Mon profil',
+    settings: 'Paramètres',
+    selectDealer: 'Sélection du concessionnaire',
+    changePassword: 'Changement de mot de passe',
+    map: 'Carte'
+  }
+  
+  const routeTitle = routeTitles[currentRoute.name as string] || ''
+  return routeTitle ? `${baseTitle} - ${routeTitle}` : baseTitle
+})
+
+// Mettre à jour le titre de la page
+watch(pageTitle, (newTitle) => {
+  document.title = newTitle
+}, { immediate: true })
 </script>
 
 <template>
@@ -139,12 +192,12 @@ onMounted(async () => {
               >
                 <div class="flex flex-col items-end">
                   <span class="text-sm font-medium text-gray-700">{{ userName }}</span>
-                  <span class="text-xs text-gray-500">{{ userRole }}</span>
+                  <span v-if="userRole" class="text-xs text-gray-500">{{ userRole }}</span>
                 </div>
                 <img
                   class="h-8 w-8 rounded-full ring-2 ring-white"
                   :src="userAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(userName)"
-                  alt=""
+                  :alt="userName"
                 />
               </button>
 

@@ -275,6 +275,59 @@ export function useMapDrawing() {
       case 'Line':
         map.value.pm.enableDraw('Line');
         break;
+      case 'Text':
+        // Désactiver tous les modes de dessin
+        map.value.pm.disableDraw();
+        
+        // Désactiver temporairement le déplacement de la carte
+        map.value.dragging.disable();
+        
+        // Afficher un message d'aide
+        const textHelpMsg = L.DomUtil.create('div', 'drawing-help-message');
+        textHelpMsg.innerHTML = 'Cliquez sur la carte pour placer le texte';
+        document.body.appendChild(textHelpMsg);
+        
+        // Écouter un clic unique pour placer le texte
+        map.value.once('click', (e: L.LeafletMouseEvent) => {
+          // Créer un marqueur avec une icône div personnalisée
+          const textMarker = L.marker(e.latlng, {
+            icon: L.divIcon({
+              html: '<div class="text-annotation">Nouveau texte</div>',
+              className: ''
+            }),
+            draggable: true
+          });
+          
+          // Ajouter les propriétés du texte
+          textMarker.properties = {
+            type: 'text',
+            text: 'Nouveau texte',
+            style: {
+              fontSize: '14px',
+              backgroundColor: '#FFFFFF',
+              backgroundOpacity: 1,
+              borderColor: '#000000',
+              borderOpacity: 1,
+              padding: '5px 10px',
+              borderRadius: '3px'
+            }
+          };
+          
+          // Ajouter le marqueur à la carte
+          textMarker.addTo(map.value!);
+          
+          // Émettre l'événement de création
+          map.value.fire('pm:create', {
+            layer: textMarker,
+            shape: 'Text',
+            workingLayer: textMarker
+          });
+          
+          // Nettoyer
+          map.value.dragging.enable();
+          document.querySelector('.drawing-help-message')?.remove();
+        });
+        break;
       case 'edit':
         map.value.pm.enableGlobalEditMode();
         break;

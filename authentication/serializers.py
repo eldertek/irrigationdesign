@@ -12,6 +12,7 @@ class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     is_active = serializers.BooleanField(read_only=True)
     permissions = serializers.SerializerMethodField()
+    user_type = serializers.SerializerMethodField()
     
     class Meta:
         model = User
@@ -19,7 +20,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name',
             'password', 'old_password', 'role', 'concessionnaire',
             'dealer_name', 'company_name', 'must_change_password', 'phone',
-            'full_name', 'is_active', 'permissions'
+            'full_name', 'is_active', 'permissions', 'user_type'
         ]
         read_only_fields = ['id']
         extra_kwargs = {
@@ -49,6 +50,15 @@ class UserSerializer(serializers.ModelSerializer):
             'can_manage_dealers': obj.role == 'ADMIN'
         }
         return permissions
+
+    def get_user_type(self, obj):
+        """Maps the role field to the frontend's expected user_type values."""
+        role_mapping = {
+            'ADMIN': 'admin',
+            'CONCESSIONNAIRE': 'dealer',
+            'CLIENT': 'client'
+        }
+        return role_mapping.get(obj.role, 'client')  # Default to 'client' if role is not found
 
     def validate_password(self, value):
         """Valide le mot de passe selon les règles de Django."""

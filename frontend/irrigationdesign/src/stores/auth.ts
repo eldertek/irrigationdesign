@@ -142,8 +142,18 @@ export const useAuthStore = defineStore('auth', {
 
     async restoreSession() {
       console.log('Attempting to restore session...');
+      const token = localStorage.getItem('token');
+      const refreshToken = localStorage.getItem('refresh_token');
+      
+      if (!token || !refreshToken) {
+        console.log('No tokens found, skipping session restore');
+        this.isAuthenticated = false;
+        this.user = null;
+        return;
+      }
+
       try {
-        // Tenter de rafraîchir le token
+        // Tenter de rafraîchir le token seulement si on a les tokens nécessaires
         const newToken = await this.refreshToken();
         if (newToken) {
           // Si on a un nouveau token, récupérer le profil
@@ -156,58 +166,74 @@ export const useAuthStore = defineStore('auth', {
         this.isAuthenticated = false;
         this.user = null;
         localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
       }
     },
 
     async login(username: string, password: string) {
       try {
-        const response = await axios.post('/token/', { username, password });
-        const { access, refresh, user } = response.data;
+        console.log('Attempting login...')
+        const response = await axios.post('/token/', { username, password })
+        console.log('Login response:', response.data)
+        const { access, refresh } = response.data
         
-        localStorage.setItem('token', access);
-        localStorage.setItem('refresh_token', refresh);
-        this.token = access;
-        this.user = user;
-        this.isAuthenticated = true;
+        localStorage.setItem('token', access)
+        localStorage.setItem('refresh_token', refresh)
+        this.token = access
         
-        return true;
+        // Récupérer le profil complet de l'utilisateur
+        const userProfile = await this.fetchUserProfile()
+        console.log('User profile after login:', userProfile)
+        
+        // Mettre à jour l'état avec les données complètes de l'utilisateur
+        this.user = userProfile
+        this.isAuthenticated = true
+        
+        return true
       } catch (error) {
-        console.error('Login error:', error);
-        throw error;
+        console.error('Login error:', error)
+        throw error
       }
     },
 
     async checkAuth() {
       try {
-        const token = localStorage.getItem('token');
+        console.log('Checking auth...')
+        const token = localStorage.getItem('token')
         if (!token) {
-          this.isAuthenticated = false;
-          return false;
+          console.log('No token found')
+          this.isAuthenticated = false
+          return false
         }
 
+        console.log('Token found, fetching user profile...')
         // Vérifier si le token est valide en récupérant le profil
-        await this.fetchUserProfile();
-        this.isAuthenticated = true;
-        return true;
+        await this.fetchUserProfile()
+        this.isAuthenticated = true
+        return true
       } catch (error) {
-        this.isAuthenticated = false;
-        localStorage.removeItem('token');
-        localStorage.removeItem('refresh_token');
-        throw error;
+        console.error('Auth check error:', error)
+        this.isAuthenticated = false
+        localStorage.removeItem('token')
+        localStorage.removeItem('refresh_token')
+        throw error
       }
     },
 
     async fetchUserProfile() {
       try {
-        console.log('Fetching user profile...');
-        // S'assurer que l'URL commence par un slash mais n'inclut pas /api
-        const response = await axios.get('/users/me/');
-        console.log('User profile response:', response.data);
-        this.user = response.data;
-        this.mustChangePassword = response.data.must_change_password;
+        console.log('Fetching user profile...')
+        const response = await axios.get('/users/me/')
+        console.log('User profile response:', response.data)
+        
+        // Mettre à jour l'état avec les données du profil
+        this.user = response.data
+        this.mustChangePassword = response.data.must_change_password || false
+        
+        return response.data
       } catch (error) {
-        console.error('Error fetching user profile:', error);
-        throw error;
+        console.error('Error fetching user profile:', error)
+        throw error
       }
     },
 
@@ -235,21 +261,15 @@ export const useAuthStore = defineStore('auth', {
 
     async logout() {
       console.log('Logging out...');
-      try {
-        // Tenter d'invalider le refresh token côté serveur
-        await axios.post('/token/logout/', {}, {
-          withCredentials: true
-        });
-      } catch (error) {
-        console.error('Error during logout:', error);
-      } finally {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refresh_token');
-        this.user = null;
-        this.token = null;
-        this.isAuthenticated = false;
-        this.mustChangePassword = false;
-      }
+      // Nettoyer le stockage local
+      localStorage.removeItem('token');
+      localStorage.removeItem('refresh_token');
+      
+      // Réinitialiser l'état
+      this.user = null;
+      this.token = null;
+      this.isAuthenticated = false;
+      this.mustChangePassword = false;
     },
 
     async refreshToken() {
@@ -303,7 +323,7 @@ export const useAuthStore = defineStore('auth', {
     async setConcessionnaire(userId: number, concessionnaireId: number) {
       this.loading = true;
       try {
-        await axios.patch(`/utilisateurs/${userId}/`, {
+        await axios.patch(`/users/${userId}/`, {
           concessionnaire: concessionnaireId
         });
         if (this.user && this.user.id === userId) {
@@ -326,7 +346,7 @@ export const useAuthStore = defineStore('auth', {
     }) {
       this.loading = true;
       try {
-        const response = await axios.post('/utilisateurs/', userData);
+        const response = await axios.post('/users/', userData);
         return response.data;
       } catch (error) {
         this.error = 'Erreur lors de la création de l\'utilisateur';
@@ -339,7 +359,7 @@ export const useAuthStore = defineStore('auth', {
     async updateUserRole(userId: number, role: string) {
       this.loading = true;
       try {
-        const response = await axios.patch(`/utilisateurs/${userId}/`, {
+        const response = await axios.patch(`/users/${userId}/`, {
           role
         });
         if (this.user && this.user.id === userId) {

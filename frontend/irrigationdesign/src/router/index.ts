@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import ChangePasswordForm from '@/components/auth/ChangePasswordForm.vue'
 import LoginView from '../views/LoginView.vue'
 import MapView from '../views/MapView.vue'
+import UserListView from '@/views/UserListView.vue'
 
 const router = createRouter({
   history: createWebHistory('/'),
@@ -28,8 +29,8 @@ const router = createRouter({
     {
       path: '/users',
       name: 'users',
-      component: () => import('@/views/UsersView.vue'),
-      meta: { 
+      component: UserListView,
+      meta: {
         requiresAuth: true,
         allowedRoles: ['admin', 'dealer']
       }
@@ -147,7 +148,8 @@ router.beforeEach(async (to, from, next) => {
 
   // Vérification des rôles autorisés
   if (to.meta.allowedRoles && userType) {
-    if (!to.meta.allowedRoles.includes(userType)) {
+    const allowedRoles = to.meta.allowedRoles as string[]
+    if (!allowedRoles.includes(userType)) {
       next({ name: 'home' })
       return
     }
