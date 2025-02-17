@@ -123,7 +123,7 @@
         </div>
 
         <!-- Options spécifiques aux formes -->
-        <div v-if="selectedShape.type === 'Circle' || selectedShape.type === 'Semicircle'">
+        <div v-if="selectedShape.properties?.type === 'Circle' || selectedShape.properties?.type === 'Semicircle'">
           <label class="block text-sm font-medium text-gray-700 mb-1">
             Rayon (m)
           </label>
@@ -141,7 +141,7 @@
           </div>
         </div>
 
-        <div v-if="selectedShape.type === 'Semicircle'">
+        <div v-if="selectedShape.properties?.type === 'Semicircle'">
           <label class="block text-sm font-medium text-gray-700 mb-1">
             Angle de départ (°)
           </label>
@@ -154,30 +154,118 @@
             @change="updateProperties({ startAngle })"
           />
         </div>
+
+        <!-- Options spécifiques au texte -->
+        <div v-if="selectedShape.properties?.type === 'text'">
+          <div class="space-y-4">
+            <!-- Contenu du texte -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Texte
+              </label>
+              <input
+                type="text"
+                v-model="textContent"
+                class="w-full px-2 py-1 rounded border"
+                @change="updateTextProperties({ text: textContent })"
+                placeholder="Entrez votre texte..."
+              />
+            </div>
+
+            <!-- Taille de la police -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Taille de la police
+              </label>
+              <input
+                type="range"
+                v-model="fontSize"
+                min="10"
+                max="32"
+                class="w-full"
+                @change="updateTextProperties({ fontSize })"
+              />
+              <span class="text-sm">{{ fontSize }}px</span>
+            </div>
+
+            <!-- Couleur de fond -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Couleur de fond
+              </label>
+              <div class="flex items-center space-x-2">
+                <input
+                  type="color"
+                  v-model="textBackgroundColor"
+                  class="w-8 h-8 rounded border"
+                  @change="updateTextProperties({ backgroundColor: textBackgroundColor })"
+                />
+                <input
+                  type="range"
+                  v-model="textBackgroundOpacity"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  class="flex-1"
+                  @change="updateTextProperties({ backgroundOpacity: textBackgroundOpacity })"
+                />
+                <span class="text-sm">{{ (textBackgroundOpacity * 100).toFixed(0) }}%</span>
+              </div>
+            </div>
+
+            <!-- Couleur de bordure -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Couleur de bordure
+              </label>
+              <div class="flex items-center space-x-2">
+                <input
+                  type="color"
+                  v-model="textBorderColor"
+                  class="w-8 h-8 rounded border"
+                  @change="updateTextProperties({ borderColor: textBorderColor })"
+                />
+                <input
+                  type="range"
+                  v-model="textBorderOpacity"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  class="flex-1"
+                  @change="updateTextProperties({ borderOpacity: textBorderOpacity })"
+                />
+                <span class="text-sm">{{ (textBorderOpacity * 100).toFixed(0) }}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div v-if="selectedShape" class="mb-6">
+    <div v-if="selectedShape?.properties" class="mb-6">
       <h3 class="text-lg font-semibold mb-4">Propriétés</h3>
       
       <div class="space-y-2 text-sm">
-        <div v-if="selectedShape.properties?.area">
+        <div class="font-medium">
+          Type: {{ typeTranslations[selectedShape.properties.type as keyof typeof typeTranslations] || 'Non défini' }}
+        </div>
+        <div v-if="selectedShape.properties.area">
           Surface: {{ formatArea(selectedShape.properties.area) }}
         </div>
-        <div v-if="selectedShape.properties?.length">
-          Longueur: {{ formatLength(selectedShape.properties.length) }}
+        <div v-if="selectedShape.properties.length">
+          Longueur: {{ formatLengthInHa(selectedShape.properties.length) }}
         </div>
-        <div v-if="selectedShape.properties?.perimeter">
-          Périmètre: {{ formatLength(selectedShape.properties.perimeter) }}
+        <div v-if="selectedShape.properties.perimeter">
+          Périmètre: {{ formatLengthInHa(selectedShape.properties.perimeter) }}
         </div>
-        <div v-if="selectedShape.properties?.radius">
-          Rayon: {{ formatLength(selectedShape.properties.radius) }}
+        <div v-if="selectedShape.properties.radius">
+          Rayon: {{ formatLengthInHa(selectedShape.properties.radius) }}
         </div>
-        <div v-if="selectedShape.properties?.width">
-          Largeur: {{ formatLength(selectedShape.properties.width) }}
+        <div v-if="selectedShape.properties.width">
+          Largeur: {{ formatLengthInHa(selectedShape.properties.width) }}
         </div>
-        <div v-if="selectedShape.properties?.height">
-          Hauteur: {{ formatLength(selectedShape.properties.height) }}
+        <div v-if="selectedShape.properties.height">
+          Hauteur: {{ formatLengthInHa(selectedShape.properties.height) }}
         </div>
       </div>
     </div>
@@ -185,7 +273,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, toRaw } from 'vue';
+import L from 'leaflet';
+import * as turf from '@turf/turf';
+
+interface ShapeProperties {
+  type: string;
+  style: {
+    color: string;
+    weight: number;
+    opacity: number;
+    fillColor: string;
+    fillOpacity: number;
+    dashArray: string;
+  };
+  radius?: number;
+  area?: number;
+  perimeter?: number;
+  orientation?: number;
+  width?: number;
+  height?: number;
+  length?: number;
+  text?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  fontSize?: number;
+}
+
+interface CircleOptions extends L.CircleMarkerOptions {
+  isSemicircle?: boolean;
+}
 
 const props = defineProps<{
   currentTool: string;
@@ -203,7 +320,8 @@ const drawingTools = [
   { type: 'Semicircle', label: 'Demi-cercle' },
   { type: 'Rectangle', label: 'Rectangle' },
   { type: 'Polygon', label: 'Polygone' },
-  { type: 'Line', label: 'Ligne' }
+  { type: 'Line', label: 'Ligne' },
+  { type: 'Text', label: 'Texte' }
 ];
 
 // Couleurs prédéfinies
@@ -235,30 +353,129 @@ const radius = ref(0);
 const startAngle = ref(0);
 
 const showFillOptions = computed(() => {
-  if (!props.selectedShape) return false;
-  return ['Circle', 'Semicircle', 'Rectangle', 'Polygon'].includes(props.selectedShape.type);
+  if (!props.selectedShape?.properties?.type) return false;
+  return ['Circle', 'Semicircle', 'Rectangle', 'Polygon'].includes(props.selectedShape.properties.type);
 });
+
+// Ajouter les refs pour les propriétés du texte
+const textContent = ref('');
+const fontSize = ref(14);
+const textBackgroundColor = ref('#FFFFFF');
+const textBackgroundOpacity = ref(1);
+const textBorderColor = ref('#000000');
+const textBorderOpacity = ref(1);
 
 // Initialiser les valeurs quand une forme est sélectionnée
 watch(() => props.selectedShape, (shape) => {
+  console.log('=== DRAWING TOOLS SHAPE UPDATE START ===');
+  console.log('Raw shape object:', toRaw(shape));
+  console.log('Shape constructor:', shape?.constructor?.name);
+  
   if (shape) {
-    fillColor.value = shape.properties.style.fillColor || '#3B82F6';
-    fillOpacity.value = shape.properties.style.fillOpacity || 0.2;
-    strokeColor.value = shape.properties.style.color || '#2563EB';
-    strokeOpacity.value = shape.properties.style.opacity || 1;
-    strokeWidth.value = shape.properties.style.weight || 2;
-    strokeStyle.value = getStrokeStyleFromDashArray(shape.properties.style.dashArray);
+    // Vérifier si la forme a des propriétés valides
+    if (!shape.properties || !shape.properties.type) {
+      console.warn('Invalid shape properties detected:', toRaw(shape.properties));
+      
+      // Détecter le type de forme
+      const detectedType = 
+        shape instanceof L.Circle ? ((shape.options as CircleOptions)?.isSemicircle ? 'semicircle' : 'circle') :
+        shape instanceof L.Rectangle ? 'rectangle' :
+        shape instanceof L.Polygon ? 'polygon' :
+        shape instanceof L.Polyline && !(shape instanceof L.Polygon) ? 'line' : 'unknown';
+      
+      console.log('Detected shape type:', detectedType);
+      
+      // Créer des propriétés de base
+      const baseProperties: ShapeProperties = {
+        type: detectedType,
+        style: {
+          color: shape.options?.color || '#3388ff',
+          weight: shape.options?.weight || 3,
+          opacity: shape.options?.opacity || 1,
+          fillColor: shape.options?.fillColor || '#3388ff',
+          fillOpacity: shape.options?.fillOpacity || 0.2,
+          dashArray: shape.options?.dashArray || ''
+        }
+      };
+      
+      // Ajouter les propriétés spécifiques au type
+      if (shape instanceof L.Circle) {
+        const radius = shape.getRadius();
+        baseProperties.radius = radius;
+        
+        if (detectedType === 'circle') {
+          baseProperties.area = Math.PI * Math.pow(radius, 2);
+          baseProperties.perimeter = 2 * Math.PI * radius;
+        } else {
+          baseProperties.area = (Math.PI * Math.pow(radius, 2)) / 2;
+          baseProperties.perimeter = Math.PI * radius + 2 * radius;
+        }
+      } else if (shape instanceof L.Rectangle) {
+        const bounds = shape.getBounds();
+        const ne = bounds.getNorthEast();
+        const sw = bounds.getSouthWest();
+        const width = turf.distance([sw.lng, sw.lat], [ne.lng, sw.lat], { units: 'meters' });
+        const height = turf.distance([sw.lng, sw.lat], [sw.lng, ne.lat], { units: 'meters' });
+        baseProperties.width = width;
+        baseProperties.height = height;
+        baseProperties.area = width * height;
+        baseProperties.perimeter = 2 * (width + height);
+      } else if (shape instanceof L.Polygon) {
+        const latLngs = shape.getLatLngs()[0] as L.LatLng[];
+        const coordinates = latLngs.map((ll: L.LatLng) => [ll.lng, ll.lat]);
+        coordinates.push(coordinates[0]); // Fermer le polygone
+        const polygon = turf.polygon([coordinates]);
+        baseProperties.area = turf.area(polygon);
+        baseProperties.perimeter = turf.length(turf.lineString([...coordinates]), { units: 'meters' });
+      } else if (shape instanceof L.Polyline && !(shape instanceof L.Polygon)) {
+        const latLngs = shape.getLatLngs() as L.LatLng[];
+        const coordinates = latLngs.map((ll: L.LatLng) => [ll.lng, ll.lat]);
+        const line = turf.lineString(coordinates);
+        baseProperties.length = turf.length(line, { units: 'meters' });
+      }
+      
+      console.log('Created base properties:', baseProperties);
+      
+      // Mettre à jour les propriétés de la forme
+      shape.properties = baseProperties;
+    }
+
+    console.log('Final shape properties:', toRaw(shape.properties));
+    
+    // Mettre à jour les contrôles UI
+    fillColor.value = shape.properties.style?.fillColor || '#3B82F6';
+    fillOpacity.value = shape.properties.style?.fillOpacity || 0.2;
+    strokeColor.value = shape.properties.style?.color || '#2563EB';
+    strokeOpacity.value = shape.properties.style?.opacity || 1;
+    strokeWidth.value = shape.properties.style?.weight || 2;
+    strokeStyle.value = getStrokeStyleFromDashArray(shape.properties.style?.dashArray);
+    
+    // Mettre à jour les propriétés spécifiques
     radius.value = shape.properties.radius || 0;
     startAngle.value = shape.properties.orientation || 0;
-  }
-}, { immediate: true });
+    
+    console.log('Updated UI controls:', {
+      fillColor: fillColor.value,
+      fillOpacity: fillOpacity.value,
+      strokeColor: strokeColor.value,
+      strokeOpacity: strokeOpacity.value,
+      strokeWidth: strokeWidth.value,
+      strokeStyle: strokeStyle.value,
+      radius: radius.value,
+      startAngle: startAngle.value
+    });
 
-// Ajouter un watcher pour déboguer les changements de forme sélectionnée
-watch(() => props.selectedShape, (newShape) => {
-  console.log('Selected shape changed:', newShape);
-  if (newShape) {
-    console.log('Shape properties:', newShape.properties);
+    if (shape && shape.properties?.type === 'text') {
+      textContent.value = shape.properties.text || '';
+      fontSize.value = shape.properties.style?.fontSize || 14;
+      textBackgroundColor.value = shape.properties.style?.backgroundColor || '#FFFFFF';
+      textBackgroundOpacity.value = shape.properties.style?.backgroundOpacity || 1;
+      textBorderColor.value = shape.properties.style?.borderColor || '#000000';
+      textBorderOpacity.value = shape.properties.style?.borderOpacity || 1;
+    }
   }
+  
+  console.log('=== DRAWING TOOLS SHAPE UPDATE END ===');
 }, { immediate: true, deep: true });
 
 const getDashArray = (style: string): string => {
@@ -317,12 +534,70 @@ const updateProperties = (properties: any) => {
   }
 };
 
+// Ajouter la fonction de mise à jour des propriétés du texte
+const updateTextProperties = (properties: any) => {
+  const updatedProperties = {
+    ...properties,
+    type: 'text',
+    style: {
+      backgroundColor: textBackgroundColor.value,
+      backgroundOpacity: textBackgroundOpacity.value,
+      borderColor: textBorderColor.value,
+      borderOpacity: textBorderOpacity.value,
+      fontSize: `${fontSize.value}px`,
+      text: textContent.value,
+      padding: '5px 10px',
+      borderRadius: '3px',
+      fontWeight: 'normal',
+      color: '#000000'
+    }
+  };
+
+  // Créer le HTML pour l'icône
+  const html = `<div style="
+    background-color: ${updatedProperties.style.backgroundColor};
+    border: 1px solid ${updatedProperties.style.borderColor};
+    padding: ${updatedProperties.style.padding};
+    border-radius: ${updatedProperties.style.borderRadius};
+    font-size: ${updatedProperties.style.fontSize};
+    font-weight: ${updatedProperties.style.fontWeight};
+    color: ${updatedProperties.style.color};
+    opacity: ${updatedProperties.style.backgroundOpacity};"
+  >${updatedProperties.style.text}</div>`;
+
+  // Mettre à jour l'icône du marker
+  if (props.selectedShape && props.selectedShape.layer) {
+    const newIcon = L.divIcon({
+      html: html,
+      className: ''
+    });
+    props.selectedShape.layer.setIcon(newIcon);
+  }
+
+  emit('properties-update', updatedProperties);
+};
+
+// Ajouter les traductions des types
+const typeTranslations = {
+  'circle': 'Cercle',
+  'semicircle': 'Demi-cercle',
+  'rectangle': 'Rectangle',
+  'polygon': 'Polygone',
+  'line': 'Ligne',
+  'text': 'Texte',
+  'unknown': 'Inconnu'
+};
+
 const formatArea = (area: number): string => {
   return `${(area / 10000).toFixed(2)} ha`;
 };
 
+const formatLengthInHa = (length: number): string => {
+  return `${(length / 100).toFixed(2)} ha`;
+};
+
 const formatLength = (length: number): string => {
-  return `${length.toFixed(1)} m`;
+  return `${(length / 100).toFixed(2)} ha`;
 };
 
 const formatSlope = (slope: number): string => {
@@ -332,8 +607,28 @@ const formatSlope = (slope: number): string => {
 
 <style scoped>
 .drawing-tools {
-  max-height: calc(100vh - 300px);
+  max-height: calc(100vh - 100px);
   overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* Personnaliser la scrollbar pour une meilleure intégration */
+.drawing-tools::-webkit-scrollbar {
+  width: 6px;
+}
+
+.drawing-tools::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.drawing-tools::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.drawing-tools::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 /* Style pour les boutons de couleur prédéfinie */
