@@ -61,7 +61,6 @@ const profileMenuItems = computed(() => {
   if (!isAuthenticated.value) return []
   return [
     { name: 'Mon profil', to: '/profile' },
-    { name: 'Paramètres', to: '/settings' }
   ]
 })
 
@@ -123,7 +122,6 @@ const pageTitle = computed(() => {
     projects: 'Projets',
     users: 'Utilisateurs',
     profile: 'Mon profil',
-    settings: 'Paramètres',
     selectDealer: 'Sélection du concessionnaire',
     changePassword: 'Changement de mot de passe',
     map: 'Carte'

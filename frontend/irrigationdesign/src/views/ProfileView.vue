@@ -18,10 +18,16 @@
           <form @submit.prevent="updateProfile">
             <div class="shadow sm:rounded-md sm:overflow-hidden">
               <div class="px-4 py-5 bg-white space-y-6 sm:p-6">
-                <div v-if="profileError" class="rounded-md bg-red-50 p-4">
+                <div v-if="profileError" :class="[
+                  'rounded-md p-4',
+                  profileError === 'Email mis à jour avec succès' 
+                    ? 'bg-green-50' 
+                    : 'bg-red-50'
+                ]">
                   <div class="flex">
                     <div class="flex-shrink-0">
                       <svg
+                        v-if="profileError !== 'Email mis à jour avec succès'"
                         class="h-5 w-5 text-red-400"
                         viewBox="0 0 20 20"
                         fill="currentColor"
@@ -32,9 +38,25 @@
                           clip-rule="evenodd"
                         />
                       </svg>
+                      <svg
+                        v-else
+                        class="h-5 w-5 text-green-400"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
                     </div>
                     <div class="ml-3">
-                      <h3 class="text-sm font-medium text-red-800">
+                      <h3 class="text-sm font-medium" :class="[
+                        profileError === 'Email mis à jour avec succès'
+                          ? 'text-green-800'
+                          : 'text-red-800'
+                      ]">
                         {{ profileError }}
                       </h3>
                     </div>
@@ -54,8 +76,10 @@
                       name="username"
                       id="username"
                       v-model="profileForm.username"
-                      class="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                      disabled
+                      class="shadow-sm bg-gray-100 block w-full sm:text-sm border-gray-300 rounded-md cursor-not-allowed"
                     />
+                    <p class="mt-1 text-sm text-gray-500">Le nom d'utilisateur ne peut pas être modifié.</p>
                   </div>
                 </div>
 
@@ -116,10 +140,26 @@
             <form @submit.prevent="changePassword">
               <div class="shadow sm:rounded-md sm:overflow-hidden">
                 <div class="px-4 py-5 bg-white space-y-6 sm:p-6">
-                  <div v-if="passwordError" class="rounded-md bg-red-50 p-4">
+                  <div v-if="passwordError || passwordSuccess" :class="[
+                    'rounded-md p-4',
+                    passwordSuccess ? 'bg-green-50' : 'bg-red-50'
+                  ]">
                     <div class="flex">
                       <div class="flex-shrink-0">
                         <svg
+                          v-if="passwordSuccess"
+                          class="h-5 w-5 text-green-400"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                            clip-rule="evenodd"
+                          />
+                        </svg>
+                        <svg
+                          v-else
                           class="h-5 w-5 text-red-400"
                           viewBox="0 0 20 20"
                           fill="currentColor"
@@ -132,8 +172,10 @@
                         </svg>
                       </div>
                       <div class="ml-3">
-                        <h3 class="text-sm font-medium text-red-800">
-                          {{ passwordError }}
+                        <h3 class="text-sm font-medium" :class="[
+                          passwordSuccess ? 'text-green-800' : 'text-red-800'
+                        ]">
+                          {{ passwordSuccess || passwordError }}
                         </h3>
                       </div>
                     </div>
@@ -225,6 +267,7 @@ const profileLoading = ref(false)
 const passwordLoading = ref(false)
 const profileError = ref<string | null>(null)
 const passwordError = ref<string | null>(null)
+const passwordSuccess = ref<string | null>(null)
 
 const profileForm = reactive({
   username: '',
@@ -249,17 +292,35 @@ async function updateProfile() {
   profileError.value = null
 
   try {
-    await authStore.updateProfile({
-      username: profileForm.username,
-      email: profileForm.email
-    })
+    await authStore.updateUserEmail(profileForm.email)
+    // Afficher un message de succès temporaire
+    const originalError = profileError.value
+    profileError.value = 'Email mis à jour avec succès'
+    setTimeout(() => {
+      if (profileError.value === 'Email mis à jour avec succès') {
+        profileError.value = null
+      }
+    }, 3000)
   } catch (err: any) {
     if (err.response?.data) {
       const errors = err.response.data
-      const firstError = Object.values(errors)[0]
-      profileError.value = Array.isArray(firstError) ? firstError[0] : String(firstError)
+      if (typeof errors === 'object') {
+        // Si l'erreur est un objet avec des champs spécifiques
+        const errorMessages = Object.entries(errors)
+          .map(([field, messages]) => {
+            const message = Array.isArray(messages) ? messages[0] : messages
+            return `${field}: ${message}`
+          })
+          .join('\n')
+        profileError.value = errorMessages
+      } else {
+        // Si l'erreur est une chaîne simple
+        profileError.value = String(errors)
+      }
+    } else if (err.message) {
+      profileError.value = err.message
     } else {
-      profileError.value = 'Une erreur est survenue lors de la mise à jour du profil'
+      profileError.value = 'Une erreur est survenue lors de la mise à jour de l\'email'
     }
   } finally {
     profileLoading.value = false
@@ -269,27 +330,48 @@ async function updateProfile() {
 async function changePassword() {
   if (passwordForm.new_password !== passwordForm.confirm_password) {
     passwordError.value = 'Les mots de passe ne correspondent pas'
+    passwordSuccess.value = null
     return
   }
 
   passwordLoading.value = true
   passwordError.value = null
+  passwordSuccess.value = null
 
   try {
-    await authStore.changePassword({
-      old_password: passwordForm.old_password,
-      new_password: passwordForm.new_password
-    })
+    await authStore.changePassword(
+      passwordForm.old_password,
+      passwordForm.new_password
+    )
     
     // Réinitialiser le formulaire
     passwordForm.old_password = ''
     passwordForm.new_password = ''
     passwordForm.confirm_password = ''
+    
+    // Afficher un message de succès temporaire
+    passwordSuccess.value = 'Mot de passe modifié avec succès'
+    setTimeout(() => {
+      if (passwordSuccess.value === 'Mot de passe modifié avec succès') {
+        passwordSuccess.value = null
+      }
+    }, 3000)
   } catch (err: any) {
     if (err.response?.data) {
       const errors = err.response.data
-      const firstError = Object.values(errors)[0]
-      passwordError.value = Array.isArray(firstError) ? firstError[0] : String(firstError)
+      if (typeof errors === 'object') {
+        const errorMessages = Object.entries(errors)
+          .map(([field, messages]) => {
+            const message = Array.isArray(messages) ? messages[0] : messages
+            return `${field}: ${message}`
+          })
+          .join('\n')
+        passwordError.value = errorMessages
+      } else {
+        passwordError.value = String(errors)
+      }
+    } else if (err.message) {
+      passwordError.value = err.message
     } else {
       passwordError.value = 'Une erreur est survenue lors du changement de mot de passe'
     }

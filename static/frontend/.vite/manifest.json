@@ -8,7 +8,6 @@
       "src/views/ProjectsView.vue",
       "src/views/ClientListView.vue",
       "src/views/ProfileView.vue",
-      "src/views/SettingsView.vue",
       "src/views/ForgotPasswordView.vue",
       "src/views/ResetPasswordView.vue",
       "src/views/NotFoundView.vue"
@@ -66,15 +65,6 @@
     "file": "assets/ResetPasswordView.js",
     "name": "ResetPasswordView",
     "src": "src/views/ResetPasswordView.vue",
-    "isDynamicEntry": true,
-    "imports": [
-      "index.html"
-    ]
-  },
-  "src/views/SettingsView.vue": {
-    "file": "assets/SettingsView.js",
-    "name": "SettingsView",
-    "src": "src/views/SettingsView.vue",
     "isDynamicEntry": true,
     "imports": [
       "index.html"

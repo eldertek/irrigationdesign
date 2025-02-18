@@ -19,14 +19,21 @@ const logRequestDetails = (config: any) => {
   });
 };
 
+// Fonction utilitaire pour obtenir un cookie
+function getCookie(name: string): string | null {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
+
 // Intercepteur pour ajouter le token aux requêtes
 axios.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = getCookie('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    logRequestDetails(config);
     return config;
   },
   (error) => {
@@ -35,39 +42,33 @@ axios.interceptors.request.use(
   }
 );
 
-// Intercepteur pour gérer les erreurs 401
+// Intercepteur pour gérer les erreurs d'authentification
 axios.interceptors.response.use(
-  (response) => {
-    console.log('Response:', {
-      url: response.config.url,
-      status: response.status,
-      data: response.data
-    });
-    return response;
-  },
+  (response) => response,
   async (error) => {
-    console.error('Response error:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      data: error.response?.data
-    });
+    const authStore = useAuthStore();
+    const originalRequest = error.config;
 
-    if (error.response?.status === 401) {
-      const authStore = useAuthStore();
-      // Ne pas tenter de rafraîchir le token si on est déjà en train de le faire
-      // ou si on est sur la route de login
-      if (!error.config.url.includes('/token/') && !error.config._retry) {
-        error.config._retry = true;
-        try {
-          await authStore.refreshToken();
-          const token = localStorage.getItem('token');
-          error.config.headers.Authorization = `Bearer ${token}`;
-          return axios(error.config);
-        } catch (refreshError) {
-          console.error('Token refresh failed:', refreshError);
-          await authStore.logout();
+    // Si l'erreur est 401 et que ce n'est pas déjà une tentative de refresh
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        // Tenter de rafraîchir le token
+        await authStore.refreshToken();
+        const token = getCookie('access_token');
+        if (token) {
+          // Mettre à jour le token dans la requête originale
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          // Réessayer la requête originale
+          return axios(originalRequest);
+        }
+      } catch (refreshError) {
+        // Si le refresh échoue, déconnecter l'utilisateur
+        console.error('Token refresh failed:', refreshError);
+        await authStore.logout();
+        // Ne pas rediriger si on est déjà sur la page de login
+        if (window.location.pathname !== '/login') {
           window.location.href = '/login';
-          return Promise.reject(refreshError);
         }
       }
     }
@@ -99,6 +100,19 @@ interface AuthState {
   concessionnaires: any[];
 }
 
+// Fonction utilitaire pour définir un cookie sécurisé
+function setSecureCookie(name: string, value: string, expiryDays: number = 1) {
+  const date = new Date();
+  date.setTime(date.getTime() + (expiryDays * 24 * 60 * 60 * 1000));
+  const expires = `expires=${date.toUTCString()}`;
+  document.cookie = `${name}=${value};${expires};path=/;secure;samesite=Strict`;
+}
+
+// Fonction utilitaire pour supprimer un cookie
+function deleteCookie(name: string) {
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+}
+
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     user: null,
@@ -125,49 +139,57 @@ export const useAuthStore = defineStore('auth', {
       
       if (!initialState) {
         console.log('No initial state, attempting to restore session...');
-        await this.restoreSession();
-        return;
+        const restored = await this.restoreSession();
+        this.initialized = true;
+        return restored;
       }
       
       if (initialState.isAuthenticated && initialState.user) {
         this.user = initialState.user;
         this.isAuthenticated = true;
         this.mustChangePassword = initialState.user.must_change_password || false;
-      } else {
-        await this.restoreSession();
+        this.initialized = true;
+        return true;
       }
       
+      const restored = await this.restoreSession();
       this.initialized = true;
+      return restored;
     },
 
     async restoreSession() {
       console.log('Attempting to restore session...');
-      const token = localStorage.getItem('token');
-      const refreshToken = localStorage.getItem('refresh_token');
-      
-      if (!token || !refreshToken) {
-        console.log('No tokens found, skipping session restore');
-        this.isAuthenticated = false;
-        this.user = null;
-        return;
-      }
-
       try {
-        // Tenter de rafraîchir le token seulement si on a les tokens nécessaires
-        const newToken = await this.refreshToken();
-        if (newToken) {
-          // Si on a un nouveau token, récupérer le profil
-          await this.fetchUserProfile();
-          this.isAuthenticated = true;
+        // Vérifier d'abord le refresh token dans les cookies
+        const response = await axios.post('/token/refresh/', {}, {
+          withCredentials: true
+        });
+        
+        if (response.data.access) {
+          // Stocker le nouveau token
+          localStorage.setItem('token', response.data.access);
+          this.token = response.data.access;
+          
+          // Mettre à jour les informations de l'utilisateur
+          if (response.data.user) {
+            this.user = response.data.user;
+            this.isAuthenticated = true;
+            this.mustChangePassword = response.data.user.must_change_password || false;
+          } else {
+            // Si pas d'utilisateur dans la réponse, le récupérer
+            await this.fetchUserProfile();
+          }
+          
           console.log('Session restored successfully');
+          return true;
         }
       } catch (error) {
         console.error('Failed to restore session:', error);
+        // Ne pas nettoyer les tokens ici, laisser une chance au refresh token de fonctionner
         this.isAuthenticated = false;
         this.user = null;
-        localStorage.removeItem('token');
-        localStorage.removeItem('refresh_token');
       }
+      return false;
     },
 
     async login(username: string, password: string) {
@@ -177,8 +199,8 @@ export const useAuthStore = defineStore('auth', {
         console.log('Login response:', response.data)
         const { access, refresh } = response.data
         
-        localStorage.setItem('token', access)
-        localStorage.setItem('refresh_token', refresh)
+        // Stocker les tokens dans des cookies sécurisés
+        setSecureCookie('access_token', access, 1) // expire dans 1 jour
         this.token = access
         
         // Récupérer le profil complet de l'utilisateur
@@ -198,25 +220,21 @@ export const useAuthStore = defineStore('auth', {
 
     async checkAuth() {
       try {
-        console.log('Checking auth...')
-        const token = localStorage.getItem('token')
-        if (!token) {
-          console.log('No token found')
-          this.isAuthenticated = false
-          return false
+        if (!this.initialized) {
+          await this.initialize(null);
         }
-
-        console.log('Token found, fetching user profile...')
-        // Vérifier si le token est valide en récupérant le profil
-        await this.fetchUserProfile()
-        this.isAuthenticated = true
-        return true
+        
+        if (!this.isAuthenticated) {
+          return false;
+        }
+        
+        // Vérifier si le token est toujours valide en récupérant le profil
+        await this.fetchUserProfile();
+        return true;
       } catch (error) {
-        console.error('Auth check error:', error)
-        this.isAuthenticated = false
-        localStorage.removeItem('token')
-        localStorage.removeItem('refresh_token')
-        throw error
+        console.error('Auth check error:', error);
+        // Ne pas nettoyer les tokens ici, laisser une chance au refresh token de fonctionner
+        return false;
       }
     },
 
@@ -261,9 +279,8 @@ export const useAuthStore = defineStore('auth', {
 
     async logout() {
       console.log('Logging out...');
-      // Nettoyer le stockage local
-      localStorage.removeItem('token');
-      localStorage.removeItem('refresh_token');
+      // Nettoyer les cookies
+      deleteCookie('access_token');
       
       // Réinitialiser l'état
       this.user = null;
@@ -276,7 +293,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         console.log('Attempting to refresh token...');
         const response = await axios.post('/token/refresh/', {}, {
-          withCredentials: true // S'assurer que les cookies sont envoyés
+          withCredentials: true
         });
         
         const { access } = response.data;
@@ -285,7 +302,7 @@ export const useAuthStore = defineStore('auth', {
         }
         
         console.log('Token refreshed successfully');
-        localStorage.setItem('token', access);
+        setSecureCookie('access_token', access, 1);
         this.token = access;
         
         return access;
@@ -295,7 +312,6 @@ export const useAuthStore = defineStore('auth', {
           data: error.response?.data
         });
         
-        // Si l'erreur est 401 ou 403, on déconnecte l'utilisateur
         if (error.response?.status === 401 || error.response?.status === 403) {
           console.log('Token refresh failed with auth error, logging out');
           await this.logout();
@@ -368,6 +384,24 @@ export const useAuthStore = defineStore('auth', {
         return response.data;
       } catch (error) {
         this.error = 'Erreur lors de la mise à jour du rôle';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async updateUserEmail(email: string) {
+      this.loading = true;
+      try {
+        const response = await axios.patch(`/users/${this.user?.id}/`, {
+          email
+        });
+        if (this.user) {
+          this.user.email = email;
+        }
+        return response.data;
+      } catch (error) {
+        this.error = 'Erreur lors de la mise à jour de l\'email';
         throw error;
       } finally {
         this.loading = false;
