@@ -64,6 +64,17 @@ onMounted(() => {
     // Initialiser l'état de la carte avec l'instance existante
     if (mapInstance) {
       initState(mapInstance);
+      
+      // Ajouter l'écouteur d'événement pour le changement de localisation
+      window.addEventListener('map-set-location', ((event: CustomEvent) => {
+        if (mapInstance && event.detail) {
+          const { lat, lng, zoom } = event.detail;
+          mapInstance.flyTo([lat, lng], zoom, {
+            duration: 1.5,
+            easeLinearity: 0.25
+          });
+        }
+      }) as EventListener);
     }
   }
 });
