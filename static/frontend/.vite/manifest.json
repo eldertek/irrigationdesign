@@ -8,7 +8,6 @@
       "src/views/ProjectsView.vue",
       "src/views/ProfileView.vue",
       "src/views/SettingsView.vue",
-      "src/views/SelectDealerView.vue",
       "src/views/ForgotPasswordView.vue",
       "src/views/ResetPasswordView.vue",
       "src/views/NotFoundView.vue"
@@ -57,15 +56,6 @@
     "file": "assets/ResetPasswordView.js",
     "name": "ResetPasswordView",
     "src": "src/views/ResetPasswordView.vue",
-    "isDynamicEntry": true,
-    "imports": [
-      "index.html"
-    ]
-  },
-  "src/views/SelectDealerView.vue": {
-    "file": "assets/SelectDealerView.js",
-    "name": "SelectDealerView",
-    "src": "src/views/SelectDealerView.vue",
     "isDynamicEntry": true,
     "imports": [
       "index.html"

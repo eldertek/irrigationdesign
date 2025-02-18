@@ -54,15 +54,6 @@ const router = createRouter({
       }
     },
     {
-      path: '/select-dealer',
-      name: 'selectDealer',
-      component: () => import('@/views/SelectDealerView.vue'),
-      meta: { 
-        requiresAuth: true,
-        allowedRoles: ['client']
-      }
-    },
-    {
       path: '/login',
       name: 'login',
       component: LoginView,

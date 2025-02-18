@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { onMounted, ref, watch, onBeforeUnmount } from 'vue';
 import type { LatLngTuple, LatLng } from 'leaflet';
 import * as L from 'leaflet';
 import * as turf from '@turf/turf';
@@ -52,11 +52,41 @@ const {
   initMap: initState
 } = useMapState();
 
+// Fonction pour sauvegarder la position dans les cookies
+function saveMapPosition(mapInstance: L.Map) {
+  const center = mapInstance.getCenter();
+  const zoom = mapInstance.getZoom();
+  const mapState = {
+    lat: center.lat,
+    lng: center.lng,
+    zoom: zoom
+  };
+  document.cookie = `mapState=${JSON.stringify(mapState)};max-age=2592000;path=/`; // expire dans 30 jours
+}
+
+// Fonction pour récupérer la position depuis les cookies
+function getMapPosition(): { lat: number; lng: number; zoom: number } | null {
+  const cookies = document.cookie.split(';');
+  const mapCookie = cookies.find(cookie => cookie.trim().startsWith('mapState='));
+  if (mapCookie) {
+    try {
+      return JSON.parse(mapCookie.split('=')[1]);
+    } catch (e) {
+      console.error('Erreur lors de la lecture du cookie de position:', e);
+      return null;
+    }
+  }
+  return null;
+}
+
 onMounted(() => {
   if (mapContainer.value) {
-    // Coordonnées centrées sur la France
-    const center: LatLngTuple = [46.603354, 1.888334];
-    const zoom = 6;
+    // Récupérer la dernière position sauvegardée ou utiliser la position par défaut
+    const savedPosition = getMapPosition();
+    const center: LatLngTuple = savedPosition 
+      ? [savedPosition.lat, savedPosition.lng]
+      : [46.603354, 1.888334];
+    const zoom = savedPosition?.zoom ?? 6;
 
     // Initialiser les outils de dessin (qui crée aussi la carte)
     const mapInstance = initDrawing(mapContainer.value, center, zoom) as L.Map;
@@ -64,6 +94,11 @@ onMounted(() => {
     // Initialiser l'état de la carte avec l'instance existante
     if (mapInstance) {
       initState(mapInstance);
+      
+      // Sauvegarder la position quand la carte bouge
+      mapInstance.on('moveend', () => {
+        saveMapPosition(mapInstance);
+      });
       
       // Ajouter l'écouteur d'événement pour le changement de localisation
       window.addEventListener('map-set-location', ((event: CustomEvent) => {
@@ -76,6 +111,13 @@ onMounted(() => {
         }
       }) as EventListener);
     }
+  }
+});
+
+// Nettoyer l'écouteur d'événement lors de la destruction du composant
+onBeforeUnmount(() => {
+  if (map.value) {
+    map.value.off('moveend');
   }
 });
 
@@ -576,6 +618,11 @@ function calculateShapeProperties(layer: L.Layer): {
 
 <style>
 @import 'leaflet/dist/leaflet.css';
+
+/* Masquer le bouton de rotation des calques */
+.button-container[title="Rotate Layers"] {
+  display: none !important;
+}
 
 /* Ajuster le z-index du conteneur de la carte */
 .leaflet-container {

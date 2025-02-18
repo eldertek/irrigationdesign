@@ -182,9 +182,6 @@ async function handleSubmit() {
     if (authStore.user?.must_change_password) {
       console.log('User must change password, redirecting...')
       router.push('/change-password')
-    } else if (authStore.isClient && !authStore.hasDealer) {
-      console.log('Client without dealer, redirecting to dealer selection...')
-      router.push('/select-dealer')
     } else {
       console.log('Normal login flow, redirecting to home...')
       router.push('/')
