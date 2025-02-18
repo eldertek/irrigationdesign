@@ -5,38 +5,9 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import SearchBar from '@/components/SearchBar.vue'
 
-// Interface pour étendre HTMLElement avec notre propriété personnalisée
-interface ExtendedHTMLElement extends HTMLElement {
-  clickOutsideEvent?: (event: Event) => void
-}
-
-// Directive pour détecter les clics en dehors d'un élément
-const vClickOutside = {
-  mounted(el: ExtendedHTMLElement, binding: any) {
-    el.clickOutsideEvent = (event: Event) => {
-      if (!(el === event.target || el.contains(event.target as Node))) {
-        binding.value(event)
-      }
-    }
-    document.addEventListener('click', el.clickOutsideEvent)
-  },
-  unmounted(el: ExtendedHTMLElement) {
-    if (el.clickOutsideEvent) {
-      document.removeEventListener('click', el.clickOutsideEvent)
-    }
-  }
-}
-
 const router = useRouter()
 const authStore = useAuthStore()
 const showProfileMenu = ref(false)
-
-// Enregistrer la directive
-const app = {
-  directives: {
-    'click-outside': vClickOutside
-  }
-}
 
 // Données utilisateur depuis le store d'authentification
 const userName = computed(() => {
@@ -233,7 +204,6 @@ watch(pageTitle, (newTitle) => {
               <!-- Menu déroulant -->
               <div
                 v-if="showProfileMenu"
-                v-click-outside="() => showProfileMenu = false"
                 class="absolute right-0 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-[3000]"
               >
                 <router-link
@@ -271,10 +241,5 @@ body {
 
 #app {
   @apply h-screen overflow-hidden;
-}
-
-/* Masquer le bouton de rotation Leaflet */
-.leaflet-pm-toolbar .button-container[title="Rotate Layers"] {
-  display: none !important;
 }
 </style>
