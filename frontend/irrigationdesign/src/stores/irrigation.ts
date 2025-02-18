@@ -72,9 +72,31 @@ export const useIrrigationStore = defineStore('irrigation', {
       try {
         const response = await api.post('/plans/', planData);
         this.plans.push(response.data);
+        this.currentPlan = response.data;
         return response.data;
       } catch (error) {
         this.error = 'Erreur lors de la création du plan';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async loadPlan(planId: number) {
+      this.loading = true;
+      try {
+        const response = await api.get(`/plans/${planId}/`);
+        this.currentPlan = response.data;
+        
+        // Mettre à jour le plan dans la liste si nécessaire
+        const index = this.plans.findIndex(p => p.id === planId);
+        if (index !== -1) {
+          this.plans[index] = response.data;
+        }
+        
+        return response.data;
+      } catch (error) {
+        this.error = 'Erreur lors du chargement du plan';
         throw error;
       } finally {
         this.loading = false;
@@ -169,13 +191,20 @@ export const useIrrigationStore = defineStore('irrigation', {
       }
     },
 
-    setCurrentPlan(plan: Plan) {
+    setCurrentPlan(plan: Plan | null) {
       this.currentPlan = plan;
+      if (plan) {
+        localStorage.setItem('lastPlanId', plan.id.toString());
+      } else {
+        localStorage.removeItem('lastPlanId');
+      }
       this.startAutoSave();
     },
 
     clearCurrentPlan() {
       this.currentPlan = null;
+      localStorage.removeItem('lastPlanId');
+      this.unsavedChanges = false;
       this.stopAutoSave();
     },
 

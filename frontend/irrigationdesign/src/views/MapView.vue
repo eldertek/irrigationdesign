@@ -1,42 +1,12 @@
 <template>
-  <div class="h-full flex overflow-hidden">
+  <div class="h-full flex flex-col overflow-hidden">
+    <!-- Barre d'outils des plans -->
+    <PlanToolbar />
+    
     <!-- Carte -->
     <div class="flex-1 relative overflow-hidden">
       <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
       
-      <!-- Barre d'outils principale -->
-      <div class="absolute top-4 left-4 z-[1000] flex space-x-4">
-        <!-- Boutons de gestion des plans -->
-        <div class="bg-white rounded-lg shadow-lg p-4 flex space-x-2">
-          <button
-            @click="showNewPlanModal = true"
-            class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-          >
-            Nouveau plan
-          </button>
-          <button
-            @click="showLoadPlanModal = true"
-            class="px-4 py-2 bg-white text-primary-600 border border-primary-600 rounded-md hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-          >
-            Charger un plan
-          </button>
-          <button
-            v-if="drawingStore.currentPlanId"
-            @click="savePlan"
-            class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-            :disabled="!drawingStore.hasUnsavedChanges"
-          >
-            Sauvegarder
-          </button>
-          <button
-            @click="goToProjects"
-            class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-          >
-            Liste des projets
-          </button>
-        </div>
-      </div>
-
       <!-- Outils de dessin -->
       <div class="drawing-tools-container absolute top-4 right-4 z-[1000]">
         <DrawingTools
@@ -46,80 +16,6 @@
           @style-update="updateShapeStyle"
           @properties-update="updateShapeProperties"
         />
-      </div>
-
-      <!-- Modal Nouveau Plan -->
-      <div v-if="showNewPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
-        <div class="bg-white rounded-lg p-6 max-w-md w-full">
-          <h2 class="text-xl font-semibold mb-4">Créer un nouveau plan</h2>
-          <form @submit.prevent="createNewPlan">
-            <div class="space-y-4">
-              <div>
-                <label for="nom" class="block text-sm font-medium text-gray-700">Nom du plan</label>
-                <input
-                  type="text"
-                  id="nom"
-                  v-model="newPlanData.nom"
-                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                  required
-                />
-              </div>
-              <div>
-                <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
-                <textarea
-                  id="description"
-                  v-model="newPlanData.description"
-                  rows="3"
-                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                ></textarea>
-              </div>
-            </div>
-            <div class="mt-6 flex justify-end space-x-3">
-              <button
-                type="button"
-                @click="showNewPlanModal = false"
-                class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-              >
-                Créer
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <!-- Modal Charger un Plan -->
-      <div v-if="showLoadPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
-        <div class="bg-white rounded-lg p-6 max-w-md w-full">
-          <h2 class="text-xl font-semibold mb-4">Charger un plan existant</h2>
-          <div class="max-h-96 overflow-y-auto">
-            <div v-for="plan in irrigationStore.plans" :key="plan.id" class="border-b border-gray-200 last:border-b-0">
-              <button
-                @click="loadPlan(plan.id)"
-                class="w-full px-4 py-3 text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-              >
-                <div class="font-medium text-gray-900">{{ plan.nom }}</div>
-                <div class="text-sm text-gray-500">{{ plan.description }}</div>
-                <div class="text-xs text-gray-400">
-                  Modifié le {{ new Date(plan.date_modification).toLocaleDateString() }}
-                </div>
-              </button>
-            </div>
-          </div>
-          <div class="mt-6 flex justify-end">
-            <button
-              @click="showLoadPlanModal = false"
-              class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-            >
-              Fermer
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -131,6 +27,7 @@ import type { LatLngTuple, LatLng } from 'leaflet';
 import * as L from 'leaflet';
 import * as turf from '@turf/turf';
 import DrawingTools from '../components/DrawingTools.vue';
+import PlanToolbar from '../components/PlanToolbar.vue';
 import { useMapDrawing } from '../composables/useMapDrawing';
 import { useMapState } from '../composables/useMapState';
 import { useIrrigationStore } from '@/stores/irrigation';
@@ -786,9 +683,9 @@ async function savePlan() {
   }
 }
 
-// Fonction pour aller à la liste des projets
+// Fonction pour aller à la liste des plans
 function goToProjects() {
-  router.push('/projects');
+  router.push('/plans');
 }
 </script>
 
