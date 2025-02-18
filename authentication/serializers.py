@@ -13,12 +13,13 @@ class UserSerializer(serializers.ModelSerializer):
     is_active = serializers.BooleanField(read_only=True)
     permissions = serializers.SerializerMethodField()
     user_type = serializers.SerializerMethodField()
+    dealer = serializers.PrimaryKeyRelatedField(source='concessionnaire', queryset=User.objects.filter(role='CONCESSIONNAIRE'), required=False)
     
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'password', 'old_password', 'role', 'concessionnaire',
+            'password', 'old_password', 'role', 'concessionnaire', 'dealer',
             'dealer_name', 'company_name', 'must_change_password', 'phone',
             'full_name', 'is_active', 'permissions', 'user_type'
         ]
@@ -27,6 +28,17 @@ class UserSerializer(serializers.ModelSerializer):
             'concessionnaire': {'required': False},
             'role': {'required': False}
         }
+
+    def validate(self, data):
+        """Valide les données de l'utilisateur."""
+        # Si c'est un client, vérifier qu'un concessionnaire est spécifié
+        if data.get('role') == 'UTILISATEUR':
+            concessionnaire = data.get('concessionnaire')
+            if not concessionnaire:
+                raise serializers.ValidationError({
+                    'concessionnaire': 'Un concessionnaire doit être spécifié pour un client'
+                })
+        return data
 
     def get_dealer_name(self, obj):
         """Retourne le nom du concessionnaire si l'utilisateur en a un."""
@@ -56,7 +68,7 @@ class UserSerializer(serializers.ModelSerializer):
         role_mapping = {
             'ADMIN': 'admin',
             'CONCESSIONNAIRE': 'dealer',
-            'CLIENT': 'client'
+            'UTILISATEUR': 'client'
         }
         return role_mapping.get(obj.role, 'client')  # Default to 'client' if role is not found
 

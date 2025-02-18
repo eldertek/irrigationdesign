@@ -300,21 +300,16 @@ function getInitials(firstName: string, lastName: string): string {
 }
 
 function getRoleLabel(role: string): string {
-  const labels = {
+  const roleLabels = {
     'ADMIN': 'Admin',
     'CONCESSIONNAIRE': 'Concessionnaire',
-    'CLIENT': 'Client'
+    'UTILISATEUR': 'Utilisateur'
   }
-  return labels[role] || role
+  return roleLabels[role] || role
 }
 
 function getRoleBadgeClass(role: string): string {
-  const classes = {
-    'ADMIN': 'bg-purple-100 text-purple-800',
-    'CONCESSIONNAIRE': 'bg-blue-100 text-blue-800',
-    'CLIENT': 'bg-green-100 text-green-800'
-  }
-  return `px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${classes[role] || 'bg-gray-100 text-gray-800'}`
+  return 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800'
 }
 
 function getStatusBadgeClass(isActive: boolean): string {

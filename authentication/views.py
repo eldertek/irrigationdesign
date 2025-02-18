@@ -101,10 +101,10 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(user)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'])
-    def change_password(self, request, pk=None):
-        """Change le mot de passe d'un utilisateur."""
-        user = self.get_object()
+    @action(detail=False, methods=['post'])
+    def change_password(self, request):
+        """Change le mot de passe de l'utilisateur connecté."""
+        user = request.user
         serializer = self.get_serializer(user, data=request.data, partial=True)
         
         if serializer.is_valid():

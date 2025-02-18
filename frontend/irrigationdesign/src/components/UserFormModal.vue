@@ -62,8 +62,15 @@
                     id="username"
                     v-model="form.username"
                     required
-                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                    :disabled="!!props.user"
+                    :class="[
+                      'mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm',
+                      { 'bg-gray-100': !!props.user }
+                    ]"
                   />
+                  <p v-if="props.user" class="mt-1 text-sm text-gray-500">
+                    Le nom d'utilisateur ne peut pas être modifié après la création.
+                  </p>
                 </div>
 
                 <div>
@@ -89,7 +96,7 @@
                     >
                       <option v-if="isAdmin" value="ADMIN">Admin</option>
                       <option value="CONCESSIONNAIRE">Concessionnaire</option>
-                      <option value="CLIENT">Client</option>
+                      <option value="UTILISATEUR">Client</option>
                     </select>
                   </div>
                   <div v-if="showDealerSelect">
@@ -118,6 +125,7 @@
                         id="password"
                         v-model="form.password"
                         required
+                        autocomplete="new-password"
                         class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
                       />
                     </div>
@@ -128,6 +136,7 @@
                         id="password_confirm"
                         v-model="form.password_confirm"
                         required
+                        autocomplete="new-password"
                         class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
                       />
                     </div>
@@ -221,25 +230,31 @@ const error = ref<string | null>(null)
 const isAdmin = computed(() => authStore.isAdmin)
 const isDealer = computed(() => authStore.isDealer)
 
+const roleMapping = {
+  'ADMIN': 'ADMIN',
+  'CONCESSIONNAIRE': 'CONCESSIONNAIRE',
+  'UTILISATEUR': 'UTILISATEUR'
+}
+
 const form = reactive({
   first_name: props.user?.first_name || '',
   last_name: props.user?.last_name || '',
   email: props.user?.email || '',
   username: props.user?.username || '',
   company_name: props.user?.company_name || '',
-  role: props.user?.role || (isAdmin.value ? 'ADMIN' : 'CLIENT'),
+  role: props.user?.role || (isAdmin.value ? 'ADMIN' : 'UTILISATEUR'),
   dealer: props.user?.dealer || '',
   password: '',
   password_confirm: ''
 })
 
 const showDealerSelect = computed(() => {
-  return form.role === 'CLIENT' && (isAdmin.value || isDealer.value)
+  return form.role === 'UTILISATEUR' && (isAdmin.value || isDealer.value)
 })
 
 const canChangeRole = computed(() => {
   if (isAdmin.value) return true
-  if (isDealer.value) return !props.user || props.user.role === 'CLIENT'
+  if (isDealer.value) return !props.user || props.user.role === 'UTILISATEUR'
   return false
 })
 
@@ -259,24 +274,52 @@ async function handleSubmit() {
     }
 
     // Préparation des données
-    const userData = {
-      ...form,
-      must_change_password: !props.user // Forcer le changement de mot de passe pour les nouveaux utilisateurs
-    }
+    const userData = { ...form }
 
-    // Si c'est une modification, on ajoute l'ID
+    // Si c'est une modification, on filtre les champs de mot de passe et le username
     if (props.user) {
-      userData.id = props.user.id
-      // On ne modifie pas le mot de passe lors d'une modification
       delete userData.password
       delete userData.password_confirm
+      delete userData.username // Ne pas envoyer le username en modification
+      userData.id = props.user.id
+
+      // On ne doit pas envoyer le champ dealer pour les admins et concessionnaires
+      if (userData.role === 'ADMIN' || userData.role === 'CONCESSIONNAIRE') {
+        delete userData.dealer
+      } else if (userData.role === 'UTILISATEUR') {
+        // Pour un client, on s'assure que le dealer est bien défini
+        if (!userData.dealer) {
+          throw new Error('Un concessionnaire doit être sélectionné pour un client')
+        }
+        // On utilise le champ concessionnaire au lieu de dealer
+        userData.concessionnaire = userData.dealer
+        delete userData.dealer
+      }
+    } else {
+      // Pour un nouvel utilisateur, on force le changement de mot de passe
+      userData.must_change_password = true
+      
+      // On ne doit pas envoyer le champ dealer pour les admins et concessionnaires
+      if (userData.role === 'ADMIN' || userData.role === 'CONCESSIONNAIRE') {
+        delete userData.dealer
+      } else if (userData.role === 'UTILISATEUR') {
+        // Pour un client, on s'assure que le dealer est bien défini
+        if (!userData.dealer) {
+          throw new Error('Un concessionnaire doit être sélectionné pour un client')
+        }
+        // On utilise le champ concessionnaire au lieu de dealer
+        userData.concessionnaire = userData.dealer
+        delete userData.dealer
+      }
     }
 
     // Si c'est un concessionnaire qui crée un client
-    if (isDealer.value && form.role === 'CLIENT') {
-      userData.dealer = authStore.user?.id
+    if (isDealer.value && userData.role === 'UTILISATEUR') {
+      userData.role = 'UTILISATEUR'
+      userData.concessionnaire = authStore.user?.id
     }
 
+    console.log('Données envoyées:', userData)
     await emit('save', userData)
   } catch (err: any) {
     error.value = err.response?.data?.detail || err.message || 'Une erreur est survenue'

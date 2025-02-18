@@ -239,10 +239,10 @@ export const useAuthStore = defineStore('auth', {
 
     async changePassword(oldPassword: string, newPassword: string) {
       try {
-        console.log('Attempting to change password for user:', this.user?.id);
-        const response = await axios.post(`/users/${this.user?.id}/change_password/`, {
+        console.log('Attempting to change password...');
+        const response = await axios.post(`/users/change_password/`, {
           old_password: oldPassword,
-          password: newPassword // Changed from new_password to password
+          password: newPassword
         });
         
         console.log('Password change response:', response.data);
@@ -308,8 +308,8 @@ export const useAuthStore = defineStore('auth', {
     async fetchConcessionnaires() {
       this.loading = true;
       try {
-        const response = await axios.get('/utilisateurs/', {
-          params: { role: 'CONCESSIONNAIRE' }
+        const response = await axios.get('/users/', {
+          params: { role: 'dealer' }
         });
         this.concessionnaires = response.data;
       } catch (error) {
