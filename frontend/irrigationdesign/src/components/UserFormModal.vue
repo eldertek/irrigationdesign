@@ -85,7 +85,7 @@
 
                 <!-- Rôle et Concessionnaire -->
                 <div class="grid grid-cols-2 gap-4">
-                  <div>
+                  <div v-if="props.isAdmin">
                     <label for="role" class="block text-sm font-medium text-gray-700">Rôle</label>
                     <select
                       id="role"
@@ -94,9 +94,10 @@
                       :disabled="!canChangeRole"
                       class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
                     >
-                      <option v-if="isAdmin" value="ADMIN">Admin</option>
-                      <option value="CONCESSIONNAIRE">Concessionnaire</option>
-                      <option value="UTILISATEUR">Client</option>
+                      <option value="">Sélectionner un rôle</option>
+                      <option v-for="role in availableRoles" :key="role.value" :value="role.value">
+                        {{ role.label }}
+                      </option>
                     </select>
                   </div>
                   <div v-if="showDealerSelect">
@@ -105,11 +106,12 @@
                       id="dealer"
                       v-model="form.dealer"
                       required
+                      :disabled="!props.isAdmin"
                       class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
                     >
                       <option value="">Sélectionner un concessionnaire</option>
                       <option v-for="dealer in dealers" :key="dealer.id" :value="dealer.id">
-                        {{ dealer.company_name || dealer.full_name }}
+                        {{ dealer.company_name || `${dealer.first_name} ${dealer.last_name}` }}
                       </option>
                     </select>
                   </div>
@@ -210,15 +212,24 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { PropType } from 'vue'
 
 const props = defineProps({
   user: {
-    type: Object,
+    type: Object as PropType<Record<string, any> | null>,
     default: null
   },
   dealers: {
-    type: Array,
+    type: Array as PropType<Array<Record<string, any>>>,
     default: () => []
+  },
+  isAdmin: {
+    type: Boolean,
+    required: true
+  },
+  currentDealer: {
+    type: String,
+    default: ''
   }
 })
 
@@ -227,14 +238,36 @@ const authStore = useAuthStore()
 const loading = ref(false)
 const error = ref<string | null>(null)
 
-const isAdmin = computed(() => authStore.isAdmin)
-const isDealer = computed(() => authStore.isDealer)
+const canChangeRole = computed(() => {
+  if (!props.isAdmin) return false
+  if (props.user) {
+    // Un admin ne peut pas changer son propre rôle
+    return props.user.id !== authStore.user?.id
+  }
+  return true
+})
 
-const roleMapping = {
-  'ADMIN': 'ADMIN',
-  'CONCESSIONNAIRE': 'CONCESSIONNAIRE',
-  'UTILISATEUR': 'UTILISATEUR'
-}
+const showDealerSelect = computed(() => {
+  if (!props.isAdmin) return false
+  if (props.user) {
+    return props.user.role === 'CLIENT' || props.user.role === 'UTILISATEUR'
+  }
+  return form.role === 'CLIENT' || form.role === 'UTILISATEUR'
+})
+
+const availableRoles = computed(() => {
+  if (props.isAdmin) {
+    return [
+      { value: 'ADMIN', label: 'Administrateur' },
+      { value: 'CONCESSIONNAIRE', label: 'Concessionnaire' },
+      { value: 'CLIENT', label: 'Client' }
+    ]
+  } else {
+    return [
+      { value: 'CLIENT', label: 'Client' }
+    ]
+  }
+})
 
 const form = reactive({
   first_name: props.user?.first_name || '',
@@ -242,87 +275,64 @@ const form = reactive({
   email: props.user?.email || '',
   username: props.user?.username || '',
   company_name: props.user?.company_name || '',
-  role: props.user?.role || (isAdmin.value ? 'ADMIN' : 'UTILISATEUR'),
-  dealer: props.user?.dealer || '',
+  role: props.user?.role || (props.isAdmin ? '' : 'CLIENT'),
+  dealer: props.user?.dealer || (props.isAdmin ? '' : props.currentDealer),
   password: '',
   password_confirm: ''
 })
 
-const showDealerSelect = computed(() => {
-  return form.role === 'UTILISATEUR' && (isAdmin.value || isDealer.value)
-})
+const validateForm = () => {
+  if (!form.first_name || !form.last_name) {
+    error.value = 'Le prénom et le nom sont requis'
+    return false
+  }
+  if (!form.email) {
+    error.value = 'L\'email est requis'
+    return false
+  }
+  if (!form.username) {
+    error.value = 'Le nom d\'utilisateur est requis'
+    return false
+  }
+  if (!props.user) {
+    if (!form.password) {
+      error.value = 'Le mot de passe est requis'
+      return false
+    }
+    if (form.password !== form.password_confirm) {
+      error.value = 'Les mots de passe ne correspondent pas'
+      return false
+    }
+  }
+  if (form.role === 'CLIENT' && !form.dealer) {
+    error.value = 'Un concessionnaire doit être sélectionné pour un client'
+    return false
+  }
+  return true
+}
 
-const canChangeRole = computed(() => {
-  if (isAdmin.value) return true
-  if (isDealer.value) return !props.user || props.user.role === 'UTILISATEUR'
-  return false
-})
-
-async function handleSubmit() {
+const handleSubmit = async () => {
   error.value = null
-  loading.value = true
+  if (!validateForm()) return
 
+  loading.value = true
   try {
-    // Validation du mot de passe pour un nouvel utilisateur
-    if (!props.user) {
-      if (form.password !== form.password_confirm) {
-        throw new Error('Les mots de passe ne correspondent pas')
-      }
-      if (form.password.length < 8) {
-        throw new Error('Le mot de passe doit contenir au moins 8 caractères')
-      }
+    // Si c'est un concessionnaire qui crée un client, on force l'attribution
+    if (!props.isAdmin && !props.user) {
+      form.role = 'CLIENT'
+      form.dealer = props.currentDealer
     }
 
-    // Préparation des données
     const userData = { ...form }
-
-    // Si c'est une modification, on filtre les champs de mot de passe et le username
     if (props.user) {
       delete userData.password
       delete userData.password_confirm
-      delete userData.username // Ne pas envoyer le username en modification
-      userData.id = props.user.id
-
-      // On ne doit pas envoyer le champ dealer pour les admins et concessionnaires
-      if (userData.role === 'ADMIN' || userData.role === 'CONCESSIONNAIRE') {
-        delete userData.dealer
-      } else if (userData.role === 'UTILISATEUR') {
-        // Pour un client, on s'assure que le dealer est bien défini
-        if (!userData.dealer) {
-          throw new Error('Un concessionnaire doit être sélectionné pour un client')
-        }
-        // On utilise le champ concessionnaire au lieu de dealer
-        userData.concessionnaire = userData.dealer
-        delete userData.dealer
-      }
-    } else {
-      // Pour un nouvel utilisateur, on force le changement de mot de passe
-      userData.must_change_password = true
-      
-      // On ne doit pas envoyer le champ dealer pour les admins et concessionnaires
-      if (userData.role === 'ADMIN' || userData.role === 'CONCESSIONNAIRE') {
-        delete userData.dealer
-      } else if (userData.role === 'UTILISATEUR') {
-        // Pour un client, on s'assure que le dealer est bien défini
-        if (!userData.dealer) {
-          throw new Error('Un concessionnaire doit être sélectionné pour un client')
-        }
-        // On utilise le champ concessionnaire au lieu de dealer
-        userData.concessionnaire = userData.dealer
-        delete userData.dealer
-      }
     }
 
-    // Si c'est un concessionnaire qui crée un client
-    if (isDealer.value && userData.role === 'UTILISATEUR') {
-      userData.role = 'UTILISATEUR'
-      userData.concessionnaire = authStore.user?.id
-    }
-
-    console.log('Données envoyées:', userData)
     await emit('save', userData)
-  } catch (err: any) {
-    error.value = err.response?.data?.detail || err.message || 'Une erreur est survenue'
+  } catch (err) {
+    error.value = 'Une erreur est survenue lors de l\'enregistrement'
+    console.error('Erreur lors de la sauvegarde:', err)
   } finally {
     loading.value = false
   }

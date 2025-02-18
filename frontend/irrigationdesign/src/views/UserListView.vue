@@ -3,7 +3,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center mb-8">
         <h1 class="text-3xl font-extrabold text-gray-900">
-          Gestion des Utilisateurs
+          {{ isAdmin ? 'Gestion des Utilisateurs' : 'Mes Clients' }}
         </h1>
         <button
           @click="openCreateUserModal"
@@ -12,14 +12,15 @@
           <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
           </svg>
-          Nouvel Utilisateur
+          {{ isAdmin ? 'Nouvel Utilisateur' : 'Nouveau Client' }}
         </button>
       </div>
 
       <!-- Filtres -->
       <div class="bg-white shadow rounded-lg mb-6 p-4">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
+          <!-- Filtre de rôle uniquement pour les admins -->
+          <div v-if="isAdmin">
             <label for="role-filter" class="block text-sm font-medium text-gray-700">Rôle</label>
             <select
               id="role-filter"
@@ -38,10 +39,11 @@
               type="text"
               id="search"
               v-model="filters.search"
-              placeholder="Nom, email..."
+              :placeholder="isAdmin ? 'Nom, email...' : 'Rechercher un client...'"
               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
             />
           </div>
+          <!-- Filtre de concessionnaire uniquement pour les admins -->
           <div v-if="isAdmin">
             <label for="dealer-filter" class="block text-sm font-medium text-gray-700">Concessionnaire</label>
             <select
@@ -65,15 +67,15 @@
             <thead class="bg-gray-50">
               <tr>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Utilisateur
+                  {{ isAdmin ? 'Utilisateur' : 'Client' }}
                 </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th v-if="isAdmin" scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Rôle
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Email
                 </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th v-if="isAdmin" scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Concessionnaire
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -148,6 +150,8 @@
       v-if="showUserModal"
       :user="selectedUser"
       :dealers="dealers"
+      :is-admin="isAdmin"
+      :current-dealer="authStore.user?.id"
       @close="closeUserModal"
       @save="saveUser"
     />
@@ -187,14 +191,29 @@ const filters = reactive({
 const isAdmin = computed(() => authStore.isAdmin)
 const isDealer = computed(() => authStore.isDealer)
 
-// Filtrage des utilisateurs
+// Filtrage des utilisateurs adapté au rôle
 const filteredUsers = computed(() => {
   let filtered = users.value
 
-  if (filters.role) {
-    filtered = filtered.filter(user => user.role === filters.role)
+  // Pour les concessionnaires, ne montrer que leurs clients
+  if (isDealer.value) {
+    filtered = filtered.filter(user => 
+      user.role === 'CLIENT' && user.dealer === authStore.user?.id
+    )
   }
 
+  // Pour les admins, appliquer les filtres normalement
+  if (isAdmin.value) {
+    if (filters.role) {
+      filtered = filtered.filter(user => user.role === filters.role)
+    }
+
+    if (filters.dealer) {
+      filtered = filtered.filter(user => user.dealer === filters.dealer)
+    }
+  }
+
+  // Filtre de recherche commun
   if (filters.search) {
     const search = filters.search.toLowerCase()
     filtered = filtered.filter(user => 
@@ -204,10 +223,6 @@ const filteredUsers = computed(() => {
       user.last_name.toLowerCase().includes(search) ||
       (user.company_name && user.company_name.toLowerCase().includes(search))
     )
-  }
-
-  if (filters.dealer) {
-    filtered = filtered.filter(user => user.dealer === filters.dealer)
   }
 
   return filtered
@@ -259,8 +274,14 @@ function closeUserModal() {
   selectedUser.value = null
 }
 
-async function saveUser(userData) {
+async function saveUser(userData: any) {
   try {
+    // Si c'est un concessionnaire qui crée un client, on force l'attribution
+    if (isDealer.value && !userData.id) {
+      userData.role = 'CLIENT'
+      userData.dealer = authStore.user?.id
+    }
+
     if (userData.id) {
       await axios.patch(`/users/${userData.id}/`, userData)
     } else {
