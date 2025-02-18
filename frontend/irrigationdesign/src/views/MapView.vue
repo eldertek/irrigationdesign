@@ -91,6 +91,12 @@ onMounted(() => {
     // Initialiser les outils de dessin (qui crée aussi la carte)
     const mapInstance = initDrawing(mapContainer.value, center, zoom) as L.Map;
     
+    // Ajouter la couche de carte satellite Esri World Imagery
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+      maxZoom: 19
+    }).addTo(mapInstance);
+    
     // Initialiser l'état de la carte avec l'instance existante
     if (mapInstance) {
       initState(mapInstance);
