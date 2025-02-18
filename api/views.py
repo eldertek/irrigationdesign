@@ -90,9 +90,9 @@ class PlanViewSet(viewsets.ModelViewSet):
         - Client : uniquement ses plans
         """
         user = self.request.user
-        if user.user_type == 'admin':
+        if user.role == 'admin':
             return Plan.objects.all()
-        elif user.user_type == 'dealer':
+        elif user.role == 'dealer':
             # Récupérer les plans du dealer et de ses clients
             return Plan.objects.filter(
                 createur__in=[user.id] + list(user.clients.values_list('id', flat=True))
@@ -123,7 +123,7 @@ class PlanViewSet(viewsets.ModelViewSet):
         plan = self.get_object()
         
         # Vérifier les permissions
-        if plan.createur != request.user and request.user.user_type not in ['admin', 'dealer']:
+        if plan.createur != request.user and request.user.role not in ['admin', 'dealer']:
             return Response(
                 {'detail': 'Vous n\'avez pas la permission de modifier ce plan'},
                 status=status.HTTP_403_FORBIDDEN
@@ -200,9 +200,9 @@ class FormeGeometriqueViewSet(viewsets.ModelViewSet):
         Ne retourne que les formes des plans accessibles à l'utilisateur
         """
         user = self.request.user
-        if user.user_type == 'admin':
+        if user.role == 'admin':
             return FormeGeometrique.objects.all()
-        elif user.user_type == 'dealer':
+        elif user.role == 'dealer':
             return FormeGeometrique.objects.filter(
                 plan__createur__in=[user.id] + list(user.clients.values_list('id', flat=True))
             )
@@ -216,7 +216,7 @@ class FormeGeometriqueViewSet(viewsets.ModelViewSet):
         plan = serializer.validated_data['plan']
         user = self.request.user
         
-        if plan.createur != user and user.user_type not in ['admin', 'dealer']:
+        if plan.createur != user and user.role not in ['admin', 'dealer']:
             raise PermissionError('Vous n\'avez pas la permission de modifier ce plan')
         
         serializer.save()
@@ -230,9 +230,9 @@ class ConnexionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.user_type == 'admin':
+        if user.role == 'admin':
             return Connexion.objects.all()
-        elif user.user_type == 'dealer':
+        elif user.role == 'dealer':
             return Connexion.objects.filter(
                 plan__createur__in=[user.id] + list(user.clients.values_list('id', flat=True))
             )
@@ -248,9 +248,9 @@ class TexteAnnotationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.user_type == 'admin':
+        if user.role == 'admin':
             return TexteAnnotation.objects.all()
-        elif user.user_type == 'dealer':
+        elif user.role == 'dealer':
             return TexteAnnotation.objects.filter(
                 plan__createur__in=[user.id] + list(user.clients.values_list('id', flat=True))
             )

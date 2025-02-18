@@ -50,15 +50,24 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     // Si l'erreur est 401 et que ce n'est pas déjà une tentative de refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // et que ce n'est pas une requête de refresh
+    if (error.response?.status === 401 && 
+        !originalRequest._retry && 
+        !originalRequest.url?.includes('/token/refresh/')) {
       originalRequest._retry = true;
       try {
+        // Vérifier si un token existe avant d'essayer de le rafraîchir
+        const token = getCookie('access_token');
+        if (!token) {
+          throw new Error('No token available');
+        }
+
         // Tenter de rafraîchir le token
         await authStore.refreshToken();
-        const token = getCookie('access_token');
-        if (token) {
+        const newToken = getCookie('access_token');
+        if (newToken) {
           // Mettre à jour le token dans la requête originale
-          originalRequest.headers.Authorization = `Bearer ${token}`;
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
           // Réessayer la requête originale
           return api(originalRequest);
         }
@@ -158,6 +167,15 @@ export const useAuthStore = defineStore('auth', {
     async restoreSession() {
       console.log('Attempting to restore session...');
       try {
+        // Vérifier si un token existe avant d'essayer de le rafraîchir
+        const token = getCookie('access_token');
+        if (!token) {
+          console.log('No token found, skipping session restore');
+          this.isAuthenticated = false;
+          this.user = null;
+          return false;
+        }
+
         const response = await api.post('/token/refresh/');
         
         if (response.data.user) {

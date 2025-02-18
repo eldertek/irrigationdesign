@@ -86,7 +86,7 @@ class FormeGeometriqueSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and request.user:
             plan = data.get('plan')
-            if plan and plan.createur != request.user and request.user.user_type not in ['admin', 'dealer']:
+            if plan and plan.createur != request.user and request.user.role not in ['admin', 'dealer']:
                 raise serializers.ValidationError("Vous n'avez pas la permission de modifier ce plan")
         return data
 
