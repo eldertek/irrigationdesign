@@ -1,21 +1,21 @@
 import { defineStore } from 'pinia';
-import axios from 'axios';
+import api from '@/services/api';
 
 // Configuration d'Axios pour les requêtes API
-axios.defaults.baseURL = '/api';
-axios.defaults.headers.common['Content-Type'] = 'application/json';
-axios.defaults.withCredentials = true;
+api.defaults.baseURL = '/api';
+api.defaults.headers.common['Content-Type'] = 'application/json';
+api.defaults.withCredentials = true;
 
 // Fonction utilitaire pour les logs de debug
 const logRequestDetails = (config: any) => {
-  console.log('Full request URL:', `${axios.defaults.baseURL}${config.url}`);
+  console.log('Full request URL:', `${api.defaults.baseURL}${config.url}`);
   console.log('Request config:', {
     url: config.url,
     method: config.method,
     headers: config.headers,
     data: config.data,
     withCredentials: config.withCredentials,
-    baseURL: axios.defaults.baseURL
+    baseURL: api.defaults.baseURL
   });
 };
 
@@ -28,7 +28,7 @@ function getCookie(name: string): string | null {
 }
 
 // Intercepteur pour ajouter le token aux requêtes
-axios.interceptors.request.use(
+api.interceptors.request.use(
   (config) => {
     const token = getCookie('access_token');
     if (token) {
@@ -43,7 +43,7 @@ axios.interceptors.request.use(
 );
 
 // Intercepteur pour gérer les erreurs d'authentification
-axios.interceptors.response.use(
+api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const authStore = useAuthStore();
@@ -60,7 +60,7 @@ axios.interceptors.response.use(
           // Mettre à jour le token dans la requête originale
           originalRequest.headers.Authorization = `Bearer ${token}`;
           // Réessayer la requête originale
-          return axios(originalRequest);
+          return api(originalRequest);
         }
       } catch (refreshError) {
         // Si le refresh échoue, déconnecter l'utilisateur
@@ -91,7 +91,6 @@ interface User {
 
 interface AuthState {
   user: User | null;
-  token: string | null;
   isAuthenticated: boolean;
   mustChangePassword: boolean;
   initialized: boolean;
@@ -116,7 +115,6 @@ function deleteCookie(name: string) {
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     user: null,
-    token: localStorage.getItem('token'),
     isAuthenticated: false,
     mustChangePassword: false,
     initialized: false,
@@ -160,61 +158,59 @@ export const useAuthStore = defineStore('auth', {
     async restoreSession() {
       console.log('Attempting to restore session...');
       try {
-        // Vérifier d'abord le refresh token dans les cookies
-        const response = await axios.post('/token/refresh/', {}, {
-          withCredentials: true
-        });
+        const response = await api.post('/token/refresh/');
         
-        if (response.data.access) {
-          // Stocker le nouveau token
-          localStorage.setItem('token', response.data.access);
-          this.token = response.data.access;
-          
-          // Mettre à jour les informations de l'utilisateur
-          if (response.data.user) {
-            this.user = response.data.user;
-            this.isAuthenticated = true;
-            this.mustChangePassword = response.data.user.must_change_password || false;
-          } else {
-            // Si pas d'utilisateur dans la réponse, le récupérer
-            await this.fetchUserProfile();
-          }
-          
+        if (response.data.user) {
+          this.user = response.data.user;
+          this.isAuthenticated = true;
+          this.mustChangePassword = response.data.user.must_change_password || false;
           console.log('Session restored successfully');
           return true;
         }
+        
+        // Si pas d'utilisateur dans la réponse, le récupérer
+        await this.fetchUserProfile();
+        return true;
       } catch (error) {
         console.error('Failed to restore session:', error);
-        // Ne pas nettoyer les tokens ici, laisser une chance au refresh token de fonctionner
         this.isAuthenticated = false;
         this.user = null;
+        return false;
       }
-      return false;
     },
 
     async login(username: string, password: string) {
       try {
-        console.log('Attempting login...')
-        const response = await axios.post('/token/', { username, password })
-        console.log('Login response:', response.data)
-        const { access, refresh } = response.data
-        
-        // Stocker les tokens dans des cookies sécurisés
-        setSecureCookie('access_token', access, 1) // expire dans 1 jour
-        this.token = access
+        console.log('Attempting login...');
+        const response = await api.post('/token/', { username, password });
+        console.log('Login response:', response.data);
         
         // Récupérer le profil complet de l'utilisateur
-        const userProfile = await this.fetchUserProfile()
-        console.log('User profile after login:', userProfile)
+        const userProfile = await this.fetchUserProfile();
+        console.log('User profile after login:', userProfile);
         
         // Mettre à jour l'état avec les données complètes de l'utilisateur
-        this.user = userProfile
-        this.isAuthenticated = true
+        this.user = userProfile;
+        this.isAuthenticated = true;
         
-        return true
+        return true;
       } catch (error) {
-        console.error('Login error:', error)
-        throw error
+        console.error('Login error:', error);
+        throw error;
+      }
+    },
+
+    async logout() {
+      console.log('Logging out...');
+      try {
+        await api.post('/token/logout/');
+      } catch (error) {
+        console.error('Logout error:', error);
+      } finally {
+        // Réinitialiser l'état même en cas d'erreur
+        this.user = null;
+        this.isAuthenticated = false;
+        this.mustChangePassword = false;
       }
     },
 
@@ -233,32 +229,32 @@ export const useAuthStore = defineStore('auth', {
         return true;
       } catch (error) {
         console.error('Auth check error:', error);
-        // Ne pas nettoyer les tokens ici, laisser une chance au refresh token de fonctionner
         return false;
       }
     },
 
     async fetchUserProfile() {
       try {
-        console.log('Fetching user profile...')
-        const response = await axios.get('/users/me/')
-        console.log('User profile response:', response.data)
+        console.log('Fetching user profile...');
+        const response = await api.get('/users/me/');
+        console.log('User profile response:', response.data);
         
         // Mettre à jour l'état avec les données du profil
-        this.user = response.data
-        this.mustChangePassword = response.data.must_change_password || false
+        this.user = response.data;
+        this.mustChangePassword = response.data.must_change_password || false;
+        this.isAuthenticated = true;
         
-        return response.data
+        return response.data;
       } catch (error) {
-        console.error('Error fetching user profile:', error)
-        throw error
+        console.error('Error fetching user profile:', error);
+        throw error;
       }
     },
 
     async changePassword(oldPassword: string, newPassword: string) {
       try {
         console.log('Attempting to change password...');
-        const response = await axios.post(`/users/change_password/`, {
+        const response = await api.post(`/users/change_password/`, {
           old_password: oldPassword,
           password: newPassword
         });
@@ -277,22 +273,10 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async logout() {
-      console.log('Logging out...');
-      // Nettoyer les cookies
-      deleteCookie('access_token');
-      
-      // Réinitialiser l'état
-      this.user = null;
-      this.token = null;
-      this.isAuthenticated = false;
-      this.mustChangePassword = false;
-    },
-
     async refreshToken() {
       try {
         console.log('Attempting to refresh token...');
-        const response = await axios.post('/token/refresh/', {}, {
+        const response = await api.post('/token/refresh/', {}, {
           withCredentials: true
         });
         
@@ -303,7 +287,7 @@ export const useAuthStore = defineStore('auth', {
         
         console.log('Token refreshed successfully');
         setSecureCookie('access_token', access, 1);
-        this.token = access;
+        this.isAuthenticated = true;
         
         return access;
       } catch (error: any) {
@@ -324,7 +308,7 @@ export const useAuthStore = defineStore('auth', {
     async fetchConcessionnaires() {
       this.loading = true;
       try {
-        const response = await axios.get('/users/', {
+        const response = await api.get('/users/', {
           params: { role: 'dealer' }
         });
         this.concessionnaires = response.data;
@@ -339,7 +323,7 @@ export const useAuthStore = defineStore('auth', {
     async setConcessionnaire(userId: number, concessionnaireId: number) {
       this.loading = true;
       try {
-        await axios.patch(`/users/${userId}/`, {
+        await api.patch(`/users/${userId}/`, {
           concessionnaire: concessionnaireId
         });
         if (this.user && this.user.id === userId) {
@@ -362,7 +346,7 @@ export const useAuthStore = defineStore('auth', {
     }) {
       this.loading = true;
       try {
-        const response = await axios.post('/users/', userData);
+        const response = await api.post('/users/', userData);
         return response.data;
       } catch (error) {
         this.error = 'Erreur lors de la création de l\'utilisateur';
@@ -375,7 +359,7 @@ export const useAuthStore = defineStore('auth', {
     async updateUserRole(userId: number, role: string) {
       this.loading = true;
       try {
-        const response = await axios.patch(`/users/${userId}/`, {
+        const response = await api.patch(`/users/${userId}/`, {
           role
         });
         if (this.user && this.user.id === userId) {
@@ -393,7 +377,7 @@ export const useAuthStore = defineStore('auth', {
     async updateUserEmail(email: string) {
       this.loading = true;
       try {
-        const response = await axios.patch(`/users/${this.user?.id}/`, {
+        const response = await api.patch(`/users/${this.user?.id}/`, {
           email
         });
         if (this.user) {

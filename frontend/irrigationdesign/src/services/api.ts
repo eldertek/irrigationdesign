@@ -1,49 +1,55 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-
-// Création de l'instance Axios
+// Configuration de base de l'API
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: '/api',
   headers: {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json'
   },
+  withCredentials: true // Important pour les cookies
 });
 
-// Intercepteur pour ajouter le token JWT aux requêtes
+// Fonction utilitaire pour obtenir un cookie
+function getCookie(name: string): string | null {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
+
+// Intercepteur pour ajouter le token aux requêtes
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    const token = getCookie('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
   (error) => {
+    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
 
-// Intercepteur pour gérer les erreurs de token
+// Intercepteur pour gérer les erreurs d'authentification
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response.status === 401 && !originalRequest._retry) {
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        const response = await axios.post(`${API_URL}/token/refresh/`, {
-          refresh: refreshToken,
-        });
-        const { access } = response.data;
-        localStorage.setItem('access_token', access);
-        originalRequest.headers.Authorization = `Bearer ${access}`;
-        return api(originalRequest);
-      } catch (err) {
-        // Si le refresh token est invalide, déconnexion
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+        // Tenter de rafraîchir le token
+        const response = await api.post('/token/refresh/');
+        const token = getCookie('access_token');
+        if (token) {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
         window.location.href = '/login';
       }
     }
@@ -55,15 +61,12 @@ api.interceptors.response.use(
 export const authService = {
   async login(username: string, password: string) {
     const response = await api.post('/token/', { username, password });
-    const { access, refresh } = response.data;
-    localStorage.setItem('access_token', access);
-    localStorage.setItem('refresh_token', refresh);
     return response.data;
   },
 
   async logout() {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    // Les cookies seront gérés côté serveur
+    await api.post('/token/logout/');
   },
 
   async register(userData: { username: string; email: string; password: string }) {

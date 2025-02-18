@@ -52,9 +52,9 @@ export const useIrrigationStore = defineStore('irrigation', {
       this.loading = true;
       try {
         let url = '/plans/';
-        if (authStore.isConcessionnaire) {
+        if (authStore.isDealer) {
           url += '?concessionnaire=' + authStore.user?.id;
-        } else if (authStore.isUtilisateur) {
+        } else if (authStore.isClient) {
           url += '?utilisateur=' + authStore.user?.id;
         }
         const response = await api.get(url);
@@ -67,7 +67,7 @@ export const useIrrigationStore = defineStore('irrigation', {
       }
     },
 
-    async createPlan(planData: any) {
+    async createPlan(planData: NewPlan) {
       this.loading = true;
       try {
         const response = await api.post('/plans/', planData);
