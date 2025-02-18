@@ -18,10 +18,8 @@ export function useMapDrawing() {
   const initMap = (element: HTMLElement, center: L.LatLngExpression, zoom: number) => {
     map.value = L.map(element).setView(center, zoom);
     
-    L.tileLayer('http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-      maxZoom: 20,
-      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-      attribution: '© Google'
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
     }).addTo(map.value);
 
     featureGroup.value = new L.FeatureGroup().addTo(map.value);

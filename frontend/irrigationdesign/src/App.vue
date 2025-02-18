@@ -41,13 +41,19 @@ const baseNavigationItems = [
   { name: 'Projets', to: '/projects' }
 ]
 
-// Items de navigation avec condition pour l'onglet Utilisateurs
+// Items de navigation avec condition pour l'onglet Utilisateurs et Clients
 const navigationItems = computed(() => {
   if (!isAuthenticated.value) return []
+  
+  const items = [...baseNavigationItems]
+  
   if (isAdmin.value) {
-    return [...baseNavigationItems, { name: 'Utilisateurs', to: '/users' }]
+    items.push({ name: 'Utilisateurs', to: '/users' })
+  } else if (authStore.user?.user_type === 'dealer') {
+    items.push({ name: 'Clients', to: '/clients' })
   }
-  return baseNavigationItems
+  
+  return items
 })
 
 // Items du menu profil
