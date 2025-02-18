@@ -1,12 +1,63 @@
 <template>
-  <div class="h-full flex flex-col overflow-hidden">
-    <!-- Barre d'outils des plans -->
-    <PlanToolbar />
-    
+  <div class="h-full flex overflow-hidden">
     <!-- Carte -->
     <div class="flex-1 relative overflow-hidden">
       <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
       
+      <!-- Barre d'outils principale -->
+      <div class="absolute bottom-6 left-6 z-[1000]">
+        <!-- Boutons de gestion des plans -->
+        <div class="bg-white rounded-lg shadow-lg p-3 space-y-2">
+          <div class="flex items-center space-x-2 mb-2">
+            <span class="text-sm font-medium text-gray-600">Actions</span>
+          </div>
+          <div class="grid grid-cols-1 gap-2">
+            <button
+              @click="showNewPlanModal = true"
+              class="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
+            >
+              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              Nouveau plan
+            </button>
+            
+            <button
+              @click="showLoadPlanModal = true"
+              class="flex items-center px-4 py-2 bg-white text-primary-600 border border-primary-600 rounded-md hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
+            >
+              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+              </svg>
+              Charger un plan
+            </button>
+            
+            <button
+              v-if="drawingStore.currentPlanId"
+              @click="savePlan"
+              class="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200"
+              :class="{ 'opacity-50 cursor-not-allowed': !drawingStore.hasUnsavedChanges }"
+              :disabled="!drawingStore.hasUnsavedChanges"
+            >
+              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+              </svg>
+              Sauvegarder
+            </button>
+            
+            <button
+              @click="goToProjects"
+              class="flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200"
+            >
+              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+              </svg>
+              Liste des projets
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Outils de dessin -->
       <div class="drawing-tools-container absolute top-4 right-4 z-[1000]">
         <DrawingTools
@@ -16,6 +67,105 @@
           @style-update="updateShapeStyle"
           @properties-update="updateShapeProperties"
         />
+      </div>
+
+      <!-- Modal Nouveau Plan -->
+      <div v-if="showNewPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">Créer un nouveau plan</h2>
+            <button
+              @click="showNewPlanModal = false"
+              class="text-gray-400 hover:text-gray-500 focus:outline-none"
+            >
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <form @submit.prevent="createNewPlan" class="space-y-4">
+            <div>
+              <label for="nom" class="block text-sm font-medium text-gray-700">Nom du plan</label>
+              <input
+                type="text"
+                id="nom"
+                v-model="newPlanData.nom"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                required
+                placeholder="Entrez le nom du plan"
+              />
+            </div>
+            <div>
+              <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
+              <textarea
+                id="description"
+                v-model="newPlanData.description"
+                rows="3"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                placeholder="Décrivez votre plan"
+              ></textarea>
+            </div>
+            <div class="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                @click="showNewPlanModal = false"
+                class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
+              >
+                Créer
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Modal Charger un Plan -->
+      <div v-if="showLoadPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">Charger un plan existant</h2>
+            <button
+              @click="showLoadPlanModal = false"
+              class="text-gray-400 hover:text-gray-500 focus:outline-none"
+            >
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="max-h-96 overflow-y-auto">
+            <div v-if="irrigationStore.plans.length === 0" class="text-center py-8">
+              <p class="text-gray-500">Aucun plan disponible</p>
+            </div>
+            <div v-else class="space-y-2">
+              <button
+                v-for="plan in irrigationStore.plans"
+                :key="plan.id"
+                @click="loadPlan(plan.id)"
+                class="w-full px-4 py-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+              >
+                <div class="font-medium text-gray-900">{{ plan.nom }}</div>
+                <div class="text-sm text-gray-500">{{ plan.description }}</div>
+                <div class="text-xs text-gray-400 mt-1">
+                  Modifié le {{ new Date(plan.date_modification).toLocaleDateString() }}
+                </div>
+              </button>
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end">
+            <button
+              @click="showLoadPlanModal = false"
+              class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -27,7 +177,6 @@ import type { LatLngTuple, LatLng } from 'leaflet';
 import * as L from 'leaflet';
 import * as turf from '@turf/turf';
 import DrawingTools from '../components/DrawingTools.vue';
-import PlanToolbar from '../components/PlanToolbar.vue';
 import { useMapDrawing } from '../composables/useMapDrawing';
 import { useMapState } from '../composables/useMapState';
 import { useIrrigationStore } from '@/stores/irrigation';
@@ -683,9 +832,9 @@ async function savePlan() {
   }
 }
 
-// Fonction pour aller à la liste des plans
+// Fonction pour aller à la liste des projets
 function goToProjects() {
-  router.push('/plans');
+  router.push('/projects');
 }
 </script>
 

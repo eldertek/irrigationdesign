@@ -18,8 +18,8 @@ const router = createRouter({
       }
     },
     {
-      path: '/plans',
-      name: 'plans',
+      path: '/projects',
+      name: 'projects',
       component: () => import('@/views/ProjectsView.vue'),
       meta: { 
         requiresAuth: true,

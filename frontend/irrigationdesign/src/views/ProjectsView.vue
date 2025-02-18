@@ -2,9 +2,9 @@
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="sm:flex sm:items-center">
       <div class="sm:flex-auto">
-        <h1 class="text-2xl font-semibold text-gray-900">Mes Plans</h1>
+        <h1 class="text-2xl font-semibold text-gray-900">Mes Projets</h1>
         <p class="mt-2 text-sm text-gray-700">
-          Liste de tous vos plans d'irrigation
+          Liste de tous vos projets d'irrigation
         </p>
       </div>
       <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
@@ -12,12 +12,12 @@
           @click="openNewProjectModal"
           class="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:w-auto"
         >
-          Nouveau plan
+          Nouveau projet
         </button>
       </div>
     </div>
 
-    <!-- Liste des plans -->
+    <!-- Liste des projets -->
     <div class="mt-8 flex flex-col">
       <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
         <div class="inline-block min-w-full py-2 align-middle">
@@ -90,13 +90,13 @@
       </div>
     </div>
 
-    <!-- Modal nouveau plan -->
+    <!-- Modal nouveau projet -->
     <div
       v-if="showNewProjectModal"
       class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center"
     >
       <div class="bg-white rounded-lg p-6 max-w-md w-full">
-        <h2 class="text-lg font-medium mb-4">Nouveau plan</h2>
+        <h2 class="text-lg font-medium mb-4">Nouveau projet</h2>
         <form @submit.prevent="createProject">
           <div class="space-y-4">
             <div>
