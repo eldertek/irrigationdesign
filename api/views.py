@@ -10,12 +10,15 @@ from .serializers import (
     PlanSerializer,
     FormeGeometriqueSerializer,
     ConnexionSerializer,
-    TexteAnnotationSerializer
+    TexteAnnotationSerializer,
+    PlanDetailSerializer
 )
 from .permissions import IsAdmin, IsDealer
 from django.contrib.auth import get_user_model
 from plans.models import Plan, FormeGeometrique, Connexion, TexteAnnotation
 import requests
+from django.db import transaction
+from django.shortcuts import get_object_or_404
 
 User = get_user_model()
 
@@ -73,46 +76,186 @@ class ClientViewSet(viewsets.ModelViewSet):
             serializer.save(role='client')
 
 class PlanViewSet(viewsets.ModelViewSet):
-    queryset = Plan.objects.all()
+    """
+    ViewSet pour gérer les plans d'irrigation.
+    """
     serializer_class = PlanSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        """
+        Filtre les plans selon le rôle de l'utilisateur :
+        - Admin : tous les plans
+        - Dealer : ses plans et ceux de ses clients
+        - Client : uniquement ses plans
+        """
         user = self.request.user
-        if user.role == 'admin':
+        if user.user_type == 'admin':
             return Plan.objects.all()
-        elif user.role == 'dealer':
+        elif user.user_type == 'dealer':
+            # Récupérer les plans du dealer et de ses clients
             return Plan.objects.filter(
-                Q(createur=user) | Q(createur__concessionnaire=user)
+                createur__in=[user.id] + list(user.clients.values_list('id', flat=True))
             )
-        return Plan.objects.filter(createur=user)
+        else:  # client
+            return Plan.objects.filter(createur=user)
+
+    def get_serializer_class(self):
+        """
+        Utilise un sérialiseur différent pour les détails d'un plan
+        """
+        if self.action in ['retrieve', 'create', 'update', 'partial_update']:
+            return PlanDetailSerializer
+        return self.serializer_class
 
     def perform_create(self, serializer):
+        """
+        Associe automatiquement le créateur au plan
+        """
         serializer.save(createur=self.request.user)
 
+    @action(detail=True, methods=['post'])
+    @transaction.atomic
+    def save_with_elements(self, request, pk=None):
+        """
+        Sauvegarde un plan avec ses formes géométriques, connexions et annotations
+        """
+        plan = self.get_object()
+        
+        # Vérifier les permissions
+        if plan.createur != request.user and request.user.user_type not in ['admin', 'dealer']:
+            return Response(
+                {'detail': 'Vous n\'avez pas la permission de modifier ce plan'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Récupérer les données des éléments
+        formes_data = request.data.get('formes', [])
+        connexions_data = request.data.get('connexions', [])
+        annotations_data = request.data.get('annotations', [])
+
+        try:
+            # Supprimer les éléments existants si demandé
+            if request.data.get('clear_existing', False):
+                plan.formes.all().delete()
+                plan.connexions.all().delete()
+                plan.annotations.all().delete()
+
+            # Créer/Mettre à jour les formes
+            for forme_data in formes_data:
+                forme_id = forme_data.pop('id', None)
+                if forme_id:
+                    forme = get_object_or_404(FormeGeometrique, id=forme_id, plan=plan)
+                    serializer = FormeGeometriqueSerializer(forme, data=forme_data)
+                else:
+                    serializer = FormeGeometriqueSerializer(data=forme_data)
+                
+                serializer.is_valid(raise_exception=True)
+                serializer.save(plan=plan)
+
+            # Créer/Mettre à jour les connexions
+            for connexion_data in connexions_data:
+                connexion_id = connexion_data.pop('id', None)
+                if connexion_id:
+                    connexion = get_object_or_404(Connexion, id=connexion_id, plan=plan)
+                    serializer = ConnexionSerializer(connexion, data=connexion_data)
+                else:
+                    serializer = ConnexionSerializer(data=connexion_data)
+                
+                serializer.is_valid(raise_exception=True)
+                serializer.save(plan=plan)
+
+            # Créer/Mettre à jour les annotations
+            for annotation_data in annotations_data:
+                annotation_id = annotation_data.pop('id', None)
+                if annotation_id:
+                    annotation = get_object_or_404(TexteAnnotation, id=annotation_id, plan=plan)
+                    serializer = TexteAnnotationSerializer(annotation, data=annotation_data)
+                else:
+                    serializer = TexteAnnotationSerializer(data=annotation_data)
+                
+                serializer.is_valid(raise_exception=True)
+                serializer.save(plan=plan)
+
+            # Retourner le plan mis à jour avec tous ses éléments
+            serializer = PlanDetailSerializer(plan)
+            return Response(serializer.data)
+
+        except Exception as e:
+            # En cas d'erreur, annuler toutes les modifications (transaction.atomic)
+            return Response(
+                {'detail': f'Erreur lors de la sauvegarde: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 class FormeGeometriqueViewSet(viewsets.ModelViewSet):
-    queryset = FormeGeometrique.objects.all()
+    """
+    ViewSet pour gérer les formes géométriques.
+    """
     serializer_class = FormeGeometriqueSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return FormeGeometrique.objects.filter(plan__createur=self.request.user)
+        """
+        Ne retourne que les formes des plans accessibles à l'utilisateur
+        """
+        user = self.request.user
+        if user.user_type == 'admin':
+            return FormeGeometrique.objects.all()
+        elif user.user_type == 'dealer':
+            return FormeGeometrique.objects.filter(
+                plan__createur__in=[user.id] + list(user.clients.values_list('id', flat=True))
+            )
+        else:  # client
+            return FormeGeometrique.objects.filter(plan__createur=user)
+
+    def perform_create(self, serializer):
+        """
+        Vérifie que l'utilisateur a le droit de créer une forme sur ce plan
+        """
+        plan = serializer.validated_data['plan']
+        user = self.request.user
+        
+        if plan.createur != user and user.user_type not in ['admin', 'dealer']:
+            raise PermissionError('Vous n\'avez pas la permission de modifier ce plan')
+        
+        serializer.save()
 
 class ConnexionViewSet(viewsets.ModelViewSet):
-    queryset = Connexion.objects.all()
+    """
+    ViewSet pour gérer les connexions entre formes.
+    """
     serializer_class = ConnexionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Connexion.objects.filter(plan__createur=self.request.user)
+        user = self.request.user
+        if user.user_type == 'admin':
+            return Connexion.objects.all()
+        elif user.user_type == 'dealer':
+            return Connexion.objects.filter(
+                plan__createur__in=[user.id] + list(user.clients.values_list('id', flat=True))
+            )
+        else:  # client
+            return Connexion.objects.filter(plan__createur=user)
 
 class TexteAnnotationViewSet(viewsets.ModelViewSet):
-    queryset = TexteAnnotation.objects.all()
+    """
+    ViewSet pour gérer les annotations textuelles.
+    """
     serializer_class = TexteAnnotationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return TexteAnnotation.objects.filter(plan__createur=self.request.user)
+        user = self.request.user
+        if user.user_type == 'admin':
+            return TexteAnnotation.objects.all()
+        elif user.user_type == 'dealer':
+            return TexteAnnotation.objects.filter(
+                plan__createur__in=[user.id] + list(user.clients.values_list('id', flat=True))
+            )
+        else:  # client
+            return TexteAnnotation.objects.filter(plan__createur=user)
 
 @api_view(['POST'])
 def elevation_proxy(request):

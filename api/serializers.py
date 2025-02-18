@@ -59,30 +59,76 @@ class ClientSerializer(serializers.ModelSerializer):
         return data
 
 class PlanSerializer(serializers.ModelSerializer):
+    createur = UserSerializer(read_only=True)
+    
     class Meta:
         model = Plan
-        fields = '__all__'
-        read_only_fields = ('createur',)
+        fields = [
+            'id', 'nom', 'description', 'date_creation', 
+            'date_modification', 'createur'
+        ]
+        read_only_fields = ['id', 'date_creation', 'date_modification', 'createur']
 
     def create(self, validated_data):
         validated_data['createur'] = self.context['request'].user
         return super().create(validated_data)
 
-class FormeGeometriqueSerializer(GeoFeatureModelSerializer):
+class FormeGeometriqueSerializer(serializers.ModelSerializer):
     class Meta:
         model = FormeGeometrique
-        geo_field = 'geometrie'
-        fields = '__all__'
-        read_only_fields = ('surface',)
+        fields = ['id', 'plan', 'type_forme', 'geometrie', 'surface', 'proprietes']
+        read_only_fields = ['id']
 
-class ConnexionSerializer(GeoFeatureModelSerializer):
+    def validate(self, data):
+        """
+        Vérifie que l'utilisateur a le droit de modifier ce plan
+        """
+        request = self.context.get('request')
+        if request and request.user:
+            plan = data.get('plan')
+            if plan and plan.createur != request.user and request.user.user_type not in ['admin', 'dealer']:
+                raise serializers.ValidationError("Vous n'avez pas la permission de modifier ce plan")
+        return data
+
+class ConnexionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Connexion
-        geo_field = 'geometrie'
-        fields = '__all__'
+        fields = ['id', 'plan', 'forme_source', 'forme_destination', 'geometrie']
+        read_only_fields = ['id']
 
-class TexteAnnotationSerializer(GeoFeatureModelSerializer):
+    def validate(self, data):
+        """
+        Vérifie que les formes appartiennent au même plan
+        """
+        plan = data.get('plan')
+        forme_source = data.get('forme_source')
+        forme_destination = data.get('forme_destination')
+
+        if forme_source and forme_destination:
+            if forme_source.plan != plan or forme_destination.plan != plan:
+                raise serializers.ValidationError(
+                    "Les formes source et destination doivent appartenir au même plan"
+                )
+
+        return data
+
+class TexteAnnotationSerializer(serializers.ModelSerializer):
     class Meta:
         model = TexteAnnotation
-        geo_field = 'position'
-        fields = '__all__' 
+        fields = ['id', 'plan', 'texte', 'position', 'rotation']
+        read_only_fields = ['id']
+
+class PlanDetailSerializer(serializers.ModelSerializer):
+    createur = UserSerializer(read_only=True)
+    formes = FormeGeometriqueSerializer(many=True, read_only=True)
+    connexions = ConnexionSerializer(many=True, read_only=True)
+    annotations = TexteAnnotationSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Plan
+        fields = [
+            'id', 'nom', 'description', 'date_creation', 
+            'date_modification', 'createur', 'formes',
+            'connexions', 'annotations'
+        ]
+        read_only_fields = ['id', 'date_creation', 'date_modification', 'createur'] 
