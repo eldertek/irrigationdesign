@@ -38,7 +38,7 @@ const isAuthenticated = computed(() => authStore.isAuthenticated)
 // Items de navigation de base
 const baseNavigationItems = [
   { name: 'Carte', to: '/' },
-  { name: 'Projets', to: '/projects' }
+  { name: 'Plans', to: '/plans' }
 ]
 
 // Items de navigation avec condition pour l'onglet Utilisateurs et Clients
@@ -119,7 +119,7 @@ const pageTitle = computed(() => {
   const currentRoute = router.currentRoute.value
   const routeTitles: Record<string, string> = {
     home: 'Carte',
-    projects: 'Projets',
+    plans: 'Plans',
     users: 'Utilisateurs',
     profile: 'Mon profil',
     selectDealer: 'Sélection du concessionnaire',

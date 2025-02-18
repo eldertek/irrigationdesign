@@ -4,7 +4,7 @@
       <div class="sm:flex-auto">
         <h1 class="text-2xl font-semibold text-gray-900">Clients</h1>
         <p class="mt-2 text-sm text-gray-700">
-          Liste de vos clients et leurs projets associés
+          Liste de vos clients et leurs plans associés
         </p>
       </div>
       <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
@@ -41,13 +41,13 @@
                     scope="col"
                     class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
                   >
-                    Nombre de projets
+                    Nombre de plans
                   </th>
                   <th
                     scope="col"
                     class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
                   >
-                    Dernier projet
+                    Dernier plan
                   </th>
                   <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
                     <span class="sr-only">Actions</span>
@@ -73,10 +73,10 @@
                     {{ client.email }}
                   </td>
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    {{ client.projects_count }}
+                    {{ client.plans_count }}
                   </td>
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    {{ client.last_project_date ? formatDate(client.last_project_date) : '-' }}
+                    {{ client.last_plan_date ? formatDate(client.last_plan_date) : '-' }}
                   </td>
                   <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                     <button
@@ -112,8 +112,8 @@ interface Client {
   first_name: string
   last_name: string
   email: string
-  projects_count: number
-  last_project_date: string | null
+  plans_count: number
+  last_plan_date: string | null
 }
 
 const authStore = useAuthStore()

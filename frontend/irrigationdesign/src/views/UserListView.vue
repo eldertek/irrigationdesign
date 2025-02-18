@@ -151,7 +151,7 @@
       :user="selectedUser"
       :dealers="dealers"
       :is-admin="isAdmin"
-      :current-dealer="authStore.user?.id"
+      :current-dealer="authStore.user?.id?.toString()"
       @close="closeUserModal"
       @save="saveUser"
     />
@@ -172,15 +172,35 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import UserFormModal from '@/components/UserFormModal.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
-import axios from 'axios'
+import api from '@/services/api'
 
 const authStore = useAuthStore()
-const users = ref([])
-const dealers = ref([])
+
+interface User {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  dealer?: number;
+  dealer_name?: string;
+  company_name?: string;
+  is_active: boolean;
+}
+
+interface Dealer {
+  id: number;
+  company_name?: string;
+  full_name?: string;
+}
+
+const users = ref<User[]>([])
+const dealers = ref<Dealer[]>([])
 const showUserModal = ref(false)
 const showDeleteModal = ref(false)
-const selectedUser = ref(null)
-const userToDelete = ref(null)
+const selectedUser = ref<User | null>(null)
+const userToDelete = ref<User | null>(null)
 
 const filters = reactive({
   role: '',
@@ -193,23 +213,33 @@ const isDealer = computed(() => authStore.isDealer)
 
 // Filtrage des utilisateurs adapté au rôle
 const filteredUsers = computed(() => {
+  console.log('Computing filtered users...')
+  console.log('Current users:', users.value)
+  console.log('Is admin:', isAdmin.value)
+  console.log('Is dealer:', isDealer.value)
+  console.log('Current filters:', filters)
+  
   let filtered = users.value
 
   // Pour les concessionnaires, ne montrer que leurs clients
   if (isDealer.value) {
+    console.log('Filtering for dealer:', authStore.user?.id)
     filtered = filtered.filter(user => 
       user.role === 'CLIENT' && user.dealer === authStore.user?.id
     )
+    console.log('Filtered users for dealer:', filtered)
   }
 
   // Pour les admins, appliquer les filtres normalement
   if (isAdmin.value) {
     if (filters.role) {
       filtered = filtered.filter(user => user.role === filters.role)
+      console.log('Filtered by role:', filtered)
     }
 
     if (filters.dealer) {
-      filtered = filtered.filter(user => user.dealer === filters.dealer)
+      filtered = filtered.filter(user => String(user.dealer) === String(filters.dealer))
+      console.log('Filtered by dealer:', filtered)
     }
   }
 
@@ -223,8 +253,10 @@ const filteredUsers = computed(() => {
       user.last_name.toLowerCase().includes(search) ||
       (user.company_name && user.company_name.toLowerCase().includes(search))
     )
+    console.log('Filtered by search:', filtered)
   }
 
+  console.log('Final filtered users:', filtered)
   return filtered
 })
 
@@ -239,8 +271,11 @@ onMounted(async () => {
 // Récupération des utilisateurs
 async function fetchUsers() {
   try {
-    const response = await axios.get('/users/')
+    console.log('Fetching users...')
+    const response = await api.get('/users/')
+    console.log('Users API response:', response.data)
     users.value = response.data
+    console.log('Users after assignment:', users.value)
   } catch (error) {
     console.error('Erreur lors de la récupération des utilisateurs:', error)
   }
@@ -249,7 +284,7 @@ async function fetchUsers() {
 // Récupération des concessionnaires
 async function fetchDealers() {
   try {
-    const response = await axios.get('/users/', {
+    const response = await api.get('/users/', {
       params: { role: 'CONCESSIONNAIRE' }
     })
     dealers.value = response.data
@@ -264,7 +299,7 @@ function openCreateUserModal() {
   showUserModal.value = true
 }
 
-function editUser(user) {
+function editUser(user: User) {
   selectedUser.value = { ...user }
   showUserModal.value = true
 }
@@ -283,9 +318,9 @@ async function saveUser(userData: any) {
     }
 
     if (userData.id) {
-      await axios.patch(`/users/${userData.id}/`, userData)
+      await api.patch(`/users/${userData.id}/`, userData)
     } else {
-      await axios.post('/users/', userData)
+      await api.post('/users/', userData)
     }
     await fetchUsers()
     closeUserModal()
@@ -296,7 +331,7 @@ async function saveUser(userData: any) {
 }
 
 // Suppression d'utilisateur
-function confirmDeleteUser(user) {
+function confirmDeleteUser(user: User) {
   userToDelete.value = user
   showDeleteModal.value = true
 }
@@ -305,7 +340,7 @@ async function deleteUser() {
   if (!userToDelete.value) return
 
   try {
-    await axios.delete(`/users/${userToDelete.value.id}/`)
+    await api.delete(`/users/${userToDelete.value.id}/`)
     await fetchUsers()
     showDeleteModal.value = false
     userToDelete.value = null
@@ -320,12 +355,14 @@ function getInitials(firstName: string, lastName: string): string {
   return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase()
 }
 
+const roleLabels: Record<string, string> = {
+  'ADMIN': 'Admin',
+  'CONCESSIONNAIRE': 'Concessionnaire',
+  'UTILISATEUR': 'Utilisateur',
+  'CLIENT': 'Client'
+}
+
 function getRoleLabel(role: string): string {
-  const roleLabels = {
-    'ADMIN': 'Admin',
-    'CONCESSIONNAIRE': 'Concessionnaire',
-    'UTILISATEUR': 'Utilisateur'
-  }
   return roleLabels[role] || role
 }
 
@@ -339,7 +376,7 @@ function getStatusBadgeClass(isActive: boolean): string {
     : 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800'
 }
 
-function canDeleteUser(user) {
+function canDeleteUser(user: User): boolean {
   if (isAdmin.value) return true
   if (isDealer.value) return user.role === 'CLIENT' && user.dealer === authStore.user?.id
   return false
