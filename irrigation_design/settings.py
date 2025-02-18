@@ -100,8 +100,8 @@ DATABASES = {
     "default": {
         "ENGINE": "django.contrib.gis.db.backends.postgis",
         "NAME": os.getenv('DB_NAME', 'irrigation_design'),
-        "USER": os.getenv('DB_USER', 'postgres'),
-        "PASSWORD": os.getenv('DB_PASSWORD', 'postgres'),
+        "USER": os.getenv('DB_USER', 'irrigation_user'),
+        "PASSWORD": os.getenv('DB_PASSWORD', 'irrigation_pass'),
         "HOST": os.getenv('DB_HOST', 'localhost'),
         "PORT": os.getenv('DB_PORT', '5432'),
     }

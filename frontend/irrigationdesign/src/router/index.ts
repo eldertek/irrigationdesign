@@ -32,7 +32,16 @@ const router = createRouter({
       component: UserListView,
       meta: {
         requiresAuth: true,
-        allowedRoles: ['admin', 'dealer']
+        allowedRoles: ['admin']
+      }
+    },
+    {
+      path: '/clients',
+      name: 'clients',
+      component: () => import('@/views/ClientListView.vue'),
+      meta: {
+        requiresAuth: true,
+        allowedRoles: ['dealer']
       }
     },
     {
@@ -117,7 +126,6 @@ router.beforeEach(async (to, from, next) => {
   const isAuthenticated = authStore.isAuthenticated
   const mustChangePassword = authStore.user?.must_change_password
   const userType = authStore.user?.user_type
-  const hasDealer = authStore.hasDealer
 
   // Si la route nécessite une authentification et que l'utilisateur n'est pas authentifié
   if (to.meta.requiresAuth && !isAuthenticated) {
@@ -146,21 +154,9 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // Redirection vers la sélection du concessionnaire pour les clients sans concessionnaire
-  if (isAuthenticated && userType === 'client' && !hasDealer && to.name !== 'selectDealer') {
-    next({ name: 'selectDealer' })
-    return
-  }
-
   // Si l'utilisateur est authentifié et essaie d'accéder à une route guest
   if (to.meta.requiresGuest && isAuthenticated) {
     next({ name: 'home' })
-    return
-  }
-
-  // Si l'utilisateur est authentifié et essaie d'accéder à la page de login
-  if (to.path === '/login' && isAuthenticated) {
-    next('/')
     return
   }
 

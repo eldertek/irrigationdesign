@@ -6,6 +6,7 @@
     "isEntry": true,
     "dynamicImports": [
       "src/views/ProjectsView.vue",
+      "src/views/ClientListView.vue",
       "src/views/ProfileView.vue",
       "src/views/SettingsView.vue",
       "src/views/ForgotPasswordView.vue",
@@ -14,6 +15,15 @@
     ],
     "css": [
       "assets/index.css"
+    ]
+  },
+  "src/views/ClientListView.vue": {
+    "file": "assets/ClientListView.js",
+    "name": "ClientListView",
+    "src": "src/views/ClientListView.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
     ]
   },
   "src/views/ForgotPasswordView.vue": {
