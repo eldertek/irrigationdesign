@@ -91,6 +91,14 @@ onMounted(() => {
     // Initialiser les outils de dessin (qui crée aussi la carte)
     const mapInstance = initDrawing(mapContainer.value, center, zoom) as L.Map;
     
+    // Configurer la langue française pour Leaflet-Geoman
+    mapInstance.pm.setLang('fr');
+    
+    // Désactiver les contrôles de rotation par défaut
+    mapInstance.pm.addControls({
+      rotateMode: false
+    });
+    
     // Ajouter la couche de carte satellite Esri World Imagery
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
@@ -625,8 +633,15 @@ function calculateShapeProperties(layer: L.Layer): {
 <style>
 @import 'leaflet/dist/leaflet.css';
 
+/* Masquer les contrôles de rotation */
+.leaflet-pm-toolbar .leaflet-pm-icon-rotate,
+.button-container[title="Tourner des calques"],
+.leaflet-pm-toolbar .button-container[title="Tourner des calques"] {
+  display: none !important;
+}
+
 /* Masquer le bouton de rotation des calques */
-.button-container[title="Rotate Layers"] {
+.button-container[title="Tourner des calques"] {
   display: none !important;
 }
 
