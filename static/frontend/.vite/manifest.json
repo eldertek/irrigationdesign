@@ -5,7 +5,7 @@
     "src": "index.html",
     "isEntry": true,
     "dynamicImports": [
-      "src/views/ProjectsView.vue",
+      "src/views/PlansView.vue",
       "src/views/ClientListView.vue",
       "src/views/ProfileView.vue",
       "src/views/ForgotPasswordView.vue",
@@ -43,19 +43,19 @@
       "index.html"
     ]
   },
-  "src/views/ProfileView.vue": {
-    "file": "assets/ProfileView.js",
-    "name": "ProfileView",
-    "src": "src/views/ProfileView.vue",
+  "src/views/PlansView.vue": {
+    "file": "assets/PlansView.js",
+    "name": "PlansView",
+    "src": "src/views/PlansView.vue",
     "isDynamicEntry": true,
     "imports": [
       "index.html"
     ]
   },
-  "src/views/ProjectsView.vue": {
-    "file": "assets/ProjectsView.js",
-    "name": "ProjectsView",
-    "src": "src/views/ProjectsView.vue",
+  "src/views/ProfileView.vue": {
+    "file": "assets/ProfileView.js",
+    "name": "ProfileView",
+    "src": "src/views/ProfileView.vue",
     "isDynamicEntry": true,
     "imports": [
       "index.html"

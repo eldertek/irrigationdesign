@@ -46,7 +46,7 @@
             </button>
             
             <button
-              @click="goToProjects"
+              @click="goToPlans"
               class="flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200"
             >
               <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -833,8 +833,8 @@ async function savePlan() {
 }
 
 // Fonction pour aller à la liste des plans
-function goToProjects() {
-  router.push('/projects');
+function goToPlans() {
+  router.push('/plans');
 }
 </script>
 

@@ -18,9 +18,9 @@ const router = createRouter({
       }
     },
     {
-      path: '/projects',
-      name: 'projects',
-      component: () => import('@/views/ProjectsView.vue'),
+      path: '/plans',
+      name: 'plans',
+      component: () => import('@/views/PlansView.vue'),
       meta: { 
         requiresAuth: true,
         allowedRoles: ['admin', 'dealer', 'client']
