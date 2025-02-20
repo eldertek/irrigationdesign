@@ -199,72 +199,70 @@ export const useAuthStore = defineStore('auth', {
 
     async login(username: string, password: string) {
       try {
-        console.log('Attempting login...');
-        const response = await api.post('/token/', { username, password });
-        console.log('Login response:', response.data);
+        const response = await api.post('/token/', { 
+          username, 
+          password 
+        });
         
-        // Récupérer le profil complet de l'utilisateur
+        if (!response.data.access) {
+          throw new Error('Token d\'accès non reçu');
+        }
+
+        // Stocker le token dans un cookie sécurisé
+        document.cookie = `access_token=${response.data.access}; path=/; secure; samesite=Strict`;
+        
+        // Récupérer le profil utilisateur
         const userProfile = await this.fetchUserProfile();
-        console.log('User profile after login:', userProfile);
-        
-        // Mettre à jour l'état avec les données complètes de l'utilisateur
         this.user = userProfile;
         this.isAuthenticated = true;
         
         return true;
-      } catch (error) {
-        console.error('Login error:', error);
+      } catch (error: any) {
+        this.isAuthenticated = false;
+        this.user = null;
+        
+        // Transformer l'erreur en message lisible
+        if (error.response?.status === 401) {
+          throw new Error('Identifiants incorrects');
+        } else if (error.response?.data?.detail) {
+          throw new Error(error.response.data.detail);
+        }
+        
         throw error;
       }
     },
 
     async logout() {
-      console.log('Logging out...');
-      try {
-        await api.post('/token/logout/');
-      } catch (error) {
-        console.error('Logout error:', error);
-      } finally {
-        // Réinitialiser l'état même en cas d'erreur
-        this.user = null;
-        this.isAuthenticated = false;
-        this.mustChangePassword = false;
-      }
+      this.user = null;
+      this.isAuthenticated = false;
+      this.mustChangePassword = false;
+      
+      // Supprimer les cookies
+      document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = 'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     },
 
     async checkAuth() {
       try {
-        if (!this.initialized) {
-          await this.initialize(null);
-        }
-        
-        if (!this.isAuthenticated) {
-          return false;
-        }
-        
-        // Vérifier si le token est toujours valide en récupérant le profil
         await this.fetchUserProfile();
         return true;
       } catch (error) {
-        console.error('Auth check error:', error);
+        this.isAuthenticated = false;
+        this.user = null;
         return false;
       }
     },
 
     async fetchUserProfile() {
       try {
-        console.log('Fetching user profile...');
         const response = await api.get('/users/me/');
-        console.log('User profile response:', response.data);
-        
-        // Mettre à jour l'état avec les données du profil
         this.user = response.data;
-        this.mustChangePassword = response.data.must_change_password || false;
         this.isAuthenticated = true;
-        
+        this.mustChangePassword = response.data.must_change_password || false;
         return response.data;
       } catch (error) {
-        console.error('Error fetching user profile:', error);
+        this.isAuthenticated = false;
+        this.user = null;
         throw error;
       }
     },

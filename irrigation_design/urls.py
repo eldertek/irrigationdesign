@@ -48,12 +48,12 @@ admin_routes = [
 
 urlpatterns = public_routes + api_routes + admin_routes
 
-# Route par défaut - doit être authentifié
-urlpatterns += [
-    re_path(r'^(?!api/)(?!admin/)(?!static/)(?!media/).*$', SecureIndexView.as_view(), name='frontend'),
-]
-
 # Servir les fichiers statiques et média en développement
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+# Route par défaut - doit être authentifié
+urlpatterns += [
+    re_path(r'^(?!api/)(?!admin/)(?!static/)(?!media/).*$', TemplateView.as_view(template_name='index.html'), name='frontend'),
+]

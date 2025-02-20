@@ -20,7 +20,12 @@ import requests
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 
-User = get_user_model()
+User = get_user_model()  # Ceci pointera vers authentication.Utilisateur
+
+# Mise à jour des valeurs de rôle pour correspondre au modèle Utilisateur
+ROLE_ADMIN = 'ADMIN'
+ROLE_DEALER = 'CONCESSIONNAIRE'
+ROLE_CLIENT = 'UTILISATEUR'
 
 # Create your views here.
 
@@ -31,9 +36,9 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role == 'admin':
+        if user.role == ROLE_ADMIN:
             return User.objects.all()
-        elif user.role == 'dealer':
+        elif user.role == ROLE_DEALER:
             return User.objects.filter(concessionnaire=user)
         return User.objects.filter(id=user.id)
 
@@ -43,12 +48,12 @@ class UserViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
 class DealerViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.filter(role='dealer')
+    queryset = User.objects.filter(role='CONCESSIONNAIRE')
     serializer_class = DealerSerializer
     permission_classes = [IsAdmin]
 
     def perform_create(self, serializer):
-        serializer.save(role='dealer')
+        serializer.save(role='CONCESSIONNAIRE')
 
     @action(detail=True, methods=['get'])
     def clients(self, request, pk=None):
@@ -63,17 +68,17 @@ class ClientViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role == 'admin':
-            return User.objects.filter(role='client')
-        elif user.role == 'dealer':
-            return User.objects.filter(concessionnaire=user, role='client')
+        if user.role == 'ADMIN':
+            return User.objects.filter(role='UTILISATEUR')
+        elif user.role == 'CONCESSIONNAIRE':
+            return User.objects.filter(concessionnaire=user, role='UTILISATEUR')
         return User.objects.none()
 
     def perform_create(self, serializer):
-        if self.request.user.role == 'dealer':
-            serializer.save(role='client', concessionnaire=self.request.user)
+        if self.request.user.role == 'CONCESSIONNAIRE':
+            serializer.save(role='UTILISATEUR', concessionnaire=self.request.user)
         else:
-            serializer.save(role='client')
+            serializer.save(role='UTILISATEUR')
 
 class PlanViewSet(viewsets.ModelViewSet):
     """
@@ -90,12 +95,12 @@ class PlanViewSet(viewsets.ModelViewSet):
         - Client : uniquement ses plans
         """
         user = self.request.user
-        if user.role == 'admin':
+        if user.role == ROLE_ADMIN:
             return Plan.objects.all()
-        elif user.role == 'dealer':
-            # Récupérer les plans du dealer et de ses clients
+        elif user.role == ROLE_DEALER:
+            # Utiliser le related_name correct 'utilisateurs' au lieu de 'clients'
             return Plan.objects.filter(
-                createur__in=[user.id] + list(user.clients.values_list('id', flat=True))
+                createur__in=[user.id] + list(user.utilisateurs.values_list('id', flat=True))
             )
         else:  # client
             return Plan.objects.filter(createur=user)
@@ -200,11 +205,11 @@ class FormeGeometriqueViewSet(viewsets.ModelViewSet):
         Ne retourne que les formes des plans accessibles à l'utilisateur
         """
         user = self.request.user
-        if user.role == 'admin':
+        if user.role == ROLE_ADMIN:
             return FormeGeometrique.objects.all()
-        elif user.role == 'dealer':
+        elif user.role == ROLE_DEALER:
             return FormeGeometrique.objects.filter(
-                plan__createur__in=[user.id] + list(user.clients.values_list('id', flat=True))
+                plan__createur__in=[user.id] + list(user.utilisateurs.values_list('id', flat=True))
             )
         else:  # client
             return FormeGeometrique.objects.filter(plan__createur=user)

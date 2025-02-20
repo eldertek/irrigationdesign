@@ -247,26 +247,22 @@ const canChangeRole = computed(() => {
   return true
 })
 
-const showDealerSelect = computed(() => {
-  if (!props.isAdmin) return false
-  if (props.user) {
-    return props.user.role === 'CLIENT' || props.user.role === 'UTILISATEUR'
-  }
-  return form.role === 'CLIENT' || form.role === 'UTILISATEUR'
-})
-
 const availableRoles = computed(() => {
   if (props.isAdmin) {
     return [
       { value: 'ADMIN', label: 'Administrateur' },
       { value: 'CONCESSIONNAIRE', label: 'Concessionnaire' },
-      { value: 'CLIENT', label: 'Client' }
-    ]
-  } else {
-    return [
-      { value: 'CLIENT', label: 'Client' }
+      { value: 'UTILISATEUR', label: 'Utilisateur Final' }
     ]
   }
+  return [
+    { value: 'UTILISATEUR', label: 'Utilisateur Final' }
+  ]
+})
+
+const showDealerSelect = computed(() => {
+  if (!props.isAdmin) return true // Toujours afficher pour les concessionnaires
+  return form.role === 'UTILISATEUR'
 })
 
 const form = reactive({
@@ -275,8 +271,8 @@ const form = reactive({
   email: props.user?.email || '',
   username: props.user?.username || '',
   company_name: props.user?.company_name || '',
-  role: props.user?.role || (props.isAdmin ? '' : 'CLIENT'),
-  dealer: props.user?.dealer || (props.isAdmin ? '' : props.currentDealer),
+  role: props.user?.role || (props.isAdmin ? '' : 'UTILISATEUR'),
+  dealer: props.user?.concessionnaire || props.currentDealer,
   password: '',
   password_confirm: ''
 })
@@ -304,8 +300,8 @@ const validateForm = () => {
       return false
     }
   }
-  if (form.role === 'CLIENT' && !form.dealer) {
-    error.value = 'Un concessionnaire doit être sélectionné pour un client'
+  if (form.role === 'UTILISATEUR' && !form.dealer) {
+    error.value = 'Un concessionnaire doit être sélectionné pour un utilisateur final'
     return false
   }
   return true
@@ -317,13 +313,14 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
-    // Si c'est un concessionnaire qui crée un client, on force l'attribution
-    if (!props.isAdmin && !props.user) {
-      form.role = 'CLIENT'
-      form.dealer = props.currentDealer
+    // Simplification de la logique de soumission
+    const userData = { ...form }
+    
+    if (!props.isAdmin) {
+      userData.role = 'UTILISATEUR'
+      userData.concessionnaire = props.currentDealer
     }
 
-    const userData = { ...form }
     if (props.user) {
       delete userData.password
       delete userData.password_confirm

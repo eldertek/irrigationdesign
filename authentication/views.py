@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.http import JsonResponse
 
 User = get_user_model()
 
@@ -171,26 +172,38 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     """Vue personnalisée pour l'obtention du token avec stockage sécurisé."""
     
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        
-        if response.status_code == 200:
-            user = User.objects.get(username=request.data['username'])
-            response.data['user'] = UserSerializer(user).data
+        try:
+            response = super().post(request, *args, **kwargs)
             
-            # Stocker le refresh token dans un cookie httpOnly
-            response.set_cookie(
-                'refresh_token',
-                response.data['refresh'],
-                httponly=True,
-                secure=True,
-                samesite='Strict',
-                max_age=24 * 60 * 60  # 1 jour
+            if response.status_code == status.HTTP_200_OK:
+                user = User.objects.get(username=request.data['username'])
+                response.data['user'] = UserSerializer(user).data
+                
+                # Stocker le refresh token dans un cookie httpOnly
+                response.set_cookie(
+                    'refresh_token',
+                    response.data['refresh'],
+                    httponly=True,
+                    secure=True,
+                    samesite='Strict',
+                    max_age=24 * 60 * 60  # 1 jour
+                )
+                
+                # Supprimer le refresh token de la réponse JSON
+                del response.data['refresh']
+                
+            return response
+            
+        except (InvalidToken, TokenError) as e:
+            return Response(
+                {'detail': 'Identifiants incorrects'},
+                status=status.HTTP_401_UNAUTHORIZED
             )
-            
-            # Supprimer le refresh token de la réponse JSON
-            del response.data['refresh']
-            
-        return response
+        except Exception as e:
+            return Response(
+                {'detail': str(e)},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
 class LoginView(TemplateView):
     """Vue de connexion qui vérifie si l'utilisateur n'est pas déjà connecté."""
@@ -208,6 +221,10 @@ class SecureIndexView(UserPassesTestMixin, TemplateView):
     
     def test_func(self):
         """Vérifie si l'utilisateur est authentifié et a un rôle valide."""
+        # Ne pas appliquer aux requêtes API
+        if self.request.path_info.startswith('/api/'):
+            return True
+            
         return (
             self.request.user.is_authenticated and 
             hasattr(self.request.user, 'role') and 
@@ -216,4 +233,10 @@ class SecureIndexView(UserPassesTestMixin, TemplateView):
 
     def handle_no_permission(self):
         """Redirige vers la page de connexion si l'utilisateur n'est pas autorisé."""
+        # Ne pas rediriger les requêtes API
+        if self.request.path_info.startswith('/api/'):
+            return JsonResponse({
+                'detail': 'Authentification requise'
+            }, status=401)
+            
         return redirect(self.login_url)

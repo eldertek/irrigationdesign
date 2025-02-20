@@ -2,24 +2,17 @@ from rest_framework import serializers
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from django.contrib.auth import get_user_model
 from plans.models import Plan, FormeGeometrique, Connexion, TexteAnnotation
-from .models import UserProfile
 
-User = get_user_model()
-
-class UserProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UserProfile
-        fields = ['address', 'created_at', 'updated_at']
+User = get_user_model()  # Ceci pointera vers authentication.Utilisateur
 
 class UserSerializer(serializers.ModelSerializer):
-    profile = UserProfileSerializer(read_only=True)
     concessionnaire_name = serializers.CharField(source='concessionnaire.get_full_name', read_only=True)
     
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 
                  'role', 'concessionnaire', 'concessionnaire_name', 'company_name', 
-                 'phone', 'profile', 'date_joined']
+                 'phone', 'date_joined']
         read_only_fields = ['date_joined']
         extra_kwargs = {
             'password': {'write_only': True}
@@ -27,7 +20,6 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = User.objects.create_user(**validated_data)
-        UserProfile.objects.create(user=user)
         return user
 
 class DealerSerializer(serializers.ModelSerializer):

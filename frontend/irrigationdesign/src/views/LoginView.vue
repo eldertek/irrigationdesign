@@ -170,31 +170,28 @@ onMounted(() => {
 })
 
 async function handleSubmit() {
-  console.log('Attempting login...')
   loading.value = true
   error.value = null
 
   try {
+    if (!form.username || !form.password) {
+      error.value = 'Veuillez remplir tous les champs'
+      return
+    }
+
     await authStore.login(form.username, form.password)
-    console.log('Login successful, checking user type...')
     
-    // Redirection en fonction du type d'utilisateur
     if (authStore.user?.must_change_password) {
-      console.log('User must change password, redirecting...')
       router.push('/change-password')
     } else {
-      console.log('Normal login flow, redirecting to home...')
       router.push('/')
     }
   } catch (err: any) {
     console.error('Login error:', err)
-    if (err.response?.status === 401) {
-      error.value = 'Identifiants incorrects'
-    } else if (err.response?.data?.detail) {
-      error.value = err.response.data.detail
-    } else {
-      error.value = 'Une erreur est survenue lors de la connexion'
-    }
+    error.value = err?.response?.data?.detail || 
+                 err?.response?.data?.non_field_errors?.[0] ||
+                 err?.message ||
+                 'Erreur lors de la connexion'
   } finally {
     loading.value = false
   }

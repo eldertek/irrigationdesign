@@ -38,21 +38,22 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Ne pas retenter la requête pour les routes d'authentification
+    if (originalRequest.url?.includes('/token/') || 
+        originalRequest.url?.includes('/login/') ||
+        originalRequest.url?.includes('/register/')) {
+      return Promise.reject(error);
+    }
+
+    // Gérer les erreurs 401 (non authentifié)
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      try {
-        // Tenter de rafraîchir le token
-        const response = await api.post('/token/refresh/');
-        const token = getCookie('access_token');
-        if (token) {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return api(originalRequest);
-        }
-      } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError);
-        window.location.href = '/login';
-      }
+      
+      // Supprimer les cookies d'authentification
+      document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = 'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     }
+
     return Promise.reject(error);
   }
 );
