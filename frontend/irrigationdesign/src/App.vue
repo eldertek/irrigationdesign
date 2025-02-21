@@ -12,10 +12,13 @@ const showProfileMenu = ref(false)
 // Données utilisateur depuis le store d'authentification
 const userName = computed(() => {
   const user = authStore.user
-  if (user?.first_name && user?.last_name) {
-    return `${user.first_name} ${user.last_name.toUpperCase()}`
+  if (!user) return ''
+  
+  const fullName = `${user.first_name} ${user.last_name.toUpperCase()}`
+  if (user.company_name) {
+    return `${fullName} (${user.company_name})`
   }
-  return user?.username || ''
+  return fullName
 })
 const userRole = computed(() => {
   const userType = authStore.user?.user_type

@@ -30,7 +30,7 @@
               <option value="">Tous les rôles</option>
               <option value="ADMIN">Admin</option>
               <option value="CONCESSIONNAIRE">Concessionnaire</option>
-              <option value="CLIENT">Client</option>
+              <option value="UTILISATEUR">Client</option>
             </select>
           </div>
           <div>
@@ -52,8 +52,8 @@
               class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
             >
               <option value="">Tous les concessionnaires</option>
-              <option v-for="dealer in dealers" :key="dealer.id" :value="dealer.id">
-                {{ dealer.company_name || dealer.full_name }}
+              <option v-for="dealer in availableDealers" :key="dealer.id" :value="dealer.id">
+                {{ dealer.company_name || `${dealer.first_name} ${dealer.last_name}` }}
               </option>
             </select>
           </div>
@@ -99,7 +99,10 @@
                     </div>
                     <div class="ml-4">
                       <div class="text-sm font-medium text-gray-900">
-                        {{ user.company_name || `${user.first_name} ${user.last_name}` }}
+                        {{ user.first_name }} {{ user.last_name.toUpperCase() }}
+                        <span v-if="user.company_name" class="text-gray-500">
+                          ({{ user.company_name }})
+                        </span>
                       </div>
                       <div class="text-sm text-gray-500">
                         {{ user.username }}
@@ -211,6 +214,10 @@ const filters = reactive({
 const isAdmin = computed(() => authStore.isAdmin)
 const isDealer = computed(() => authStore.isDealer)
 
+const availableDealers = computed(() => {
+  return users.value.filter(user => user.role === 'CONCESSIONNAIRE')
+})
+
 // Filtrage des utilisateurs adapté au rôle
 const filteredUsers = computed(() => {
   console.log('Computing filtered users...')
@@ -225,7 +232,7 @@ const filteredUsers = computed(() => {
   if (isDealer.value) {
     console.log('Filtering for dealer:', authStore.user?.id)
     filtered = filtered.filter(user => 
-      user.role === 'CLIENT' && user.dealer === authStore.user?.id
+      user.role === 'UTILISATEUR' && user.dealer === authStore.user?.id
     )
     console.log('Filtered users for dealer:', filtered)
   }
@@ -311,22 +318,46 @@ function closeUserModal() {
 
 async function saveUser(userData: any) {
   try {
-    // Si c'est un concessionnaire qui crée un client, on force l'attribution
-    if (isDealer.value && !userData.id) {
-      userData.role = 'CLIENT'
-      userData.dealer = authStore.user?.id
+    let response;
+    const isUpdate = !!userData.id;
+    const payload = { ...userData };
+
+    // Nettoyer les champs non nécessaires
+    delete payload.dealer_name;
+    delete payload.full_name;
+    delete payload.user_type;
+    delete payload.permissions;
+
+    if (isUpdate) {
+      response = await api.patch(`/users/${userData.id}/`, payload);
+    } else {
+      response = await api.post('/users/', payload);
+    }
+    
+    await fetchUsers();
+    closeUserModal();
+    return response.data;
+  } catch (error: any) {
+    const errorData = error.response?.data || {};
+    let errorMessage = '';
+
+    if (typeof errorData === 'object') {
+      errorMessage = Object.entries(errorData)
+        .map(([field, messages]) => {
+          if (Array.isArray(messages)) {
+            return messages[0];
+          }
+          return messages;
+        })
+        .filter(message => message)
+        .join('\n');
     }
 
-    if (userData.id) {
-      await api.patch(`/users/${userData.id}/`, userData)
-    } else {
-      await api.post('/users/', userData)
+    if (!errorMessage) {
+      errorMessage = 'Une erreur est survenue lors de la sauvegarde';
     }
-    await fetchUsers()
-    closeUserModal()
-  } catch (error) {
-    console.error('Erreur lors de la sauvegarde de l\'utilisateur:', error)
-    throw error
+
+    throw new Error(errorMessage);
   }
 }
 
@@ -358,8 +389,7 @@ function getInitials(firstName: string, lastName: string): string {
 const roleLabels: Record<string, string> = {
   'ADMIN': 'Admin',
   'CONCESSIONNAIRE': 'Concessionnaire',
-  'UTILISATEUR': 'Utilisateur',
-  'CLIENT': 'Client'
+  'UTILISATEUR': 'Client'
 }
 
 function getRoleLabel(role: string): string {
@@ -378,7 +408,7 @@ function getStatusBadgeClass(isActive: boolean): string {
 
 function canDeleteUser(user: User): boolean {
   if (isAdmin.value) return true
-  if (isDealer.value) return user.role === 'CLIENT' && user.dealer === authStore.user?.id
+  if (isDealer.value) return user.role === 'UTILISATEUR' && user.dealer === authStore.user?.id
   return false
 }
 </script> 

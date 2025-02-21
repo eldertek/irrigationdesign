@@ -10,16 +10,43 @@ interface PlanHistory {
   utilisateur: number;
 }
 
+export interface UserDetails {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  company_name?: string;
+  phone?: string | null;
+}
+
 export interface Plan {
   id: number;
   nom: string;
   description: string;
   date_creation: string;
   date_modification: string;
-  createur: number;
-  elements: any[];
-  historique: PlanHistory[];
-  version: number;
+  createur: UserDetails;
+  concessionnaire: UserDetails | null;
+  preferences: {
+    currentTool?: string;
+    currentStyle?: {
+      fillColor?: string;
+      fillOpacity?: number;
+      strokeColor?: string;
+      strokeStyle?: string;
+      strokeWidth?: number;
+    };
+    last_viewport?: {
+      lat: number;
+      lng: number;
+      zoom: number;
+    };
+  };
+  elements?: any[];
+  historique?: PlanHistory[];
+  version?: number;
 }
 
 interface NewPlan {
@@ -59,6 +86,32 @@ export const useIrrigationStore = defineStore('irrigation', {
         }
         const response = await api.get(url);
         this.plans = response.data;
+      } catch (error) {
+        this.error = 'Erreur lors du chargement des plans';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async fetchPlansWithDetails() {
+      const authStore = useAuthStore();
+      this.loading = true;
+      try {
+        let url = '/plans/';
+        const params: Record<string, any> = {
+          include_details: true
+        };
+
+        if (authStore.isDealer) {
+          params.concessionnaire = authStore.user?.id;
+        } else if (authStore.isClient) {
+          params.utilisateur = authStore.user?.id;
+        }
+
+        const response = await api.get(url, { params });
+        this.plans = response.data;
+        return response;
       } catch (error) {
         this.error = 'Erreur lors du chargement des plans';
         throw error;

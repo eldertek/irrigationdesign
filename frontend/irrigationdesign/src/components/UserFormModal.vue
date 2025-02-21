@@ -110,7 +110,7 @@
                       class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
                     >
                       <option value="">Sélectionner un concessionnaire</option>
-                      <option v-for="dealer in dealers" :key="dealer.id" :value="dealer.id">
+                      <option v-for="dealer in availableDealers" :key="dealer.id" :value="dealer.id">
                         {{ dealer.company_name || `${dealer.first_name} ${dealer.last_name}` }}
                       </option>
                     </select>
@@ -224,6 +224,7 @@ interface UserData {
   concessionnaire?: string
   password?: string
   password_confirm?: string
+  id?: number
 }
 
 interface ApiError {
@@ -231,6 +232,9 @@ interface ApiError {
     data?: {
       username?: string[]
       email?: string[]
+      password?: string[]
+      concessionnaire?: string[]
+      [key: string]: string[] | undefined
     }
   }
 }
@@ -286,6 +290,10 @@ const showDealerSelect = computed(() => {
   return form.role === 'UTILISATEUR'
 })
 
+const availableDealers = computed(() => {
+  return props.dealers.filter(dealer => dealer.role === 'CONCESSIONNAIRE')
+})
+
 const form = reactive<UserData>({
   first_name: props.user?.first_name || '',
   last_name: props.user?.last_name || '',
@@ -334,26 +342,26 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
-    const userData: UserData = { ...form }
+    const userData = { ...form }
     
+    // Ne pas envoyer le mot de passe si on modifie un utilisateur existant
     if (props.user?.id) {
-      if (userData.password) delete userData.password
-      if (userData.password_confirm) delete userData.password_confirm
+      userData.id = props.user.id
+      delete userData.password
+      delete userData.password_confirm
     }
 
-    if (userData.dealer) {
+    // Conversion du dealer en concessionnaire uniquement pour les clients
+    if (userData.role === 'UTILISATEUR' && userData.dealer) {
       userData.concessionnaire = userData.dealer
-      delete userData.dealer
     }
+    delete userData.dealer
 
     await emit('save', userData)
-  } catch (err) {
-    const apiError = err as ApiError
-    error.value = apiError.response?.data?.username?.[0] || 
-                  apiError.response?.data?.email?.[0] || 
-                  'Une erreur est survenue lors de l\'enregistrement'
-    console.error('Erreur lors de la sauvegarde:', err)
-  } finally {
+    emit('close')
+  } catch (err: any) {
+    console.error('Erreur formulaire:', err)
+    error.value = err.message
     loading.value = false
   }
 }

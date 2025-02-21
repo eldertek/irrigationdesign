@@ -50,16 +50,19 @@ class ClientSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Un concessionnaire doit être spécifié")
         return data
 
+class UserDetailsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'company_name', 'phone']
+
 class PlanSerializer(serializers.ModelSerializer):
-    createur = UserSerializer(read_only=True)
+    createur = UserDetailsSerializer(read_only=True)
+    concessionnaire = UserDetailsSerializer(source='createur.concessionnaire', read_only=True)
     
     class Meta:
         model = Plan
-        fields = [
-            'id', 'nom', 'description', 'date_creation', 
-            'date_modification', 'createur', 'preferences'
-        ]
-        read_only_fields = ['id', 'date_creation', 'date_modification', 'createur']
+        fields = ['id', 'nom', 'description', 'date_creation', 'date_modification', 'createur', 'concessionnaire', 'preferences']
+        read_only_fields = ['date_creation', 'date_modification', 'createur']
 
     def create(self, validated_data):
         validated_data['createur'] = self.context['request'].user
@@ -127,7 +130,8 @@ class TexteAnnotationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 class PlanDetailSerializer(serializers.ModelSerializer):
-    createur = UserSerializer(read_only=True)
+    createur = UserDetailsSerializer(read_only=True)
+    concessionnaire = UserDetailsSerializer(source='createur.concessionnaire', read_only=True)
     formes = FormeGeometriqueSerializer(many=True, read_only=True)
     connexions = ConnexionSerializer(many=True, read_only=True)
     annotations = TexteAnnotationSerializer(many=True, read_only=True)
@@ -136,7 +140,8 @@ class PlanDetailSerializer(serializers.ModelSerializer):
         model = Plan
         fields = [
             'id', 'nom', 'description', 'date_creation', 
-            'date_modification', 'createur', 'formes',
-            'connexions', 'annotations', 'preferences'
+            'date_modification', 'createur', 'concessionnaire',
+            'formes', 'connexions', 'annotations', 'preferences',
+            'elements', 'historique'
         ]
         read_only_fields = ['id', 'date_creation', 'date_modification', 'createur'] 

@@ -1,12 +1,14 @@
 import axios from 'axios';
+import { useAuthStore } from '@/stores/auth';
 
 // Configuration de base de l'API
 const api = axios.create({
   baseURL: '/api',
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
   },
-  withCredentials: true // Important pour les cookies
+  withCredentials: true
 });
 
 // Fonction utilitaire pour obtenir un cookie
@@ -24,6 +26,13 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Log pour debug
+    console.log('Request config:', {
+      url: config.url,
+      method: config.method,
+      headers: config.headers,
+      withCredentials: config.withCredentials
+    });
     return config;
   },
   (error) => {
@@ -36,28 +45,30 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Vérifier si l'erreur a une configuration valide
-    if (!error.config) {
-      console.error('Erreur de configuration de la requête:', error);
-      return Promise.reject(error);
-    }
-
     const originalRequest = error.config;
 
-    // Ne pas retenter la requête pour les routes d'authentification
-    if (originalRequest.url?.includes('/token/') || 
-        originalRequest.url?.includes('/login/') ||
-        originalRequest.url?.includes('/register/')) {
-      return Promise.reject(error);
-    }
-
-    // Gérer les erreurs 401 (non authentifié)
+    // Si l'erreur est 401 et que ce n'est pas déjà une tentative de refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
-      // Supprimer les cookies d'authentification
-      document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      document.cookie = 'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+
+      try {
+        // Tenter de rafraîchir le token
+        const authStore = useAuthStore();
+        await authStore.refreshToken();
+        
+        // Récupérer le nouveau token
+        const newToken = getCookie('access_token');
+        if (newToken) {
+          // Mettre à jour le token dans la requête originale
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          // Réessayer la requête originale
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
+        // Rediriger vers la page de login
+        window.location.href = '/login';
+      }
     }
 
     return Promise.reject(error);

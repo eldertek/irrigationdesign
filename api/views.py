@@ -19,6 +19,7 @@ from plans.models import Plan, FormeGeometrique, Connexion, TexteAnnotation
 import requests
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import ValidationError
 
 User = get_user_model()  # Ceci pointera vers authentication.Utilisateur
 
@@ -43,8 +44,10 @@ class UserViewSet(viewsets.ModelViewSet):
         return User.objects.filter(id=user.id)
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            self.permission_classes = [IsAdmin]
+        if self.action == 'create':
+            self.permission_classes = [permissions.IsAuthenticated, IsAdmin | IsDealer]
+        elif self.action in ['update', 'partial_update', 'destroy']:
+            self.permission_classes = [permissions.IsAuthenticated, IsAdmin]
         return super().get_permissions()
 
     def update(self, request, *args, **kwargs):
@@ -57,15 +60,33 @@ class UserViewSet(viewsets.ModelViewSet):
         
         if username and User.objects.exclude(id=instance.id).filter(username=username).exists():
             return Response(
-                {'username': ['Un utilisateur avec ce nom existe déjà.']},
+                {'username': ['Un utilisateur avec ce nom existe déjà']},
                 status=status.HTTP_400_BAD_REQUEST
             )
             
         if email and User.objects.exclude(id=instance.id).filter(email=email).exists():
             return Response(
-                {'email': ['Un utilisateur avec cet email existe déjà.']},
+                {'email': ['Un utilisateur avec cet email existe déjà']},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        # Ne pas modifier le concessionnaire pour un concessionnaire
+        if instance.role == ROLE_DEALER:
+            if 'concessionnaire' in request.data:
+                del request.data['concessionnaire']
+
+        # Vérifier le concessionnaire uniquement pour les clients
+        elif request.data.get('concessionnaire'):
+            try:
+                concessionnaire = User.objects.get(
+                    id=request.data['concessionnaire'],
+                    role=ROLE_DEALER
+                )
+            except User.DoesNotExist:
+                return Response(
+                    {'concessionnaire': ['Ce concessionnaire n\'existe pas']},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
@@ -94,6 +115,32 @@ class UserViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def perform_update(self, serializer):
+        data = serializer.validated_data
+        instance = serializer.instance
+        
+        # Empêcher la modification du rôle sauf pour les admins
+        if 'role' in data and not self.request.user.is_admin:
+            raise ValidationError({
+                'role': ['Seul un administrateur peut modifier le rôle']
+            })
+            
+        serializer.save()
+
+    def perform_create(self, serializer):
+        data = serializer.validated_data
+        
+        # Si c'est un concessionnaire qui crée
+        if self.request.user.role == ROLE_DEALER:
+            if data.get('role') not in [None, ROLE_CLIENT]:
+                raise ValidationError({
+                    'role': ['Un concessionnaire ne peut créer que des clients']
+                })
+            data['role'] = ROLE_CLIENT
+            data['concessionnaire'] = self.request.user
+            
+        serializer.save()
 
 class DealerViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(role='CONCESSIONNAIRE')
