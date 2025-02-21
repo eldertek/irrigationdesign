@@ -1142,7 +1142,7 @@ function formatLastSaved(date: string): string {
 /* Styles pour les messages d'aide */
 .drawing-help-message {
   position: fixed;
-  top: 20px;
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
   background-color: rgba(0, 0, 0, 0.8);
@@ -1150,8 +1150,10 @@ function formatLastSaved(date: string): string {
   padding: 8px 16px;
   border-radius: 4px;
   font-size: 14px;
-  z-index: 1000;
+  z-index: 2000;
   pointer-events: none;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* Styles pour les marqueurs personnalisés */

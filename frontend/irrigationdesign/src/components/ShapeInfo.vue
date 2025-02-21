@@ -94,10 +94,21 @@
           </div>
           <div class="info-item">
             <span class="label">Périmètre:</span>
-            <span class="value">{{ formatDistance(shape.properties.perimetre) }}</span>
+            <span class="value">{{ formatDistance(shape.properties.perimeter || 0) }}</span>
           </div>
         </div>
       </template>
+
+      <div class="info-section">
+        <div class="info-row">
+          <span class="label">Surface</span>
+          <span class="value">{{ formatArea(shape.properties.area || 0) }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Distance</span>
+          <span class="value">{{ formatDistance(shape.properties.distance || 0) }}</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -105,6 +116,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import ElevationProfile from './ElevationProfile.vue'
+import { useUnits } from '../composables/useUnits'
 
 const props = defineProps({
   shape: {
@@ -243,5 +255,18 @@ function formatSlope(value: number): string {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid #e5e7eb;
+}
+
+.info-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 4px 0;
 }
 </style> 

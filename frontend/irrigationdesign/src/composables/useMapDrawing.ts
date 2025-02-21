@@ -2,7 +2,6 @@ import { ref, onUnmounted } from 'vue';
 import L from 'leaflet';
 import '@geoman-io/leaflet-geoman-free';
 import { useShapeProperties } from './useShapeProperties';
-import { useElevationApi } from './useElevationApi';
 import { CircleArc } from '../utils/CircleArc';
 import type { TextStyle, TextProperties, TextMarker, TextRectangle } from '../types/leaflet';
 import * as turf from '@turf/turf';
@@ -86,6 +85,29 @@ const defaultTextStyle: TextStyle = {
   hasBorder: true
 };
 
+// Fonction pour créer et afficher un message d'aide
+const showHelpMessage = (message: string): HTMLElement => {
+  const helpMsg = L.DomUtil.create('div', 'drawing-help-message');
+  helpMsg.innerHTML = message;
+  helpMsg.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    z-index: 2000;
+    pointer-events: none;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  `;
+  document.body.appendChild(helpMsg);
+  return helpMsg;
+};
+
 // Fonction pour calculer la taille du texte en fonction du zoom
 const calculateTextSize = (baseSize: number, zoom: number): number => {
   const minZoom = 1;
@@ -108,7 +130,185 @@ export function useMapDrawing() {
   const isDrawing = ref<boolean>(false);
 
   const { calculateProperties } = useShapeProperties();
-  const { fetchElevation } = useElevationApi();
+
+  // Ajouter ces variables au niveau du composable
+  let activeControlPoints: L.CircleMarker[] = [];
+
+  // Fonction pour nettoyer les points de contrôle actifs
+  const clearActiveControlPoints = () => {
+    activeControlPoints.forEach(point => {
+      if (point && point.remove) {
+        if (featureGroup.value) {
+          featureGroup.value.removeLayer(point);
+        }
+        point.remove();
+      }
+    });
+    activeControlPoints = [];
+  };
+
+  // Fonction pour créer un point de contrôle
+  const createControlPoint = (position: L.LatLng, color: string = '#2563EB'): L.CircleMarker => {
+    const point = L.circleMarker(position, {
+      radius: 6,
+      color: color,
+      fillColor: color,
+      fillOpacity: 1,
+      weight: 2,
+      className: 'control-point',
+      pmIgnore: true
+    });
+    
+    if (featureGroup.value) {
+      featureGroup.value.addLayer(point);
+    }
+    
+    return point;
+  };
+
+  // Fonction pour mettre à jour les points de contrôle d'un demi-cercle
+  const updateSemicircleControlPoints = (layer: CircleArc) => {
+    if (!map.value || !layer.properties || !featureGroup.value) return;
+
+    // Nettoyer les points existants
+    clearActiveControlPoints();
+
+    const center = layer.getCenter();
+    const radius = layer.getRadius();
+    const startAngle = layer.properties.startAngle || 0;
+    const stopAngle = layer.properties.stopAngle || 180;
+
+    // Créer le point central
+    const centerPoint = createControlPoint(center, '#059669');
+    activeControlPoints.push(centerPoint);
+
+    // Calculer les positions des points de contrôle
+    const startRad = (startAngle * Math.PI) / 180;
+    const endRad = (stopAngle * Math.PI) / 180;
+    
+    // Point de contrôle pour le début de l'arc
+    const startPoint = L.latLng(
+      center.lat + (radius / 111319.9) * Math.sin(startRad),
+      center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(startRad)
+    );
+    
+    // Point de contrôle pour la fin de l'arc
+    const endPoint = L.latLng(
+      center.lat + (radius / 111319.9) * Math.sin(endRad),
+      center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(endRad)
+    );
+
+    // Créer et ajouter les points de contrôle
+    const startMarker = createControlPoint(startPoint, '#2563EB');
+    const endMarker = createControlPoint(endPoint, '#DC2626');
+    
+    activeControlPoints.push(startMarker, endMarker);
+
+    // Gestionnaires d'événements pour le glisser-déposer
+    startMarker.on('mousedown', (e: L.LeafletMouseEvent) => {
+      L.DomEvent.stopPropagation(e);
+      if (!map.value) return;
+      
+      map.value.dragging.disable();
+      let isDragging = true;
+      
+      const onMouseMove = (e: L.LeafletMouseEvent) => {
+        if (!isDragging || !center) return;
+        L.DomEvent.stopPropagation(e);
+        
+        const angle = Math.atan2(
+          e.latlng.lat - center.lat,
+          e.latlng.lng - center.lng
+        ) * (180 / Math.PI);
+        
+        if (!isNaN(angle)) {
+          layer.setAngles(angle, stopAngle);
+          requestAnimationFrame(() => {
+            updateSemicircleControlPoints(layer);
+          });
+        }
+      };
+
+      const onMouseUp = () => {
+        isDragging = false;
+        if (!map.value) return;
+        map.value.off('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        map.value.dragging.enable();
+      };
+
+      map.value.on('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+
+    endMarker.on('mousedown', (e: L.LeafletMouseEvent) => {
+      L.DomEvent.stopPropagation(e);
+      if (!map.value) return;
+      
+      map.value.dragging.disable();
+      let isDragging = true;
+      
+      const onMouseMove = (e: L.LeafletMouseEvent) => {
+        if (!isDragging || !center) return;
+        L.DomEvent.stopPropagation(e);
+        
+        const angle = Math.atan2(
+          e.latlng.lat - center.lat,
+          e.latlng.lng - center.lng
+        ) * (180 / Math.PI);
+        
+        if (!isNaN(angle)) {
+          layer.setAngles(startAngle, angle);
+          requestAnimationFrame(() => {
+            updateSemicircleControlPoints(layer);
+          });
+        }
+      };
+
+      const onMouseUp = () => {
+        isDragging = false;
+        if (!map.value) return;
+        map.value.off('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        map.value.dragging.enable();
+      };
+
+      map.value.on('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+
+    centerPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
+      L.DomEvent.stopPropagation(e);
+      if (!map.value) return;
+      
+      map.value.dragging.disable();
+      let isDragging = true;
+      
+      const onMouseMove = (e: L.LeafletMouseEvent) => {
+        if (!isDragging || !center) return;
+        L.DomEvent.stopPropagation(e);
+        
+        const newRadius = center.distanceTo(e.latlng);
+        if (newRadius > 0) {
+          layer.setRadius(newRadius);
+          requestAnimationFrame(() => {
+            updateSemicircleControlPoints(layer);
+          });
+        }
+      };
+
+      const onMouseUp = () => {
+        isDragging = false;
+        if (!map.value) return;
+        map.value.off('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        map.value.dragging.enable();
+      };
+
+      map.value.on('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  };
 
   // Fonction pour mettre à jour la taille physique du texte
   const updateTextFixedSize = (textMarker: TextMarker, physicalSizeInMeters: number = 2.0) => {
@@ -185,15 +385,6 @@ export function useMapDrawing() {
       const props = calculateProperties(layer, map.value);
       layer.properties = { ...layer.properties, ...props };
 
-      // Récupérer les données d'élévation
-      try {
-        const points = getLayerPoints(layer);
-        const elevationData = await fetchElevation(points);
-        layer.properties.elevation = elevationData;
-      } catch (error) {
-        console.error('Erreur lors de la récupération des données d\'élévation:', error);
-      }
-
       selectedShape.value = layer;
     });
 
@@ -201,6 +392,7 @@ export function useMapDrawing() {
     mapInstance.on('click', (e: L.LeafletMouseEvent) => {
       const target = e.target;
       if (target === mapInstance) {
+        clearActiveControlPoints();
         selectedShape.value = null;
       }
     });
@@ -208,7 +400,22 @@ export function useMapDrawing() {
     featureGroup.value.on('click', (e: L.LeafletMouseEvent) => {
       L.DomEvent.stopPropagation(e);
       const layer = e.layer;
+      
+      // Nettoyer les points de contrôle précédents
+      clearActiveControlPoints();
+      
       selectedShape.value = layer;
+
+      // Si c'est un demi-cercle, ajouter les points de contrôle
+      if (layer instanceof CircleArc || layer.properties?.type === 'Semicircle') {
+        // Désactiver l'édition des sommets
+        if (layer.pm) {
+          layer.pm._layers = [];
+          layer.pm._markers = [];
+          layer.pm._markerGroup?.clearLayers();
+        }
+        updateSemicircleControlPoints(layer as CircleArc);
+      }
     });
 
     // Événements d'édition
@@ -255,21 +462,7 @@ export function useMapDrawing() {
         map.value.dragging.disable();
 
         // Créer et afficher le message d'aide
-        const helpMsg = L.DomUtil.create('div', 'drawing-help-message');
-        helpMsg.innerHTML = 'Cliquez pour placer le centre du demi-cercle';
-        document.body.appendChild(helpMsg);
-
-        // Fonction utilitaire pour créer un point de contrôle
-        const createControlPoint = (position: L.LatLng, color: string = '#2563EB'): L.CircleMarker => {
-          return L.circleMarker(position, {
-            radius: 6,
-            color: color,
-            fillColor: color,
-            fillOpacity: 1,
-            weight: 2,
-            className: 'control-point'
-          });
-        };
+        const helpMsg = showHelpMessage('Cliquez pour placer le centre du demi-cercle');
 
         // Fonction pour mettre à jour les points de contrôle
         const updateControlPoints = () => {
@@ -358,16 +551,16 @@ export function useMapDrawing() {
           // Ajouter un marqueur pour le centre
           const centerMarker = createControlPoint(center, '#059669');
           centerMarker.addTo(map.value);
-
+          
           // Créer l'arc temporaire
           tempArc = new CircleArc(center, 0, 0, 180);
           if (map.value) {
             featureGroup.value?.addLayer(tempArc);
           }
-
+          
           // Mettre à jour le message d'aide
           helpMsg.innerHTML = 'Cliquez pour définir le rayon';
-
+          
           // Gestionnaire pour le mouvement de la souris (prévisualisation)
           const onMouseMove = (e: L.LeafletMouseEvent) => {
             if (center && tempArc) {
@@ -376,7 +569,7 @@ export function useMapDrawing() {
               tempArc.setAngles(orientation, orientation + openingAngle);
             }
           };
-
+          
           // Gestionnaire pour le deuxième clic (rayon)
           const onSecondClick = (e: L.LeafletMouseEvent) => {
             if (!map.value || !center || !tempArc) return;
@@ -385,51 +578,55 @@ export function useMapDrawing() {
             // Calculer le rayon final
             radius = center.distanceTo(e.latlng);
             tempArc.setRadius(radius);
-
+            
             // Mettre à jour le message d'aide
             helpMsg.innerHTML = 'Ajustez l\'orientation et l\'angle d\'ouverture en déplaçant les points bleu et rouge, puis cliquez pour terminer';
-
+            
             // Supprimer les gestionnaires précédents
             map.value.off('mousemove', onMouseMove);
             map.value.off('click', onSecondClick);
-
+            
             // Ajouter les points de contrôle
             updateControlPoints();
 
             // Gestionnaire pour le clic final
-            const onFinalClick = () => {
-              if (!map.value || !tempArc) return;
-
-              // Nettoyer
-              map.value.off('click', onFinalClick);
+              const onFinalClick = () => {
+                if (!map.value || !tempArc) return;
+                
+                // Nettoyer
+                map.value.off('click', onFinalClick);
               map.value.dragging.enable();
-              document.querySelector('.drawing-help-message')?.remove();
+                document.querySelector('.drawing-help-message')?.remove();
               controlPoints.forEach(point => point.remove());
+                
+                // Configurer les propriétés finales
+                tempArc.properties = {
+                  type: 'Semicircle',
+                  radius,
+                  orientation,
+                  openingAngle,
+                  style: {
+                    fillColor: '#3B82F6',
+                    fillOpacity: 0.2,
+                    color: '#2563EB',
+                    weight: 2,
+                    startAngle: orientation,
+                    stopAngle: orientation + openingAngle
+                  }
+                };
+                
+                // Émettre l'événement de création
+                map.value.fire('pm:create', { 
+                  layer: tempArc,
+                  shape: 'Semicircle',
+                  workingLayer: tempArc
+                });
 
-              // Configurer les propriétés finales
-              tempArc.properties = {
-                type: 'Semicircle',
-                radius,
-                orientation,
-                openingAngle,
-                style: {
-                  fillColor: '#3B82F6',
-                  fillOpacity: 0.2,
-                  color: '#2563EB',
-                  weight: 2,
-                  startAngle: orientation,
-                  stopAngle: orientation + openingAngle
-                }
-              };
+              // Sélectionner la forme et afficher les points de contrôle
+              selectedShape.value = tempArc;
+              updateSemicircleControlPoints(tempArc);
 
-              // Émettre l'événement de création
-              map.value.fire('pm:create', {
-                layer: tempArc,
-                shape: 'Semicircle',
-                workingLayer: tempArc
-              });
-
-              // Activer le mode édition
+              // Activer le mode édition avec les options appropriées
               tempArc.pm.enable({
                 allowSelfIntersection: false,
                 preventMarkerRemoval: true
@@ -438,11 +635,11 @@ export function useMapDrawing() {
 
             map.value.once('click', onFinalClick);
           };
-
+          
           map.value.on('mousemove', onMouseMove);
           map.value.once('click', onSecondClick);
         };
-
+        
         map.value.once('click', onFirstClick);
         break;
       case 'Rectangle':
@@ -458,9 +655,7 @@ export function useMapDrawing() {
         map.value.pm.disableDraw();
         map.value.dragging.disable();
 
-        const textHelpMsg = L.DomUtil.create('div', 'drawing-help-message');
-        textHelpMsg.innerHTML = 'Cliquez pour placer le texte, redimensionnez ensuite';
-        document.body.appendChild(textHelpMsg);
+        const textHelpMsg = showHelpMessage('Cliquez pour placer le texte, redimensionnez ensuite');
 
         const onMapClick = (e: L.LeafletMouseEvent) => {
           if (!map.value || !featureGroup.value) return;
