@@ -4,6 +4,8 @@ import ChangePasswordForm from '@/components/auth/ChangePasswordForm.vue'
 import LoginView from '../views/LoginView.vue'
 import MapView from '../views/MapView.vue'
 import UserListView from '@/views/UserListView.vue'
+import PlansView from '../views/PlansView.vue'
+import ClientListView from '../views/ClientListView.vue'
 
 const router = createRouter({
   history: createWebHistory('/'),
@@ -20,7 +22,7 @@ const router = createRouter({
     {
       path: '/plans',
       name: 'plans',
-      component: () => import('@/views/PlansView.vue'),
+      component: PlansView,
       meta: { 
         requiresAuth: true,
         allowedRoles: ['admin', 'dealer', 'client']
@@ -38,7 +40,7 @@ const router = createRouter({
     {
       path: '/clients',
       name: 'clients',
-      component: () => import('@/views/ClientListView.vue'),
+      component: ClientListView,
       meta: {
         requiresAuth: true,
         allowedRoles: ['dealer']

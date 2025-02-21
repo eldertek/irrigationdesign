@@ -1,5 +1,7 @@
 from django.contrib.gis.db import models
 from django.conf import settings
+from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 class Plan(models.Model):
     """
@@ -15,6 +17,12 @@ class Plan(models.Model):
         related_name='plans',
         verbose_name='Créateur'
     )
+    preferences = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='Préférences de dessin',
+        help_text='Stocke les préférences de dessin (type de trait, couleurs, etc.)'
+    )
 
     class Meta:
         verbose_name = 'Plan'
@@ -23,6 +31,11 @@ class Plan(models.Model):
 
     def __str__(self):
         return f"{self.nom} (créé par {self.createur.get_full_name()})"
+
+    def touch(self):
+        """Force la mise à jour de la date de modification."""
+        self.date_modification = timezone.now()
+        self.save(update_fields=['date_modification'])
 
 class FormeGeometrique(models.Model):
     """
@@ -33,6 +46,7 @@ class FormeGeometrique(models.Model):
         CERCLE = 'CERCLE', 'Cercle'
         DEMI_CERCLE = 'DEMI_CERCLE', 'Demi-cercle'
         LIGNE = 'LIGNE', 'Ligne'
+        TEXTE = 'TEXTE', 'Texte'
 
     plan = models.ForeignKey(
         Plan,
@@ -45,18 +59,12 @@ class FormeGeometrique(models.Model):
         choices=TypeForme.choices,
         verbose_name='Type de forme'
     )
-    geometrie = models.GeometryField(srid=4326, verbose_name='Géométrie')
-    surface = models.FloatField(
-        null=True,
-        blank=True,
-        verbose_name='Surface (m²)'
-    )
     
-    # Stockage des propriétés spécifiques (rayon, largeur, etc.) en JSON
-    proprietes = models.JSONField(
+    # Stockage des données spécifiques à chaque type de forme
+    data = models.JSONField(
         default=dict,
         blank=True,
-        verbose_name='Propriétés spécifiques'
+        verbose_name='Données de la forme'
     )
 
     class Meta:
@@ -65,6 +73,28 @@ class FormeGeometrique(models.Model):
 
     def __str__(self):
         return f"{self.get_type_forme_display()} dans {self.plan.nom}"
+
+    def clean(self):
+        """Valide les données selon le type de forme."""
+        super().clean()
+        if not self.data:
+            raise ValidationError("Les données de la forme sont requises")
+
+        if self.type_forme == self.TypeForme.CERCLE:
+            if 'center' not in self.data or 'radius' not in self.data:
+                raise ValidationError("Un cercle nécessite un centre et un rayon")
+        elif self.type_forme == self.TypeForme.RECTANGLE:
+            if 'bounds' not in self.data:
+                raise ValidationError("Un rectangle nécessite des limites (bounds)")
+        elif self.type_forme == self.TypeForme.DEMI_CERCLE:
+            if not all(k in self.data for k in ['center', 'radius', 'startAngle', 'endAngle']):
+                raise ValidationError("Un demi-cercle nécessite un centre, un rayon et des angles")
+        elif self.type_forme == self.TypeForme.LIGNE:
+            if 'points' not in self.data:
+                raise ValidationError("Une ligne nécessite des points")
+        elif self.type_forme == self.TypeForme.TEXTE:
+            if not all(k in self.data for k in ['position', 'content']):
+                raise ValidationError("Un texte nécessite une position et un contenu")
 
 class Connexion(models.Model):
     """

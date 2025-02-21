@@ -105,7 +105,7 @@ class Migration(migrations.Migration):
                         choices=[
                             ("ADMIN", "Administrateur"),
                             ("CONCESSIONNAIRE", "Concessionnaire"),
-                            ("UTILISATEUR", "Utilisateur Final"),
+                            ("UTILISATEUR", "Client"),
                         ],
                         default="UTILISATEUR",
                         max_length=20,

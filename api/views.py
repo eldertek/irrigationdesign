@@ -47,6 +47,54 @@ class UserViewSet(viewsets.ModelViewSet):
             self.permission_classes = [IsAdmin]
         return super().get_permissions()
 
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        partial = kwargs.pop('partial', False)
+        
+        # Vérifier si username/email existe déjà pour un autre utilisateur
+        username = request.data.get('username')
+        email = request.data.get('email')
+        
+        if username and User.objects.exclude(id=instance.id).filter(username=username).exists():
+            return Response(
+                {'username': ['Un utilisateur avec ce nom existe déjà.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        if email and User.objects.exclude(id=instance.id).filter(email=email).exists():
+            return Response(
+                {'email': ['Un utilisateur avec cet email existe déjà.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        # Vérifier si username/email existe déjà
+        username = request.data.get('username')
+        email = request.data.get('email')
+        
+        if User.objects.filter(username=username).exists():
+            return Response(
+                {'username': ['Un utilisateur avec ce nom existe déjà.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        if User.objects.filter(email=email).exists():
+            return Response(
+                {'email': ['Un utilisateur avec cet email existe déjà.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
 class DealerViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(role='CONCESSIONNAIRE')
     serializer_class = DealerSerializer
@@ -149,14 +197,33 @@ class PlanViewSet(viewsets.ModelViewSet):
             # Créer/Mettre à jour les formes
             for forme_data in formes_data:
                 forme_id = forme_data.pop('id', None)
+                
+                # Valider les données de la forme selon son type
+                type_forme = forme_data.get('type_forme')
+                data = forme_data.get('data', {})
+                
+                # Ajouter les styles par défaut si nécessaire
+                if 'style' not in data:
+                    data['style'] = {
+                        'color': '#3388ff',
+                        'fillColor': '#3388ff',
+                        'fillOpacity': 0.2,
+                        'weight': 3,
+                        'opacity': 1
+                    }
+                
+                # Mettre à jour ou créer la forme
                 if forme_id:
                     forme = get_object_or_404(FormeGeometrique, id=forme_id, plan=plan)
-                    serializer = FormeGeometriqueSerializer(forme, data=forme_data)
+                    forme.type_forme = type_forme
+                    forme.data = data
+                    forme.save()
                 else:
-                    serializer = FormeGeometriqueSerializer(data=forme_data)
-                
-                serializer.is_valid(raise_exception=True)
-                serializer.save(plan=plan)
+                    FormeGeometrique.objects.create(
+                        plan=plan,
+                        type_forme=type_forme,
+                        data=data
+                    )
 
             # Créer/Mettre à jour les connexions
             for connexion_data in connexions_data:
@@ -181,6 +248,9 @@ class PlanViewSet(viewsets.ModelViewSet):
                 
                 serializer.is_valid(raise_exception=True)
                 serializer.save(plan=plan)
+
+            # Forcer la mise à jour de la date de modification
+            plan.touch()
 
             # Retourner le plan mis à jour avec tous ses éléments
             serializer = PlanDetailSerializer(plan)

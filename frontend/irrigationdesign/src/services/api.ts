@@ -36,6 +36,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Vérifier si l'erreur a une configuration valide
+    if (!error.config) {
+      console.error('Erreur de configuration de la requête:', error);
+      return Promise.reject(error);
+    }
+
     const originalRequest = error.config;
 
     // Ne pas retenter la requête pour les routes d'authentification

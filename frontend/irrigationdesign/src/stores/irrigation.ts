@@ -10,7 +10,7 @@ interface PlanHistory {
   utilisateur: number;
 }
 
-interface Plan {
+export interface Plan {
   id: number;
   nom: string;
   description: string;
@@ -181,6 +181,24 @@ export const useIrrigationStore = defineStore('irrigation', {
 
     markUnsavedChanges() {
       this.unsavedChanges = true;
+    },
+
+    async deletePlan(planId: number) {
+      this.loading = true;
+      try {
+        await api.delete(`/plans/${planId}/`);
+        // Retirer le plan de la liste locale
+        this.plans = this.plans.filter(p => p.id !== planId);
+        // Si c'était le plan courant, le nettoyer
+        if (this.currentPlan?.id === planId) {
+          this.clearCurrentPlan();
+        }
+      } catch (error) {
+        this.error = 'Erreur lors de la suppression du plan';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
     }
   }
 }); 

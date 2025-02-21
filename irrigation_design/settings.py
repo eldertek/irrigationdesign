@@ -143,6 +143,13 @@ USE_L10N = True
 
 USE_TZ = True
 
+# Format des dates et heures
+DATE_FORMAT = 'd/m/Y'
+DATETIME_FORMAT = 'd/m/Y H:i'
+SHORT_DATE_FORMAT = 'd/m/Y'
+SHORT_DATETIME_FORMAT = 'd/m/Y H:i'
+FIRST_DAY_OF_WEEK = 1  # Lundi
+
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/

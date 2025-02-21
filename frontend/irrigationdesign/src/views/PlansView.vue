@@ -2,22 +2,22 @@
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="sm:flex sm:items-center">
       <div class="sm:flex-auto">
-        <h1 class="text-2xl font-semibold text-gray-900">Mes Projets</h1>
+        <h1 class="text-2xl font-semibold text-gray-900">Mes Plans</h1>
         <p class="mt-2 text-sm text-gray-700">
-          Liste de tous vos projets d'irrigation
+          Liste de tous vos plans d'irrigation
         </p>
       </div>
       <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
         <button
-          @click="openNewProjectModal"
+          @click="openNewPlanModal"
           class="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:w-auto"
         >
-          Nouveau projet
+          Nouveau plan
         </button>
       </div>
     </div>
 
-    <!-- Liste des projets -->
+    <!-- Liste des plans -->
     <div class="mt-8 flex flex-col">
       <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
         <div class="inline-block min-w-full py-2 align-middle">
@@ -90,14 +90,14 @@
       </div>
     </div>
 
-    <!-- Modal nouveau projet -->
+    <!-- Modal nouveau plan -->
     <div
-      v-if="showNewProjectModal"
+      v-if="showNewPlanModal"
       class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center"
     >
       <div class="bg-white rounded-lg p-6 max-w-md w-full">
-        <h2 class="text-lg font-medium mb-4">Nouveau projet</h2>
-        <form @submit.prevent="createProject">
+        <h2 class="text-lg font-medium mb-4">Nouveau plan</h2>
+        <form @submit.prevent="createPlan">
           <div class="space-y-4">
             <div>
               <label for="name" class="block text-sm font-medium text-gray-700">
@@ -106,7 +106,7 @@
               <input
                 type="text"
                 id="name"
-                v-model="newProject.nom"
+                v-model="newPlan.nom"
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                 required
               />
@@ -117,7 +117,7 @@
               </label>
               <textarea
                 id="description"
-                v-model="newProject.description"
+                v-model="newPlan.description"
                 rows="3"
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
               ></textarea>
@@ -127,7 +127,7 @@
             <button
               type="button"
               class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:mt-0 sm:text-sm"
-              @click="showNewProjectModal = false"
+              @click="showNewPlanModal = false"
             >
               Annuler
             </button>
@@ -153,8 +153,8 @@ const router = useRouter()
 const irrigationStore = useIrrigationStore()
 
 const plans = ref([])
-const showNewProjectModal = ref(false)
-const newProject = ref({
+const showNewPlanModal = ref(false)
+const newPlan = ref({
   nom: '',
   description: ''
 })
@@ -172,21 +172,35 @@ async function loadPlans() {
   }
 }
 
-function openNewProjectModal() {
-  showNewProjectModal.value = true
-  newProject.value = {
+function openNewPlanModal() {
+  showNewPlanModal.value = true
+  newPlan.value = {
     nom: '',
     description: ''
   }
 }
 
-async function createProject() {
+async function createPlan() {
   try {
-    await irrigationStore.createPlan(newProject.value)
-    showNewProjectModal.value = false
-    await loadPlans()
+    // Vérifier s'il y a un plan courant avec des changements non sauvegardés
+    if (irrigationStore.currentPlan && irrigationStore.hasUnsavedChanges) {
+      if (confirm('Voulez-vous sauvegarder les modifications du plan actuel avant d\'en créer un nouveau ?')) {
+        await irrigationStore.savePlan(irrigationStore.currentPlan.id);
+      }
+      // Nettoyer le plan courant
+      irrigationStore.clearCurrentPlan();
+    }
+
+    // Créer le nouveau plan
+    const newPlanData = await irrigationStore.createPlan(newPlan.value);
+    showNewPlanModal.value = false;
+    await loadPlans();
+
+    // Définir le nouveau plan comme plan courant et rediriger vers l'éditeur
+    irrigationStore.setCurrentPlan(newPlanData);
+    router.push('/');
   } catch (error) {
-    console.error('Erreur lors de la création du plan:', error)
+    console.error('Erreur lors de la création du plan:', error);
   }
 }
 

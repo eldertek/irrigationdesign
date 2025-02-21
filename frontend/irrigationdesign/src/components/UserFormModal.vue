@@ -210,9 +210,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, type PropType } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { PropType } from 'vue'
+
+interface UserData {
+  first_name: string
+  last_name: string
+  email: string
+  username: string
+  company_name: string
+  role: string
+  dealer?: string
+  concessionnaire?: string
+  password?: string
+  password_confirm?: string
+}
+
+interface ApiError {
+  response?: {
+    data?: {
+      username?: string[]
+      email?: string[]
+    }
+  }
+}
 
 const props = defineProps({
   user: {
@@ -252,11 +273,11 @@ const availableRoles = computed(() => {
     return [
       { value: 'ADMIN', label: 'Administrateur' },
       { value: 'CONCESSIONNAIRE', label: 'Concessionnaire' },
-      { value: 'UTILISATEUR', label: 'Utilisateur Final' }
+      { value: 'UTILISATEUR', label: 'Client' }
     ]
   }
   return [
-    { value: 'UTILISATEUR', label: 'Utilisateur Final' }
+    { value: 'UTILISATEUR', label: 'Client' }
   ]
 })
 
@@ -265,7 +286,7 @@ const showDealerSelect = computed(() => {
   return form.role === 'UTILISATEUR'
 })
 
-const form = reactive({
+const form = reactive<UserData>({
   first_name: props.user?.first_name || '',
   last_name: props.user?.last_name || '',
   email: props.user?.email || '',
@@ -301,7 +322,7 @@ const validateForm = () => {
     }
   }
   if (form.role === 'UTILISATEUR' && !form.dealer) {
-    error.value = 'Un concessionnaire doit être sélectionné pour un utilisateur final'
+    error.value = 'Un concessionnaire doit être sélectionné pour un client'
     return false
   }
   return true
@@ -313,22 +334,24 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
-    // Simplification de la logique de soumission
-    const userData = { ...form }
+    const userData: UserData = { ...form }
     
-    if (!props.isAdmin) {
-      userData.role = 'UTILISATEUR'
-      userData.concessionnaire = props.currentDealer
+    if (props.user?.id) {
+      if (userData.password) delete userData.password
+      if (userData.password_confirm) delete userData.password_confirm
     }
 
-    if (props.user) {
-      delete userData.password
-      delete userData.password_confirm
+    if (userData.dealer) {
+      userData.concessionnaire = userData.dealer
+      delete userData.dealer
     }
 
     await emit('save', userData)
   } catch (err) {
-    error.value = 'Une erreur est survenue lors de l\'enregistrement'
+    const apiError = err as ApiError
+    error.value = apiError.response?.data?.username?.[0] || 
+                  apiError.response?.data?.email?.[0] || 
+                  'Une erreur est survenue lors de l\'enregistrement'
     console.error('Erreur lors de la sauvegarde:', err)
   } finally {
     loading.value = false

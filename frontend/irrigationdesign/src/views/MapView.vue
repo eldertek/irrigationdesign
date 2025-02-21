@@ -8,8 +8,11 @@
       <div class="absolute bottom-6 left-6 z-[1000]">
         <!-- Boutons de gestion des plans -->
         <div class="bg-white rounded-lg shadow-lg p-3 space-y-2">
-          <div class="flex items-center space-x-2 mb-2">
-            <span class="text-sm font-medium text-gray-600">Actions</span>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-600">Plans</span>
+            <span v-if="currentPlan" class="text-sm text-gray-500">
+              {{ currentPlan.nom }}
+            </span>
           </div>
           <div class="grid grid-cols-1 gap-2">
             <button
@@ -21,41 +24,46 @@
               </svg>
               Nouveau plan
             </button>
-            
             <button
               @click="showLoadPlanModal = true"
-              class="flex items-center px-4 py-2 bg-white text-primary-600 border border-primary-600 rounded-md hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
+              class="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
             >
               <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
               </svg>
               Charger un plan
             </button>
-            
             <button
-              v-if="drawingStore.currentPlanId"
+              v-if="currentPlan"
               @click="savePlan"
               class="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200"
-              :class="{ 'opacity-50 cursor-not-allowed': !drawingStore.hasUnsavedChanges }"
-              :disabled="!drawingStore.hasUnsavedChanges"
+              :disabled="saving"
             >
-              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg v-if="!saving" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
               </svg>
-              Sauvegarder
-            </button>
-            
-            <button
-              @click="goToPlans"
-              class="flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200"
-            >
-              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+              <svg v-else class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Liste des plans
+              {{ saving ? 'Sauvegarde...' : 'Enregistrer' }}
             </button>
           </div>
+          <!-- Indicateur de dernière sauvegarde -->
+          <div v-if="currentPlan?.date_modification" class="text-xs text-gray-500 mt-2">
+            Dernière sauvegarde : {{ formatLastSaved(currentPlan.date_modification) }}
+          </div>
         </div>
+      </div>
+
+      <!-- Notification de sauvegarde réussie -->
+      <div v-if="showSaveSuccess" 
+           class="fixed bottom-6 right-6 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-lg z-[2000] flex items-center transform transition-all duration-300 ease-in-out"
+           role="alert">
+        <svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+        <span class="font-medium">Plan sauvegardé avec succès</span>
       </div>
 
       <!-- Outils de dessin -->
@@ -105,17 +113,17 @@
                 placeholder="Décrivez votre plan"
               ></textarea>
             </div>
-            <div class="flex justify-end space-x-3 pt-4">
+            <div class="flex justify-end space-x-3">
               <button
                 type="button"
                 @click="showNewPlanModal = false"
-                class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
               >
                 Annuler
               </button>
               <button
                 type="submit"
-                class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
+                class="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700"
               >
                 Créer
               </button>
@@ -157,14 +165,6 @@
               </button>
             </div>
           </div>
-          <div class="mt-6 flex justify-end">
-            <button
-              @click="showLoadPlanModal = false"
-              class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
-            >
-              Fermer
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -172,7 +172,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch, onBeforeUnmount } from 'vue';
+import { onMounted, ref, watch, onBeforeUnmount, onUnmounted } from 'vue';
 import type { LatLngTuple, LatLng } from 'leaflet';
 import * as L from 'leaflet';
 import * as turf from '@turf/turf';
@@ -182,9 +182,13 @@ import { useMapState } from '../composables/useMapState';
 import { useIrrigationStore } from '@/stores/irrigation';
 import { useDrawingStore } from '@/stores/drawing';
 import { useRouter } from 'vue-router';
+import type { Plan } from '@/stores/irrigation';
+import type { DrawingElement, ShapeData } from '@/types/drawing';
+import { CircleArc } from '@/utils/CircleArc';
 
 const mapContainer = ref<HTMLElement | null>(null);
 const irrigationStore = useIrrigationStore();
+const drawingStore = useDrawingStore();
 const shapes = ref<any[]>([]);
 const selectedShapeInfo = ref<any>(null);
 const shapeOptions = ref<any>({});
@@ -201,23 +205,28 @@ const {
   initMap: initDrawing,
   setDrawingTool,
   updateShapeStyle,
-  updateShapeProperties
+  updateShapeProperties: updateShapeProps,
+  featureGroup
 } = useMapDrawing();
 
 const {
   initMap: initState
 } = useMapState();
 
-const drawingStore = useDrawingStore();
 const router = useRouter();
 
 // Ajout des refs pour les modals
 const showNewPlanModal = ref(false);
 const showLoadPlanModal = ref(false);
+const currentPlan = ref<Plan | null>(null);
 const newPlanData = ref({
   nom: '',
   description: ''
 });
+
+// État pour la sauvegarde
+const saving = ref(false);
+const showSaveSuccess = ref(false);
 
 // Fonction pour sauvegarder la position dans les cookies
 function saveMapPosition(mapInstance: L.Map) {
@@ -246,7 +255,7 @@ function getMapPosition(): { lat: number; lng: number; zoom: number } | null {
   return null;
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (mapContainer.value) {
     // Récupérer la dernière position sauvegardée ou utiliser la position par défaut
     const savedPosition = getMapPosition();
@@ -292,6 +301,15 @@ onMounted(() => {
         }
       }) as EventListener);
     }
+
+    await irrigationStore.fetchPlans();
+  }
+});
+
+// Surveiller les changements dans le dessin
+watch(() => drawingStore.hasUnsavedChanges, (newValue) => {
+  if (newValue && currentPlan.value) {
+    irrigationStore.markUnsavedChanges();
   }
 });
 
@@ -799,22 +817,122 @@ function calculateShapeProperties(layer: L.Layer): {
 // Fonction pour créer un nouveau plan
 async function createNewPlan() {
   try {
-    // Créer le plan
     const plan = await irrigationStore.createPlan(newPlanData.value);
-    // Définir comme plan courant dans le store de dessin
+    currentPlan.value = plan;
+    irrigationStore.setCurrentPlan(plan);
     drawingStore.setCurrentPlan(plan.id);
-    // Réinitialiser le formulaire
-    newPlanData.value = { nom: '', description: '' };
     showNewPlanModal.value = false;
+    newPlanData.value = { nom: '', description: '' };
   } catch (error) {
     console.error('Erreur lors de la création du plan:', error);
   }
 }
 
+// Fonction pour nettoyer la carte
+function clearMap() {
+  if (featureGroup.value) {
+    featureGroup.value.clearLayers();
+  }
+  shapes.value = [];
+  selectedShape.value = null;
+  selectedShapeInfo.value = null;
+}
+
 // Fonction pour charger un plan existant
 async function loadPlan(planId: number) {
   try {
+    clearMap();
+    
     await drawingStore.loadPlanElements(planId);
+    const plan = irrigationStore.getPlanById(planId);
+    
+    if (plan) {
+      currentPlan.value = plan;
+      irrigationStore.setCurrentPlan(plan);
+      drawingStore.setCurrentPlan(plan.id);
+
+      // Ajouter les éléments à la carte
+      drawingStore.getCurrentElements.forEach(element => {
+        if (!featureGroup.value || !element.data) return;
+
+        let layer;
+        const { style = {}, ...otherData } = element.data;
+
+        // Créer la couche appropriée selon le type de forme
+        switch (element.type_forme) {
+          case 'CERCLE':
+            layer = L.circle(
+              [otherData.center[1], otherData.center[0]],
+              {
+                ...style,
+                radius: otherData.radius
+              }
+            );
+            break;
+
+          case 'RECTANGLE':
+            layer = L.rectangle([
+              [otherData.bounds.southWest[1], otherData.bounds.southWest[0]],
+              [otherData.bounds.northEast[1], otherData.bounds.northEast[0]]
+            ], style);
+            break;
+
+          case 'DEMI_CERCLE':
+            // Utiliser CircleArc ou une autre implémentation de demi-cercle
+            layer = new CircleArc(
+              [otherData.center[1], otherData.center[0]],
+              otherData.radius,
+              otherData.startAngle,
+              otherData.endAngle,
+              style
+            );
+            break;
+
+          case 'LIGNE':
+            layer = L.polyline(
+              otherData.points.map((p: number[]) => [p[1], p[0]]),
+              style
+            );
+            break;
+
+          case 'TEXTE':
+            const textIcon = L.divIcon({
+              html: `<div class="text-annotation" style="font-size: ${style.fontSize || '14px'}">${otherData.content}</div>`,
+              className: 'text-container'
+            });
+            layer = L.marker([otherData.position[1], otherData.position[0]], {
+              icon: textIcon,
+              ...style
+            });
+            break;
+        }
+
+        if (layer) {
+          // Ajouter les propriétés à la couche
+          layer.properties = {
+            type: element.type_forme,
+            style: style,
+            ...otherData
+          };
+
+          // Ajouter la couche au groupe
+          featureGroup.value.addLayer(layer);
+
+          // Stocker la référence
+          shapes.value.push({
+            id: element.id,
+            type: element.type_forme,
+            layer: layer,
+            properties: layer.properties
+          });
+
+          // Appliquer la rotation si nécessaire
+          if (otherData.rotation && typeof layer.setRotation === 'function') {
+            layer.setRotation(otherData.rotation);
+          }
+        }
+      });
+    }
     showLoadPlanModal.value = false;
   } catch (error) {
     console.error('Erreur lors du chargement du plan:', error);
@@ -823,18 +941,147 @@ async function loadPlan(planId: number) {
 
 // Fonction pour sauvegarder le plan courant
 async function savePlan() {
+  if (!currentPlan.value || !featureGroup.value) {
+    console.warn('Aucun plan actif ou groupe de formes à sauvegarder');
+    return;
+  }
+
+  saving.value = true;
   try {
-    if (drawingStore.hasUnsavedChanges) {
-      await drawingStore.saveToPlan();
-    }
+    const elements = [];
+    
+    featureGroup.value.eachLayer((layer: any) => {
+      // Extraire les données de base de la forme
+      const baseData = {
+        style: {
+          color: layer.options?.color || '#3388ff',
+          fillColor: layer.options?.fillColor || '#3388ff',
+          fillOpacity: layer.options?.fillOpacity || 0.2,
+          weight: layer.options?.weight || 3,
+          opacity: layer.options?.opacity || 1
+        }
+      };
+
+      let type_forme;
+      let data;
+
+      if (layer instanceof L.Circle) {
+        type_forme = 'CERCLE';
+        data = {
+          ...baseData,
+          center: [layer.getLatLng().lng, layer.getLatLng().lat],
+          radius: layer.getRadius()
+        };
+      } else if (layer instanceof L.Rectangle) {
+        type_forme = 'RECTANGLE';
+        const bounds = layer.getBounds();
+        data = {
+          ...baseData,
+          bounds: {
+            southWest: [bounds.getSouthWest().lng, bounds.getSouthWest().lat],
+            northEast: [bounds.getNorthEast().lng, bounds.getNorthEast().lat]
+          }
+        };
+      } else if (layer.properties?.type === 'Semicircle') {
+        type_forme = 'DEMI_CERCLE';
+        data = {
+          ...baseData,
+          center: [layer.getLatLng().lng, layer.getLatLng().lat],
+          radius: layer.getRadius(),
+          startAngle: layer.properties.style.startAngle || 0,
+          endAngle: layer.properties.style.stopAngle || 180
+        };
+      } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+        type_forme = 'LIGNE';
+        data = {
+          ...baseData,
+          points: layer.getLatLngs().map((ll: L.LatLng) => [ll.lng, ll.lat])
+        };
+      } else if (layer.properties?.type === 'text') {
+        type_forme = 'TEXTE';
+        data = {
+          ...baseData,
+          position: [layer.getLatLng().lng, layer.getLatLng().lat],
+          content: layer.properties.text,
+          style: {
+            ...layer.properties.style,
+            fontSize: layer.properties.style.fontSize
+          }
+        };
+      }
+
+      if (type_forme && data) {
+        elements.push({
+          id: layer.id,
+          type_forme,
+          data: {
+            ...data,
+            rotation: layer.properties?.rotation || 0
+          }
+        });
+      }
+    });
+
+    // Mettre à jour le store avec les éléments nettoyés
+    drawingStore.elements = elements;
+    
+    // Sauvegarder les éléments de dessin
+    await drawingStore.saveToPlan(currentPlan.value.id);
+    
+    // Afficher la notification de succès
+    showSaveSuccess.value = true;
+    setTimeout(() => {
+      showSaveSuccess.value = false;
+    }, 3000);
+
   } catch (error) {
     console.error('Erreur lors de la sauvegarde du plan:', error);
+  } finally {
+    saving.value = false;
   }
 }
 
 // Fonction pour aller à la liste des plans
 function goToPlans() {
   router.push('/plans');
+}
+
+// Nettoyer lors du démontage du composant
+onUnmounted(() => {
+  irrigationStore.clearCurrentPlan();
+  drawingStore.clearCurrentPlan();
+});
+
+// Fonction pour mettre à jour les propriétés d'une forme
+function updateShapeProperties(properties: any) {
+  updateShapeProps(properties);
+}
+
+// Fonction pour formater la date de dernière sauvegarde
+function formatLastSaved(date: string): string {
+  try {
+    // Créer un objet Date à partir de la chaîne ISO
+    const dateObj = new Date(date);
+    
+    // Vérifier si la date est valide
+    if (isNaN(dateObj.getTime())) {
+      console.error('Date invalide reçue:', date);
+      return 'Date invalide';
+    }
+
+    // Formater la date en utilisant l'API Intl avec la timezone de Paris
+    return new Intl.DateTimeFormat('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Paris'
+    }).format(dateObj);
+  } catch (error) {
+    console.error('Erreur lors du formatage de la date:', error);
+    return 'Date invalide';
+  }
 }
 </script>
 
@@ -1145,5 +1392,45 @@ function goToPlans() {
   max-height: calc(100vh - 40px);
   overflow-y: auto;
   z-index: 1000;
+}
+
+/* Styles pour le texte */
+.text-container {
+  background: transparent !important;
+  border: none !important;
+}
+
+.text-annotation {
+  display: inline-block;
+  cursor: text;
+  white-space: nowrap;
+  outline: none;
+  user-select: text;
+  min-width: 100px;
+  transition: all 0.2s ease;
+  transform-origin: center;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.text-annotation:focus {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+/* Maintenir la lisibilité lors du zoom */
+.leaflet-container .text-annotation {
+  transform-origin: center;
+  transform: scale(1);
+  will-change: transform;
+}
+
+/* Styles pour le conteneur de texte en édition */
+.text-annotation.editing {
+  z-index: 1000;
+  position: relative;
+}
+
+/* Styles pour le texte sélectionné */
+.text-annotation::selection {
+  background: rgba(59, 130, 246, 0.2);
 }
 </style> 

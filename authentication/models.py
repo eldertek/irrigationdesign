@@ -9,7 +9,7 @@ class Utilisateur(AbstractUser):
     class Role(models.TextChoices):
         ADMIN = 'ADMIN', 'Administrateur'
         CONCESSIONNAIRE = 'CONCESSIONNAIRE', 'Concessionnaire'
-        UTILISATEUR = 'UTILISATEUR', 'Utilisateur Final'
+        UTILISATEUR = 'UTILISATEUR', 'Client'
 
     role = models.CharField(
         max_length=20,
@@ -46,6 +46,12 @@ class Utilisateur(AbstractUser):
     class Meta:
         verbose_name = 'Utilisateur'
         verbose_name_plural = 'Utilisateurs'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['email'],
+                name='unique_email'
+            )
+        ]
 
     def __str__(self):
         return f"{self.get_full_name()} ({self.get_role_display()})"

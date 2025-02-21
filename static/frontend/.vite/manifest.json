@@ -5,8 +5,6 @@
     "src": "index.html",
     "isEntry": true,
     "dynamicImports": [
-      "src/views/PlansView.vue",
-      "src/views/ClientListView.vue",
       "src/views/ProfileView.vue",
       "src/views/ForgotPasswordView.vue",
       "src/views/ResetPasswordView.vue",
@@ -14,15 +12,6 @@
     ],
     "css": [
       "assets/index.css"
-    ]
-  },
-  "src/views/ClientListView.vue": {
-    "file": "assets/ClientListView.js",
-    "name": "ClientListView",
-    "src": "src/views/ClientListView.vue",
-    "isDynamicEntry": true,
-    "imports": [
-      "index.html"
     ]
   },
   "src/views/ForgotPasswordView.vue": {
@@ -38,15 +27,6 @@
     "file": "assets/NotFoundView.js",
     "name": "NotFoundView",
     "src": "src/views/NotFoundView.vue",
-    "isDynamicEntry": true,
-    "imports": [
-      "index.html"
-    ]
-  },
-  "src/views/PlansView.vue": {
-    "file": "assets/PlansView.js",
-    "name": "PlansView",
-    "src": "src/views/PlansView.vue",
     "isDynamicEntry": true,
     "imports": [
       "index.html"

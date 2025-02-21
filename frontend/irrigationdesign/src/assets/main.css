@@ -55,3 +55,31 @@
     @apply flex-1 relative;
   }
 }
+
+.text-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.text-annotation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: all;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow: hidden;
+  min-width: 50px;
+  min-height: 20px;
+  user-select: none;
+  cursor: move;
+}
+
+.text-annotation.editing {
+  user-select: text;
+  cursor: text;
+  outline: none;
+}

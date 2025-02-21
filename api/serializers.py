@@ -57,7 +57,7 @@ class PlanSerializer(serializers.ModelSerializer):
         model = Plan
         fields = [
             'id', 'nom', 'description', 'date_creation', 
-            'date_modification', 'createur'
+            'date_modification', 'createur', 'preferences'
         ]
         read_only_fields = ['id', 'date_creation', 'date_modification', 'createur']
 
@@ -68,19 +68,35 @@ class PlanSerializer(serializers.ModelSerializer):
 class FormeGeometriqueSerializer(serializers.ModelSerializer):
     class Meta:
         model = FormeGeometrique
-        fields = ['id', 'plan', 'type_forme', 'geometrie', 'surface', 'proprietes']
+        fields = ['id', 'plan', 'type_forme', 'data']
         read_only_fields = ['id']
 
-    def validate(self, data):
-        """
-        Vérifie que l'utilisateur a le droit de modifier ce plan
-        """
-        request = self.context.get('request')
-        if request and request.user:
-            plan = data.get('plan')
-            if plan and plan.createur != request.user and request.user.role not in ['admin', 'dealer']:
-                raise serializers.ValidationError("Vous n'avez pas la permission de modifier ce plan")
-        return data
+    def validate(self, attrs):
+        """Valide les données selon le type de forme."""
+        type_forme = attrs.get('type_forme')
+        data = attrs.get('data', {})
+
+        if not data:
+            raise serializers.ValidationError("Les données de la forme sont requises")
+
+        # Validation spécifique selon le type de forme
+        if type_forme == FormeGeometrique.TypeForme.CERCLE:
+            if 'center' not in data or 'radius' not in data:
+                raise serializers.ValidationError("Un cercle nécessite un centre et un rayon")
+        elif type_forme == FormeGeometrique.TypeForme.RECTANGLE:
+            if 'bounds' not in data:
+                raise serializers.ValidationError("Un rectangle nécessite des limites (bounds)")
+        elif type_forme == FormeGeometrique.TypeForme.DEMI_CERCLE:
+            if not all(k in data for k in ['center', 'radius', 'startAngle', 'endAngle']):
+                raise serializers.ValidationError("Un demi-cercle nécessite un centre, un rayon et des angles")
+        elif type_forme == FormeGeometrique.TypeForme.LIGNE:
+            if 'points' not in data:
+                raise serializers.ValidationError("Une ligne nécessite des points")
+        elif type_forme == FormeGeometrique.TypeForme.TEXTE:
+            if not all(k in data for k in ['position', 'content']):
+                raise serializers.ValidationError("Un texte nécessite une position et un contenu")
+
+        return attrs
 
 class ConnexionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -121,6 +137,6 @@ class PlanDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'nom', 'description', 'date_creation', 
             'date_modification', 'createur', 'formes',
-            'connexions', 'annotations'
+            'connexions', 'annotations', 'preferences'
         ]
         read_only_fields = ['id', 'date_creation', 'date_modification', 'createur'] 
