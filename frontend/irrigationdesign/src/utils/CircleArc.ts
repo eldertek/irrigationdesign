@@ -6,67 +6,59 @@ export class CircleArc extends L.Polygon {
   private startAngle: number;
   private stopAngle: number;
   private numPoints: number;
-  private map: L.Map | null;
 
   constructor(
-    map: L.Map,
     center: L.LatLng,
     radius: number,
     startAngle: number = 0,
     stopAngle: number = 180,
     numPoints: number = 64
   ) {
-    const points = CircleArc.calculateArcPoints(
-      map,
-      center,
-      radius,
-      startAngle,
-      stopAngle,
-      numPoints
-    );
-    super([points]);
+    // Initialiser avec un tableau vide de points
+    super([[]]);
 
-    this.map = map;
     this.center = center;
     this.radius = radius;
     this.startAngle = startAngle;
     this.stopAngle = stopAngle;
     this.numPoints = numPoints;
+
+    // Mettre à jour la géométrie une fois que la couche est ajoutée à la carte
+    this.on('add', () => {
+      if (this._map) {
+        this.updateGeometry();
+      }
+    });
   }
 
-  static calculateArcPoints(
-    map: L.Map,
-    center: L.LatLng,
-    radius: number,
-    startAngle: number,
-    stopAngle: number,
-    numPoints: number
-  ): L.LatLng[] {
+  private calculateArcPoints(): L.LatLng[] {
+    if (!this._map) return [];
+
     const points: L.LatLng[] = [];
-    const angleRange = stopAngle - startAngle;
+    const angleRange = this.stopAngle - this.startAngle;
     
     // Ajouter le centre comme premier point
-    points.push(center);
+    points.push(this.center);
 
     // Convertir le centre en pixels
-    const centerPoint = map.latLngToLayerPoint(center);
+    const centerPoint = this._map.latLngToLayerPoint(this.center);
 
     // Calculer les points de l'arc en pixels pour éviter la déformation
-    for (let i = 0; i <= numPoints; i++) {
-      const angle = startAngle + (angleRange * i) / numPoints;
+    for (let i = 0; i <= this.numPoints; i++) {
+      const angle = this.startAngle + (angleRange * i) / this.numPoints;
       const rad = (angle * Math.PI) / 180;
       
       // Calculer le point en pixels
-      const x = centerPoint.x + (radius * Math.cos(rad));
-      const y = centerPoint.y + (radius * Math.sin(rad));
+      const x = centerPoint.x + (this.radius * Math.cos(rad));
+      const y = centerPoint.y + (this.radius * Math.sin(rad));
       
       // Reconvertir en coordonnées géographiques
-      const latLng = map.layerPointToLatLng(new L.Point(x, y));
+      const latLng = this._map.layerPointToLatLng(new L.Point(x, y));
       points.push(latLng);
     }
 
     // Fermer le polygone en revenant au centre
-    points.push(center);
+    points.push(this.center);
 
     return points;
   }
@@ -126,16 +118,8 @@ export class CircleArc extends L.Polygon {
   }
 
   private updateGeometry(): void {
-    if (!this.map) return;
-
-    const points = CircleArc.calculateArcPoints(
-      this.map,
-      this.center,
-      this.radius,
-      this.startAngle,
-      this.stopAngle,
-      this.numPoints
-    );
+    if (!this._map) return;
+    const points = this.calculateArcPoints();
     this.setLatLngs([points]);
   }
 } 

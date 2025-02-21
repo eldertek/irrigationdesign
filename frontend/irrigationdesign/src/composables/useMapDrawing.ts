@@ -242,149 +242,207 @@ export function useMapDrawing() {
         map.value.pm.enableDraw('Circle');
         break;
       case 'Semicircle':
-        let drawingState = 'center'; // États: 'center', 'radius', 'orientation', 'opening'
+        let drawingState = 'center';
         let center: L.LatLng | null = null;
         let radius = 0;
         let tempArc: CircleArc | null = null;
         let orientation = 0;
-        let openingAngle = 180; // Angle d'ouverture par défaut
+        let openingAngle = 180;
+        let controlPoints: L.CircleMarker[] = [];
 
-        // Désactiver le mode de dessin par défaut de Leaflet.PM
+        // Désactiver le mode de dessin par défaut
         map.value.pm.disableDraw();
+        map.value.dragging.disable();
 
-        // Afficher le message d'aide initial
+        // Créer et afficher le message d'aide
         const helpMsg = L.DomUtil.create('div', 'drawing-help-message');
         helpMsg.innerHTML = 'Cliquez pour placer le centre du demi-cercle';
         document.body.appendChild(helpMsg);
 
-        // Gestionnaire de clic pour le centre
+        // Fonction utilitaire pour créer un point de contrôle
+        const createControlPoint = (position: L.LatLng, color: string = '#2563EB'): L.CircleMarker => {
+          return L.circleMarker(position, {
+            radius: 6,
+            color: color,
+            fillColor: color,
+            fillOpacity: 1,
+            weight: 2,
+            className: 'control-point'
+          });
+        };
+
+        // Fonction pour mettre à jour les points de contrôle
+        const updateControlPoints = () => {
+          if (!center || !tempArc || !map.value) return;
+
+          // Supprimer les anciens points de contrôle
+          controlPoints.forEach(point => point.remove());
+          controlPoints = [];
+
+          // Calculer les positions des points de contrôle
+          const startRad = (orientation * Math.PI) / 180;
+          const endRad = ((orientation + openingAngle) * Math.PI) / 180;
+          
+          // Point de contrôle pour le début de l'arc
+          const startPoint = L.latLng(
+            center.lat + (radius / 111319.9) * Math.sin(startRad),
+            center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(startRad)
+          );
+          
+          // Point de contrôle pour la fin de l'arc
+          const endPoint = L.latLng(
+            center.lat + (radius / 111319.9) * Math.sin(endRad),
+            center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(endRad)
+          );
+
+          // Créer et ajouter les points de contrôle
+          const startMarker = createControlPoint(startPoint, '#2563EB');
+          const endMarker = createControlPoint(endPoint, '#DC2626');
+          
+          startMarker.addTo(map.value);
+          endMarker.addTo(map.value);
+          
+          controlPoints.push(startMarker, endMarker);
+
+          // Ajouter les gestionnaires d'événements pour le glisser-déposer
+          startMarker.on('mousedown', () => {
+            const onMouseMove = (e: L.LeafletMouseEvent) => {
+              if (!center || !tempArc) return;
+              const angle = Math.atan2(
+                e.latlng.lat - center.lat,
+                e.latlng.lng - center.lng
+              ) * (180 / Math.PI);
+              orientation = angle;
+              tempArc.setAngles(orientation, orientation + openingAngle);
+              updateControlPoints();
+            };
+
+            const onMouseUp = () => {
+              map.value?.off('mousemove', onMouseMove);
+              document.removeEventListener('mouseup', onMouseUp);
+            };
+
+            map.value?.on('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+          });
+
+          endMarker.on('mousedown', () => {
+            const onMouseMove = (e: L.LeafletMouseEvent) => {
+              if (!center || !tempArc) return;
+              const angle = Math.atan2(
+                e.latlng.lat - center.lat,
+                e.latlng.lng - center.lng
+              ) * (180 / Math.PI);
+              openingAngle = ((angle - orientation + 360) % 360);
+              if (openingAngle > 360) openingAngle = 360;
+              tempArc.setAngles(orientation, orientation + openingAngle);
+              updateControlPoints();
+            };
+
+            const onMouseUp = () => {
+              map.value?.off('mousemove', onMouseMove);
+              document.removeEventListener('mouseup', onMouseUp);
+            };
+
+            map.value?.on('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+          });
+        };
+
+        // Gestionnaire pour le premier clic (centre)
         const onFirstClick = (e: L.LeafletMouseEvent) => {
           if (!map.value) return;
           center = e.latlng;
           drawingState = 'radius';
-          
+
+          // Ajouter un marqueur pour le centre
+          const centerMarker = createControlPoint(center, '#059669');
+          centerMarker.addTo(map.value);
+
           // Créer l'arc temporaire
-          tempArc = new CircleArc(map.value, center, 0, 0, 180);
-          tempArc.addTo(map.value);
-          
+          tempArc = new CircleArc(center, 0, 0, 180);
+          if (map.value) {
+            featureGroup.value?.addLayer(tempArc);
+          }
+
           // Mettre à jour le message d'aide
-          helpMsg.innerHTML = 'Déplacez la souris pour définir le rayon, cliquez pour valider';
-          
-          // Gestionnaire pour le rayon
+          helpMsg.innerHTML = 'Cliquez pour définir le rayon';
+
+          // Gestionnaire pour le mouvement de la souris (prévisualisation)
           const onMouseMove = (e: L.LeafletMouseEvent) => {
             if (center && tempArc) {
               radius = center.distanceTo(e.latlng);
               tempArc.setRadius(radius);
+              tempArc.setAngles(orientation, orientation + openingAngle);
             }
           };
-          
-          // Gestionnaire pour valider le rayon
+
+          // Gestionnaire pour le deuxième clic (rayon)
           const onSecondClick = (e: L.LeafletMouseEvent) => {
-            if (!map.value) return;
-            drawingState = 'orientation';
-            
+            if (!map.value || !center || !tempArc) return;
+            drawingState = 'adjust';
+
+            // Calculer le rayon final
+            radius = center.distanceTo(e.latlng);
+            tempArc.setRadius(radius);
+
             // Mettre à jour le message d'aide
-            helpMsg.innerHTML = 'Déplacez la souris pour orienter le demi-cercle, cliquez pour valider';
-            
+            helpMsg.innerHTML = 'Ajustez l\'orientation et l\'angle d\'ouverture en déplaçant les points bleu et rouge, puis cliquez pour terminer';
+
             // Supprimer les gestionnaires précédents
             map.value.off('mousemove', onMouseMove);
             map.value.off('click', onSecondClick);
-            
-            // Gestionnaire pour l'orientation
-            const onOrientationMove = (e: L.LeafletMouseEvent) => {
-              if (center && tempArc) {
-                orientation = Math.atan2(
-                  e.latlng.lat - center.lat,
-                  e.latlng.lng - center.lng
-                ) * (180 / Math.PI);
-                
-                tempArc.setAngles(orientation, orientation + openingAngle);
-              }
-            };
-            
-            // Gestionnaire pour valider l'orientation
-            const onThirdClick = (e: L.LeafletMouseEvent) => {
-              if (!map.value) return;
-              drawingState = 'opening';
-              
-              // Mettre à jour le message d'aide
-              helpMsg.innerHTML = 'Déplacez la souris pour ajuster l\'angle d\'ouverture, cliquez pour terminer';
-              
-              // Supprimer les gestionnaires précédents
-              map.value.off('mousemove', onOrientationMove);
-              map.value.off('click', onThirdClick);
-              
-              // Point de référence pour le calcul de l'angle d'ouverture
-              const startPoint = e.latlng;
-              
-              // Gestionnaire pour l'angle d'ouverture
-              const onOpeningMove = (e: L.LeafletMouseEvent) => {
-                if (center && tempArc) {
-                  // Calculer l'angle entre le point de départ et la position actuelle
-                  const startAngle = Math.atan2(
-                    startPoint.lat - center.lat,
-                    startPoint.lng - center.lng
-                  ) * (180 / Math.PI);
-                  
-                  const currentAngle = Math.atan2(
-                    e.latlng.lat - center.lat,
-                    e.latlng.lng - center.lng
-                  ) * (180 / Math.PI);
-                  
-                  // Calculer l'angle d'ouverture (entre 0° et 360°)
-                  openingAngle = Math.abs(currentAngle - startAngle);
-                  if (openingAngle > 360) openingAngle = 360;
-                  
-                  // Mettre à jour l'arc
-                  tempArc.setAngles(orientation, orientation + openingAngle);
+
+            // Ajouter les points de contrôle
+            updateControlPoints();
+
+            // Gestionnaire pour le clic final
+            const onFinalClick = () => {
+              if (!map.value || !tempArc) return;
+
+              // Nettoyer
+              map.value.off('click', onFinalClick);
+              map.value.dragging.enable();
+              document.querySelector('.drawing-help-message')?.remove();
+              controlPoints.forEach(point => point.remove());
+
+              // Configurer les propriétés finales
+              tempArc.properties = {
+                type: 'Semicircle',
+                radius,
+                orientation,
+                openingAngle,
+                style: {
+                  fillColor: '#3B82F6',
+                  fillOpacity: 0.2,
+                  color: '#2563EB',
+                  weight: 2,
+                  startAngle: orientation,
+                  stopAngle: orientation + openingAngle
                 }
               };
-              
-              // Gestionnaire pour finaliser la forme
-              const onFinalClick = () => {
-                if (!map.value || !tempArc) return;
-                
-                // Nettoyer
-                map.value.off('mousemove', onOpeningMove);
-                map.value.off('click', onFinalClick);
-                document.querySelector('.drawing-help-message')?.remove();
-                
-                // Configurer les propriétés finales
-                tempArc.properties = {
-                  type: 'Semicircle',
-                  radius,
-                  orientation,
-                  openingAngle,
-                  style: {
-                    fillColor: '#3B82F6',
-                    fillOpacity: 0.2,
-                    color: '#2563EB',
-                    weight: 2,
-                    startAngle: orientation,
-                    stopAngle: orientation + openingAngle
-                  }
-                };
-                
-                // Émettre l'événement de création
-                map.value.fire('pm:create', { 
-                  layer: tempArc,
-                  shape: 'Semicircle',
-                  workingLayer: tempArc
-                });
-              };
-              
-              map.value.on('mousemove', onOpeningMove);
-              map.value.once('click', onFinalClick);
+
+              // Émettre l'événement de création
+              map.value.fire('pm:create', {
+                layer: tempArc,
+                shape: 'Semicircle',
+                workingLayer: tempArc
+              });
+
+              // Activer le mode édition
+              tempArc.pm.enable({
+                allowSelfIntersection: false,
+                preventMarkerRemoval: true
+              });
             };
-            
-            map.value.on('mousemove', onOrientationMove);
-            map.value.once('click', onThirdClick);
+
+            map.value.once('click', onFinalClick);
           };
-          
+
           map.value.on('mousemove', onMouseMove);
           map.value.once('click', onSecondClick);
         };
-        
+
         map.value.once('click', onFirstClick);
         break;
       case 'Rectangle':
