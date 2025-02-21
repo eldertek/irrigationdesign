@@ -40,9 +40,6 @@
                   <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                     Nombre de plans
                   </th>
-                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Dernier plan
-                  </th>
                   <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
                     <span class="sr-only">Actions</span>
                   </th>
@@ -50,12 +47,12 @@
               </thead>
               <tbody class="divide-y divide-gray-200 bg-white">
                 <tr v-if="loading" class="animate-pulse">
-                  <td colspan="6" class="py-4 px-6">
+                  <td colspan="5" class="py-4 px-6">
                     <div class="h-4 bg-gray-200 rounded w-3/4"></div>
                   </td>
                 </tr>
                 <tr v-else-if="clients.length === 0">
-                  <td colspan="6" class="py-4 px-6 text-center text-gray-500">
+                  <td colspan="5" class="py-4 px-6 text-center text-gray-500">
                     Aucun client trouvé
                   </td>
                 </tr>
@@ -85,24 +82,9 @@
                   </td>
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                     <div class="flex items-center">
-                      <span class="font-medium">{{ client.plans_count }}</span>
-                      <span v-if="client.plans_count > 0" class="text-gray-400 ml-1">plan{{ client.plans_count > 1 ? 's' : '' }}</span>
-                      <span v-else class="text-gray-400">Aucun plan</span>
+                      <span class="font-medium">{{ client.plans_count || 0 }}</span>
+                      <span class="text-gray-400 ml-1">plan{{ (client.plans_count || 0) > 1 ? 's' : '' }}</span>
                     </div>
-                  </td>
-                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    <div v-if="client.last_plan_date" class="flex items-center">
-                      <button
-                        @click="viewPlan(client)"
-                        class="text-primary-600 hover:text-primary-900 hover:underline focus:outline-none inline-flex items-center"
-                      >
-                        {{ formatDate(client.last_plan_date) }}
-                        <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </button>
-                    </div>
-                    <span v-else>-</span>
                   </td>
                   <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                     <button

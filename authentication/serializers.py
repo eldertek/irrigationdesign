@@ -14,6 +14,7 @@ class UserSerializer(serializers.ModelSerializer):
     permissions = serializers.SerializerMethodField()
     user_type = serializers.SerializerMethodField()
     dealer = serializers.PrimaryKeyRelatedField(source='concessionnaire', queryset=User.objects.filter(role='CONCESSIONNAIRE'), required=False)
+    plans_count = serializers.SerializerMethodField()
     
     class Meta:
         model = User
@@ -21,7 +22,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name',
             'password', 'old_password', 'role', 'concessionnaire', 'dealer',
             'dealer_name', 'company_name', 'must_change_password', 'phone',
-            'full_name', 'is_active', 'permissions', 'user_type'
+            'full_name', 'is_active', 'permissions', 'user_type', 'plans_count'
         ]
         read_only_fields = ['id']
         extra_kwargs = {
@@ -71,6 +72,10 @@ class UserSerializer(serializers.ModelSerializer):
             'UTILISATEUR': 'client'
         }
         return role_mapping.get(obj.role, 'client')  # Default to 'client' if role is not found
+
+    def get_plans_count(self, obj):
+        """Retourne le nombre de plans de l'utilisateur."""
+        return obj.plans.count()
 
     def validate_password(self, value):
         """Valide le mot de passe selon les règles de Django."""

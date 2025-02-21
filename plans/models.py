@@ -23,6 +23,12 @@ class Plan(models.Model):
         verbose_name='Préférences de dessin',
         help_text='Stocke les préférences de dessin (type de trait, couleurs, etc.)'
     )
+    elements = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name='Éléments du plan',
+        help_text='Stocke les éléments du plan (formes, connexions, etc.)'
+    )
 
     class Meta:
         verbose_name = 'Plan'

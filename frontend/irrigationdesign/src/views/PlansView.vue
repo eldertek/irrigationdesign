@@ -115,11 +115,11 @@
                   <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                     Description
                   </th>
-                  <th v-if="authStore.isAdmin || authStore.isDealer" scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                     Client
                   </th>
-                  <th v-if="authStore.isAdmin" scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Concessionnaire
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    {{ authStore.isAdmin ? 'Concession' : 'Entreprise' }}
                   </th>
                   <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                     Créé le
@@ -134,7 +134,7 @@
               </thead>
               <tbody class="divide-y divide-gray-200 bg-white">
                 <tr v-if="otherPlans.length === 0">
-                  <td :colspan="getColspan" class="py-4 px-6 text-center text-gray-500">
+                  <td colspan="7" class="py-4 px-6 text-center text-gray-500">
                     {{ authStore.isAdmin ? 'Aucun plan client disponible' : 'Aucun plan de vos clients disponible' }}
                   </td>
                 </tr>
@@ -145,32 +145,23 @@
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                     {{ plan.description || '-' }}
                   </td>
-                  <td v-if="authStore.isAdmin || authStore.isDealer" class="px-3 py-4 text-sm text-gray-900">
+                  <td class="px-3 py-4 text-sm text-gray-900">
                     <div class="flex items-center">
-                      <div class="ml-3">
-                        <div class="font-medium">{{ formatUserName(plan.createur) }}</div>
-                        <div class="text-gray-500 text-xs">
-                          {{ plan.createur.email }}
-                          <span v-if="plan.createur.company_name" class="text-gray-400">
-                            ({{ plan.createur.company_name }})
+                      <div class="h-8 w-8 flex-shrink-0">
+                        <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
+                          <span class="text-primary-700 font-medium text-sm">
+                            {{ getInitials(plan.createur) }}
                           </span>
                         </div>
+                      </div>
+                      <div class="ml-3">
+                        <div class="font-medium">{{ formatUserName(plan.createur) }}</div>
+                        <div class="text-gray-500 text-xs">{{ plan.createur.email }}</div>
                       </div>
                     </div>
                   </td>
-                  <td v-if="authStore.isAdmin" class="px-3 py-4 text-sm text-gray-900">
-                    <div v-if="plan.concessionnaire" class="flex items-center">
-                      <div class="ml-3">
-                        <div class="font-medium">{{ formatUserName(plan.concessionnaire) }}</div>
-                        <div class="text-gray-500 text-xs">
-                          {{ plan.concessionnaire.email }}
-                          <span v-if="plan.concessionnaire.company_name" class="text-gray-400">
-                            ({{ plan.concessionnaire.company_name }})
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div v-else class="text-gray-500">-</div>
+                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    {{ plan.createur.company_name || plan.createur.concessionnaire_name || '-' }}
                   </td>
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                     {{ formatDate(plan.date_creation) }}
@@ -266,11 +257,13 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useIrrigationStore } from '@/stores/irrigation'
 import { useAuthStore } from '@/stores/auth'
+import { useDrawingStore } from '@/stores/drawing'
 import type { Plan, UserDetails } from '@/stores/irrigation'
 
 const router = useRouter()
 const irrigationStore = useIrrigationStore()
 const authStore = useAuthStore()
+const drawingStore = useDrawingStore()
 
 const plans = ref<Plan[]>([])
 const showNewPlanModal = ref(false)
@@ -285,15 +278,6 @@ const myPlans = computed(() => {
 
 const otherPlans = computed(() => {
   return plans.value.filter(plan => plan.createur.id !== authStore.user?.id)
-})
-
-const getColspan = computed(() => {
-  // Colonnes de base : nom, description, dates création/modification, actions
-  let count = 5
-  // Ajouter colonnes client/concessionnaire selon le rôle
-  if (authStore.isAdmin) count += 2 // client + concessionnaire
-  else if (authStore.isDealer) count += 1 // client seulement
-  return count
 })
 
 onMounted(async () => {
@@ -350,8 +334,17 @@ async function createPlan() {
 }
 
 async function editPlan(plan: Plan) {
-  irrigationStore.setCurrentPlan(plan)
-  router.push('/')
+  try {
+    // Définir le plan courant dans le store
+    irrigationStore.setCurrentPlan(plan)
+    // Charger les éléments du plan via le store de dessin
+    await drawingStore.loadPlanElements(plan.id)
+    // Rediriger vers la vue carte
+    router.push('/')
+  } catch (error) {
+    console.error('Erreur lors du chargement du plan:', error)
+    alert('Une erreur est survenue lors du chargement du plan')
+  }
 }
 
 async function deletePlan(plan: Plan) {
@@ -385,6 +378,13 @@ function formatDate(dateString: string) {
 
 function formatUserName(user: UserDetails): string {
   if (!user) return 'Non spécifié'
-  return `${user.first_name} ${user.last_name.toUpperCase()}`
+  const name = `${user.first_name} ${user.last_name}`.trim()
+  return name || user.username
+}
+
+function getInitials(user: UserDetails): string {
+  if (!user) return ''
+  const initials = user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
+  return initials.length > 2 ? initials.slice(0, 2) : initials
 }
 </script> 

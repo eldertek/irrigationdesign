@@ -96,6 +96,7 @@ interface User {
   last_name: string;
   company_name?: string;
   must_change_password?: boolean;
+  plans_count?: number;
 }
 
 interface AuthState {

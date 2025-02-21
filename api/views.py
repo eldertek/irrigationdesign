@@ -2,7 +2,7 @@ from django.shortcuts import render
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
-from django.db.models import Q
+from django.db.models import Q, Count
 from .serializers import (
     UserSerializer,
     DealerSerializer,
@@ -37,11 +37,13 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base_queryset = User.objects.annotate(plans_count=Count('plans'))
+        
         if user.role == ROLE_ADMIN:
-            return User.objects.all()
+            return base_queryset.all()
         elif user.role == ROLE_DEALER:
-            return User.objects.filter(concessionnaire=user)
-        return User.objects.filter(id=user.id)
+            return base_queryset.filter(concessionnaire=user)
+        return base_queryset.filter(id=user.id)
 
     def get_permissions(self):
         if self.action == 'create':
