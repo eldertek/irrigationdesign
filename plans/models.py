@@ -29,6 +29,12 @@ class Plan(models.Model):
         verbose_name='Éléments du plan',
         help_text='Stocke les éléments du plan (formes, connexions, etc.)'
     )
+    historique = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name='Historique des modifications',
+        help_text='Stocke l\'historique des modifications du plan'
+    )
 
     class Meta:
         verbose_name = 'Plan'

@@ -300,9 +300,14 @@ onMounted(async () => {
           });
         }
       }) as EventListener);
-    }
 
-    await irrigationStore.fetchPlans();
+      // Charger les plans et le plan courant si nécessaire
+      await irrigationStore.fetchPlans();
+      if (irrigationStore.currentPlan) {
+        await drawingStore.loadPlanElements(irrigationStore.currentPlan.id);
+        await loadPlan(irrigationStore.currentPlan.id);
+      }
+    }
   }
 });
 
@@ -312,6 +317,30 @@ watch(() => drawingStore.hasUnsavedChanges, (newValue) => {
     irrigationStore.markUnsavedChanges();
   }
 });
+
+// Surveiller l'initialisation de la carte
+watch(map, async (newMap) => {
+  if (newMap && irrigationStore.currentPlan) {
+    clearMap();
+    await drawingStore.loadPlanElements(irrigationStore.currentPlan.id);
+    await loadPlan(irrigationStore.currentPlan.id);
+  }
+});
+
+// Surveiller le plan courant dans le store
+watch(() => irrigationStore.currentPlan, async (newPlan) => {
+  if (newPlan) {
+    currentPlan.value = newPlan;
+    if (map.value) {
+      clearMap();
+      await drawingStore.loadPlanElements(newPlan.id);
+      await loadPlan(newPlan.id);
+    }
+  } else {
+    currentPlan.value = null;
+    clearMap();
+  }
+}, { immediate: true });
 
 // Nettoyer l'écouteur d'événement lors de la destruction du composant
 onBeforeUnmount(() => {

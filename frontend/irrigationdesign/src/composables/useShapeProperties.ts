@@ -110,10 +110,16 @@ export function useShapeProperties() {
       formatted.lengthFormatted = `${formatted.length.toFixed(1)} m`;
     }
     if (formatted.perimeter) {
-      formatted.perimeterFormatted = `${formatted.perimeter.toFixed(1)} m`;
+      formatted.perimeterFormatted = `${(formatted.perimeter / 1000).toFixed(2)} km`;
     }
     if (formatted.radius) {
       formatted.radiusFormatted = `${formatted.radius.toFixed(1)} m`;
+    }
+    if (formatted.width) {
+      formatted.widthFormatted = `${formatted.width.toFixed(1)} m`;
+    }
+    if (formatted.height) {
+      formatted.heightFormatted = `${formatted.height.toFixed(1)} m`;
     }
     if (formatted.slope) {
       formatted.slopeFormatted = formatSlope(formatted.slope);

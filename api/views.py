@@ -225,7 +225,9 @@ class PlanViewSet(viewsets.ModelViewSet):
         plan = self.get_object()
         
         # Vérifier les permissions
-        if plan.createur != request.user and request.user.role not in ['admin', 'dealer']:
+        if (plan.createur != request.user and 
+            request.user.role not in [ROLE_ADMIN, ROLE_DEALER] and
+            (request.user.role == ROLE_DEALER and plan.createur.concessionnaire != request.user)):
             return Response(
                 {'detail': 'Vous n\'avez pas la permission de modifier ce plan'},
                 status=status.HTTP_403_FORBIDDEN
