@@ -48,6 +48,16 @@
               </svg>
               {{ saving ? 'Sauvegarde...' : 'Enregistrer' }}
             </button>
+            <!-- Bouton d'ajustement de la vue -->
+            <button
+              @click="handleAdjustView"
+              class="flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200"
+            >
+              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              Ajuster la vue
+            </button>
           </div>
           <!-- Indicateur de dernière sauvegarde -->
           <div v-if="currentPlan?.date_modification" class="text-xs text-gray-500 mt-2">
@@ -71,9 +81,11 @@
         <DrawingTools
           :current-tool="currentTool"
           :selected-shape="selectedShape"
+          :is-edit-mode="isEditMode"
           @tool-change="setDrawingTool"
           @style-update="updateShapeStyle"
           @properties-update="updateShapeProperties"
+          @toggle-edit-mode="toggleEditMode"
         />
       </div>
 
@@ -206,7 +218,12 @@ const {
   setDrawingTool,
   updateShapeStyle,
   updateShapeProperties: updateShapeProps,
-  featureGroup
+  featureGroup,
+  isDrawing,
+  updateTextFixedSize,
+  adjustView,
+  isEditMode,
+  toggleEditMode
 } = useMapDrawing();
 
 const {
@@ -1112,6 +1129,11 @@ function formatLastSaved(date: string): string {
     return 'Date invalide';
   }
 }
+
+// Ajouter la méthode adjustView dans les méthodes du composant
+const handleAdjustView = () => {
+  adjustView();
+};
 </script>
 
 <style>

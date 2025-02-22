@@ -19,7 +19,16 @@ interface CircleArcProperties {
   radius: number;
   startAngle: number;
   stopAngle: number;
-  style: any;
+  orientation?: number;
+  openingAngle?: number;
+  style: {
+    fillColor?: string;
+    fillOpacity?: number;
+    color?: string;
+    weight?: number;
+    startAngle?: number;
+    stopAngle?: number;
+  };
 }
 
 export class CircleArc extends L.Polygon {

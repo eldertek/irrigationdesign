@@ -4,6 +4,7 @@
     <div class="mb-6">
       <h3 class="text-lg font-semibold mb-4">Outils de dessin</h3>
       
+      <!-- Outils de dessin -->
       <div class="grid grid-cols-2 gap-2">
         <button
           v-for="tool in drawingTools"
@@ -37,31 +38,6 @@
               :style="{ backgroundColor: color }"
               @click="selectPresetColor(color)"
             ></button>
-          </div>
-        </div>
-
-        <!-- Couleur de remplissage -->
-        <div v-if="showFillOptions">
-          <label class="block text-sm font-medium text-gray-700 mb-1">
-            Couleur de remplissage
-          </label>
-          <div class="flex items-center space-x-2">
-            <input
-              type="color"
-              v-model="fillColor"
-              class="w-8 h-8 rounded border"
-              @change="updateStyle({ fillColor })"
-            />
-            <input
-              type="range"
-              v-model="fillOpacity"
-              min="0"
-              max="1"
-              step="0.1"
-              class="flex-1"
-              @change="updateStyle({ fillOpacity })"
-            />
-            <span class="text-sm">{{ (fillOpacity * 100).toFixed(0) }}%</span>
           </div>
         </div>
 
@@ -122,121 +98,28 @@
           </select>
         </div>
 
-        <!-- Options spécifiques aux formes -->
-        <div v-if="selectedShape.properties?.type === 'Circle' || selectedShape.properties?.type === 'Semicircle'">
+        <!-- Couleur de remplissage (seulement pour les formes fermées) -->
+        <div v-if="showFillOptions">
           <label class="block text-sm font-medium text-gray-700 mb-1">
-            Rayon (m)
+            Couleur de remplissage
           </label>
-          <input
-            type="number"
-            v-model="radius"
-            min="1"
-            class="w-full px-2 py-1 rounded border"
-            @change="updateProperties({ radius })"
-          />
-          <div class="mt-2 text-sm text-gray-600">
-            Diamètre: {{ (radius * 2).toFixed(1) }} m
-            <br>
-            Surface: {{ formatArea(Math.PI * radius * radius) }}
-          </div>
-        </div>
-
-        <div v-if="selectedShape.properties?.type === 'Semicircle'">
-          <label class="block text-sm font-medium text-gray-700 mb-1">
-            Angle de départ (°)
-          </label>
-          <input
-            type="number"
-            v-model="startAngle"
-            min="0"
-            max="360"
-            class="w-full px-2 py-1 rounded border"
-            @change="updateProperties({ startAngle })"
-          />
-        </div>
-
-        <!-- Options spécifiques au texte -->
-        <div v-if="selectedShape.properties?.type === 'text'">
-          <div class="space-y-4">
-            <!-- Contenu du texte -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                Texte
-              </label>
-              <input
-                type="text"
-                v-model="textContent"
-                class="w-full px-2 py-1 rounded border"
-                @change="updateTextProperties({ text: textContent })"
-                placeholder="Entrez votre texte..."
-              />
-            </div>
-
-            <!-- Taille de la police -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                Taille de la police
-              </label>
-              <input
-                type="range"
-                v-model="fontSize"
-                min="10"
-                max="32"
-                class="w-full"
-                @change="updateTextProperties({ fontSize })"
-              />
-              <span class="text-sm">{{ fontSize }}px</span>
-            </div>
-
-            <!-- Couleur de fond -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                Couleur de fond
-              </label>
-              <div class="flex items-center space-x-2">
-                <input
-                  type="color"
-                  v-model="textBackgroundColor"
-                  class="w-8 h-8 rounded border"
-                  @change="updateTextProperties({ backgroundColor: textBackgroundColor })"
-                />
-                <input
-                  type="range"
-                  v-model="textBackgroundOpacity"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  class="flex-1"
-                  @change="updateTextProperties({ backgroundOpacity: textBackgroundOpacity })"
-                />
-                <span class="text-sm">{{ (textBackgroundOpacity * 100).toFixed(0) }}%</span>
-              </div>
-            </div>
-
-            <!-- Couleur de bordure -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                Couleur de bordure
-              </label>
-              <div class="flex items-center space-x-2">
-                <input
-                  type="color"
-                  v-model="textBorderColor"
-                  class="w-8 h-8 rounded border"
-                  @change="updateTextProperties({ borderColor: textBorderColor })"
-                />
-                <input
-                  type="range"
-                  v-model="textBorderOpacity"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  class="flex-1"
-                  @change="updateTextProperties({ borderOpacity: textBorderOpacity })"
-                />
-                <span class="text-sm">{{ (textBorderOpacity * 100).toFixed(0) }}%</span>
-              </div>
-            </div>
+          <div class="flex items-center space-x-2">
+            <input
+              type="color"
+              v-model="fillColor"
+              class="w-8 h-8 rounded border"
+              @change="updateStyle({ fillColor })"
+            />
+            <input
+              type="range"
+              v-model="fillOpacity"
+              min="0"
+              max="1"
+              step="0.1"
+              class="flex-1"
+              @change="updateStyle({ fillOpacity })"
+            />
+            <span class="text-sm">{{ (fillOpacity * 100).toFixed(0) }}%</span>
           </div>
         </div>
       </div>
@@ -354,7 +237,7 @@ const startAngle = ref(0);
 
 const showFillOptions = computed(() => {
   if (!props.selectedShape?.properties?.type) return false;
-  return ['Circle', 'Semicircle', 'Rectangle', 'Polygon'].includes(props.selectedShape.properties.type);
+  return ['Circle', 'Rectangle', 'Polygon'].includes(props.selectedShape.properties.type);
 });
 
 // Ajouter les refs pour les propriétés du texte
@@ -589,6 +472,9 @@ const typeTranslations = {
 };
 
 const formatArea = (area: number): string => {
+  if (area < 10000) {
+    return `${area.toFixed(1)} m²`;
+  }
   return `${(area / 10000).toFixed(2)} ha`;
 };
 
@@ -597,7 +483,7 @@ const formatLengthInHa = (length: number): string => {
 };
 
 const formatLength = (length: number): string => {
-  return `${(length / 100).toFixed(2)} ha`;
+  return `${length.toFixed(1)} m`;
 };
 
 const formatSlope = (slope: number): string => {
