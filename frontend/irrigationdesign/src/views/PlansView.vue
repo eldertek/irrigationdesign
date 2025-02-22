@@ -1,310 +1,312 @@
 <template>
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="sm:flex sm:items-center">
-      <div class="sm:flex-auto">
-        <h1 class="text-2xl font-semibold text-gray-900">Plans d'irrigation</h1>
-        <p class="mt-2 text-sm text-gray-700">
-          Gérez vos plans d'irrigation
-        </p>
+  <div class="min-h-screen bg-gray-50 overflow-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="sm:flex sm:items-center">
+        <div class="sm:flex-auto">
+          <h1 class="text-2xl font-semibold text-gray-900">Plans d'irrigation</h1>
+          <p class="mt-2 text-sm text-gray-700">
+            Gérez vos plans d'irrigation
+          </p>
+        </div>
+        <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+          <button
+            @click="openNewPlanModal"
+            class="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:w-auto"
+          >
+            Nouveau plan
+          </button>
+        </div>
       </div>
-      <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-        <button
-          @click="openNewPlanModal"
-          class="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:w-auto"
-        >
-          Nouveau plan
-        </button>
-      </div>
-    </div>
 
-    <!-- Mes plans -->
-    <div class="mt-8">
-      <div class="mb-4">
-        <h2 class="text-lg font-medium text-gray-900">Mes plans</h2>
-        <p class="mt-1 text-sm text-gray-500">
-          Plans que vous avez créés
-        </p>
-      </div>
-      <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-        <div class="inline-block min-w-full py-2 align-middle">
-          <div class="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5">
-            <table class="min-w-full divide-y divide-gray-300">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6 lg:pl-8">
-                    Nom du plan
-                  </th>
-                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Description
-                  </th>
-                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Créé le
-                  </th>
-                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Modifié le
-                  </th>
-                  <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6 lg:pr-8">
-                    <span class="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-200 bg-white">
-                <tr v-if="myPlans.length === 0">
-                  <td colspan="5" class="py-4 px-6 text-center text-gray-500">
-                    Vous n'avez pas encore créé de plans
-                  </td>
-                </tr>
-                <tr v-for="plan in myPlans" :key="plan.id" class="hover:bg-gray-50">
-                  <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6 lg:pl-8">
-                    {{ plan.nom }}
-                  </td>
-                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    {{ plan.description || '-' }}
-                  </td>
-                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    {{ formatDate(plan.date_creation) }}
-                  </td>
-                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    {{ formatDate(plan.date_modification) }}
-                  </td>
-                  <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 lg:pr-8">
-                    <button
-                      @click="editPlan(plan)"
-                      class="text-primary-600 hover:text-primary-900 mr-4"
-                    >
-                      Ouvrir
-                    </button>
-                    <button
-                      @click="openEditPlanModal(plan)"
-                      class="text-primary-600 hover:text-primary-900 mr-4"
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      v-if="plan.createur.id === authStore.user?.id"
-                      @click="deletePlan(plan)"
-                      class="text-red-600 hover:text-red-900"
-                    >
-                      Supprimer
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+      <!-- Mes plans -->
+      <div class="mt-8">
+        <div class="mb-4">
+          <h2 class="text-lg font-medium text-gray-900">Mes plans</h2>
+          <p class="mt-1 text-sm text-gray-500">
+            Plans que vous avez créés
+          </p>
+        </div>
+        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+          <div class="inline-block min-w-full py-2 align-middle">
+            <div class="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5">
+              <table class="min-w-full divide-y divide-gray-300">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6 lg:pl-8">
+                      Nom du plan
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                      Description
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                      Créé le
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                      Modifié le
+                    </th>
+                    <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6 lg:pr-8">
+                      <span class="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                  <tr v-if="myPlans.length === 0">
+                    <td colspan="5" class="py-4 px-6 text-center text-gray-500">
+                      Vous n'avez pas encore créé de plans
+                    </td>
+                  </tr>
+                  <tr v-for="plan in myPlans" :key="plan.id" class="hover:bg-gray-50">
+                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6 lg:pl-8">
+                      {{ plan.nom }}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                      {{ plan.description || '-' }}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                      {{ formatDate(plan.date_creation) }}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                      {{ formatDate(plan.date_modification) }}
+                    </td>
+                    <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 lg:pr-8">
+                      <button
+                        @click="editPlan(plan)"
+                        class="text-primary-600 hover:text-primary-900 mr-4"
+                      >
+                        Ouvrir
+                      </button>
+                      <button
+                        @click="openEditPlanModal(plan)"
+                        class="text-primary-600 hover:text-primary-900 mr-4"
+                      >
+                        Modifier
+                      </button>
+                      <button
+                        v-if="plan.createur.id === authStore.user?.id"
+                        @click="deletePlan(plan)"
+                        class="text-red-600 hover:text-red-900"
+                      >
+                        Supprimer
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Autres plans -->
-    <div v-if="authStore.isAdmin || authStore.isDealer" class="mt-12">
-      <div class="mb-4">
-        <h2 class="text-lg font-medium text-gray-900">Plans des clients</h2>
-        <p class="mt-1 text-sm text-gray-500">
-          {{ authStore.isAdmin ? 'Tous les plans créés par les clients et les concessionnaires' : 'Plans de vos clients' }}
-        </p>
-      </div>
-      <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-        <div class="inline-block min-w-full py-2 align-middle">
-          <div class="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5">
-            <table class="min-w-full divide-y divide-gray-300">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6 lg:pl-8">
-                    Nom du plan
-                  </th>
-                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Description
-                  </th>
-                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Client
-                  </th>
-                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    {{ authStore.isAdmin ? 'Concession' : 'Entreprise' }}
-                  </th>
-                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Créé le
-                  </th>
-                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Modifié le
-                  </th>
-                  <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6 lg:pr-8">
-                    <span class="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-200 bg-white">
-                <tr v-if="otherPlans.length === 0">
-                  <td colspan="7" class="py-4 px-6 text-center text-gray-500">
-                    {{ authStore.isAdmin ? 'Aucun plan client disponible' : 'Aucun plan de vos clients disponible' }}
-                  </td>
-                </tr>
-                <tr v-for="plan in otherPlans" :key="plan.id" class="hover:bg-gray-50">
-                  <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6 lg:pl-8">
-                    {{ plan.nom }}
-                  </td>
-                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    {{ plan.description || '-' }}
-                  </td>
-                  <td class="px-3 py-4 text-sm text-gray-900">
-                    <div class="flex items-center">
-                      <div class="h-8 w-8 flex-shrink-0">
-                        <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
-                          <span class="text-primary-700 font-medium text-sm">
-                            {{ getInitials(plan.createur) }}
-                          </span>
+      <!-- Autres plans -->
+      <div v-if="authStore.isAdmin || authStore.isDealer" class="mt-12">
+        <div class="mb-4">
+          <h2 class="text-lg font-medium text-gray-900">Plans des clients</h2>
+          <p class="mt-1 text-sm text-gray-500">
+            {{ authStore.isAdmin ? 'Tous les plans créés par les clients et les concessionnaires' : 'Plans de vos clients' }}
+          </p>
+        </div>
+        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+          <div class="inline-block min-w-full py-2 align-middle">
+            <div class="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5">
+              <table class="min-w-full divide-y divide-gray-300">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6 lg:pl-8">
+                      Nom du plan
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                      Description
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                      Client
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                      {{ authStore.isAdmin ? 'Concession' : 'Entreprise' }}
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                      Créé le
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                      Modifié le
+                    </th>
+                    <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6 lg:pr-8">
+                      <span class="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                  <tr v-if="otherPlans.length === 0">
+                    <td colspan="7" class="py-4 px-6 text-center text-gray-500">
+                      {{ authStore.isAdmin ? 'Aucun plan client disponible' : 'Aucun plan de vos clients disponible' }}
+                    </td>
+                  </tr>
+                  <tr v-for="plan in otherPlans" :key="plan.id" class="hover:bg-gray-50">
+                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6 lg:pl-8">
+                      {{ plan.nom }}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                      {{ plan.description || '-' }}
+                    </td>
+                    <td class="px-3 py-4 text-sm text-gray-900">
+                      <div class="flex items-center">
+                        <div class="h-8 w-8 flex-shrink-0">
+                          <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
+                            <span class="text-primary-700 font-medium text-sm">
+                              {{ getInitials(plan.createur) }}
+                            </span>
+                          </div>
+                        </div>
+                        <div class="ml-3">
+                          <div class="font-medium">{{ formatUserName(plan.createur) }}</div>
+                          <div class="text-gray-500 text-xs">{{ plan.createur.email }}</div>
                         </div>
                       </div>
-                      <div class="ml-3">
-                        <div class="font-medium">{{ formatUserName(plan.createur) }}</div>
-                        <div class="text-gray-500 text-xs">{{ plan.createur.email }}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    {{ plan.createur.company_name || plan.createur.concessionnaire_name || '-' }}
-                  </td>
-                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    {{ formatDate(plan.date_creation) }}
-                  </td>
-                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    {{ formatDate(plan.date_modification) }}
-                  </td>
-                  <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 lg:pr-8">
-                    <button
-                      @click="editPlan(plan)"
-                      class="text-primary-600 hover:text-primary-900 mr-4"
-                    >
-                      Ouvrir
-                    </button>
-                    <button
-                      @click="openEditPlanModal(plan)"
-                      class="text-primary-600 hover:text-primary-900 mr-4"
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      v-if="plan.createur.id === authStore.user?.id"
-                      @click="deletePlan(plan)"
-                      class="text-red-600 hover:text-red-900"
-                    >
-                      Supprimer
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                      {{ plan.createur.company_name || plan.createur.concessionnaire_name || '-' }}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                      {{ formatDate(plan.date_creation) }}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                      {{ formatDate(plan.date_modification) }}
+                    </td>
+                    <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 lg:pr-8">
+                      <button
+                        @click="editPlan(plan)"
+                        class="text-primary-600 hover:text-primary-900 mr-4"
+                      >
+                        Ouvrir
+                      </button>
+                      <button
+                        @click="openEditPlanModal(plan)"
+                        class="text-primary-600 hover:text-primary-900 mr-4"
+                      >
+                        Modifier
+                      </button>
+                      <button
+                        v-if="plan.createur.id === authStore.user?.id"
+                        @click="deletePlan(plan)"
+                        class="text-red-600 hover:text-red-900"
+                      >
+                        Supprimer
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Modal nouveau plan -->
-    <div
-      v-if="showNewPlanModal"
-      class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center"
-    >
-      <div class="bg-white rounded-lg p-6 max-w-md w-full">
-        <h2 class="text-lg font-medium mb-4">Nouveau plan</h2>
-        <form @submit.prevent="createPlan">
-          <div class="space-y-4">
+      <!-- Modal nouveau plan -->
+      <div
+        v-if="showNewPlanModal"
+        class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center"
+      >
+        <div class="bg-white rounded-lg p-6 max-w-md w-full">
+          <h2 class="text-lg font-medium mb-4">Nouveau plan</h2>
+          <form @submit.prevent="createPlan">
+            <div class="space-y-4">
+              <div>
+                <label for="name" class="block text-sm font-medium text-gray-700">
+                  Nom
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  v-model="newPlan.nom"
+                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label for="description" class="block text-sm font-medium text-gray-700">
+                  Description
+                </label>
+                <textarea
+                  id="description"
+                  v-model="newPlan.description"
+                  rows="3"
+                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                ></textarea>
+              </div>
+            </div>
+            <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
+              <button
+                type="button"
+                class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:mt-0 sm:text-sm"
+                @click="showNewPlanModal = false"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                class="inline-flex w-full justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:text-sm"
+              >
+                Créer
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Modal Modification Plan -->
+      <div v-if="showEditPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">Modifier le plan</h2>
+            <button
+              @click="showEditPlanModal = false"
+              class="text-gray-400 hover:text-gray-500 focus:outline-none"
+            >
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <form @submit.prevent="updatePlan" class="space-y-4">
             <div>
-              <label for="name" class="block text-sm font-medium text-gray-700">
+              <label for="edit-nom" class="block text-sm font-medium text-gray-700">
                 Nom
               </label>
               <input
                 type="text"
-                id="name"
-                v-model="newPlan.nom"
+                id="edit-nom"
+                v-model="editPlanData.nom"
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                 required
               />
             </div>
             <div>
-              <label for="description" class="block text-sm font-medium text-gray-700">
+              <label for="edit-description" class="block text-sm font-medium text-gray-700">
                 Description
               </label>
               <textarea
-                id="description"
-                v-model="newPlan.description"
+                id="edit-description"
+                v-model="editPlanData.description"
                 rows="3"
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
               ></textarea>
             </div>
-          </div>
-          <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
-            <button
-              type="button"
-              class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:mt-0 sm:text-sm"
-              @click="showNewPlanModal = false"
-            >
-              Annuler
-            </button>
-            <button
-              type="submit"
-              class="inline-flex w-full justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:text-sm"
-            >
-              Créer
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Modal Modification Plan -->
-    <div v-if="showEditPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
-      <div class="bg-white rounded-lg p-6 max-w-md w-full">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-xl font-semibold text-gray-900">Modifier le plan</h2>
-          <button
-            @click="showEditPlanModal = false"
-            class="text-gray-400 hover:text-gray-500 focus:outline-none"
-          >
-            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+            <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
+              <button
+                type="button"
+                class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:mt-0 sm:text-sm"
+                @click="showEditPlanModal = false"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                class="inline-flex w-full justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:text-sm"
+              >
+                Enregistrer
+              </button>
+            </div>
+          </form>
         </div>
-        <form @submit.prevent="updatePlan" class="space-y-4">
-          <div>
-            <label for="edit-nom" class="block text-sm font-medium text-gray-700">
-              Nom
-            </label>
-            <input
-              type="text"
-              id="edit-nom"
-              v-model="editPlanData.nom"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-              required
-            />
-          </div>
-          <div>
-            <label for="edit-description" class="block text-sm font-medium text-gray-700">
-              Description
-            </label>
-            <textarea
-              id="edit-description"
-              v-model="editPlanData.description"
-              rows="3"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-            ></textarea>
-          </div>
-          <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
-            <button
-              type="button"
-              class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:mt-0 sm:text-sm"
-              @click="showEditPlanModal = false"
-            >
-              Annuler
-            </button>
-            <button
-              type="submit"
-              class="inline-flex w-full justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:text-sm"
-            >
-              Enregistrer
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   </div>

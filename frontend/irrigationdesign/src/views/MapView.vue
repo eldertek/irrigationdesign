@@ -6,6 +6,25 @@
       
       <!-- Barre d'outils principale -->
       <div class="absolute bottom-6 left-6 z-[1000]">
+        <!-- Sélecteur de type de carte -->
+        <div class="bg-white rounded-lg shadow-lg p-3 mb-3">
+          <h2 class="text-sm font-semibold text-gray-700 mb-2">Type de carte</h2>
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              v-for="(layer, name) in baseMaps"
+              :key="name"
+              @click="changeBaseMap(name)"
+              class="px-3 py-2 text-sm rounded-md transition-colors duration-200"
+              :class="{
+                'bg-primary-600 text-white': currentBaseMap === name,
+                'bg-gray-100 text-gray-700 hover:bg-gray-200': currentBaseMap !== name
+              }"
+            >
+              {{ name }}
+            </button>
+          </div>
+        </div>
+
         <!-- Boutons de gestion des plans -->
         <div class="bg-white rounded-lg shadow-lg p-3 space-y-2">
           <div class="flex flex-col mb-2">
@@ -147,7 +166,7 @@
 
       <!-- Modal Charger un Plan -->
       <div v-if="showLoadPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
-        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-semibold text-gray-900">Charger un plan existant</h2>
             <button
@@ -159,7 +178,132 @@
               </svg>
             </button>
           </div>
-          <div class="max-h-96 overflow-y-auto">
+
+          <!-- Interface administrateur -->
+          <div v-if="authStore.isAdmin" class="space-y-4">
+            <!-- Étape 1: Sélection du concessionnaire -->
+            <div v-if="!selectedDealer" class="space-y-2">
+              <h3 class="font-medium text-gray-700">Sélectionnez un concessionnaire</h3>
+              <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
+                <template v-if="isLoadingDealers">
+                  <div v-for="i in 3" :key="i" class="animate-pulse">
+                    <div class="p-3 bg-white rounded-lg border border-gray-200">
+                      <div class="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <button
+                    v-for="dealer in dealers"
+                    :key="dealer.id"
+                    @click="selectDealer(dealer)"
+                    class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
+                  >
+                    <div>
+                      <div class="font-medium text-gray-900">{{ dealer.company_name }}</div>
+                      <div class="text-sm text-gray-500">{{ dealer.email }}</div>
+                    </div>
+                    <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <!-- Étape 2: Sélection du client -->
+            <div v-else-if="!selectedClient" class="space-y-2">
+              <div class="flex items-center mb-4">
+                <button
+                  @click="backToDealer"
+                  class="flex items-center text-sm text-gray-600 hover:text-gray-900"
+                >
+                  <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                  Retour aux concessionnaires
+                </button>
+                <span class="mx-2 text-gray-400">|</span>
+                <span class="text-sm text-gray-600">{{ selectedDealer.company_name }}</span>
+              </div>
+              <h3 class="font-medium text-gray-700">Sélectionnez un client</h3>
+              <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
+                <template v-if="isLoadingClients">
+                  <div v-for="i in 3" :key="i" class="animate-pulse">
+                    <div class="p-3 bg-white rounded-lg border border-gray-200">
+                      <div class="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <button
+                    v-for="client in dealerClients"
+                    :key="client.id"
+                    @click="selectClient(client)"
+                    class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
+                  >
+                    <div>
+                      <div class="font-medium text-gray-900">{{ client.first_name }} {{ client.last_name }}</div>
+                      <div class="text-sm text-gray-500">{{ client.email }}</div>
+                    </div>
+                    <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <!-- Étape 3: Liste des plans du client -->
+            <div v-else class="space-y-2">
+              <div class="flex items-center mb-4">
+                <button
+                  @click="backToClient"
+                  class="flex items-center text-sm text-gray-600 hover:text-gray-900"
+                >
+                  <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                  Retour aux clients
+                </button>
+                <span class="mx-2 text-gray-400">|</span>
+                <span class="text-sm text-gray-600">
+                  {{ selectedDealer.company_name }} > {{ selectedClient.first_name }} {{ selectedClient.last_name }}
+                </span>
+              </div>
+              <h3 class="font-medium text-gray-700">Plans disponibles</h3>
+              <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
+                <template v-if="isLoadingPlans">
+                  <div v-for="i in 3" :key="i" class="animate-pulse">
+                    <div class="p-3 bg-white rounded-lg border border-gray-200">
+                      <div class="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div class="h-4 bg-gray-100 rounded w-2/3 mb-2"></div>
+                      <div class="h-3 bg-gray-50 rounded w-1/3"></div>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <button
+                    v-for="plan in clientPlans"
+                    :key="plan.id"
+                    @click="loadPlan(plan.id)"
+                    class="w-full px-4 py-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
+                  >
+                    <div class="font-medium text-gray-900">{{ plan.nom }}</div>
+                    <div class="text-sm text-gray-500">{{ plan.description }}</div>
+                    <div class="text-xs text-gray-400 mt-1">
+                      Modifié le {{ formatLastSaved(plan.date_modification) }}
+                    </div>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interface standard (non-admin) -->
+          <div v-else class="max-h-96 overflow-y-auto">
             <div v-if="irrigationStore.plans.length === 0" class="text-center py-8">
               <p class="text-gray-500">Aucun plan disponible</p>
             </div>
@@ -168,12 +312,12 @@
                 v-for="plan in irrigationStore.plans"
                 :key="plan.id"
                 @click="loadPlan(plan.id)"
-                class="w-full px-4 py-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                class="w-full px-4 py-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
               >
                 <div class="font-medium text-gray-900">{{ plan.nom }}</div>
                 <div class="text-sm text-gray-500">{{ plan.description }}</div>
                 <div class="text-xs text-gray-400 mt-1">
-                  Modifié le {{ new Date(plan.date_modification).toLocaleDateString() }}
+                  Modifié le {{ formatLastSaved(plan.date_modification) }}
                 </div>
               </button>
             </div>
@@ -198,6 +342,9 @@ import { useRouter } from 'vue-router';
 import type { Plan } from '@/stores/irrigation';
 import type { DrawingElement, ShapeData } from '@/types/drawing';
 import { CircleArc } from '@/utils/CircleArc';
+import { useAuthStore } from '@/stores/auth';
+import type { UserDetails } from '@/stores/irrigation';
+import api from '@/services/api';
 
 const mapContainer = ref<HTMLElement | null>(null);
 const irrigationStore = useIrrigationStore();
@@ -225,7 +372,10 @@ const {
 } = useMapDrawing();
 
 const {
-  initMap: initState
+  initMap: initState,
+  baseMaps,
+  currentBaseMap,
+  changeBaseMap
 } = useMapState();
 
 const router = useRouter();
@@ -242,6 +392,17 @@ const newPlanData = ref({
 // État pour la sauvegarde
 const saving = ref(false);
 const showSaveSuccess = ref(false);
+
+// Ajout des imports et des refs nécessaires
+const authStore = useAuthStore();
+const dealers = ref<UserDetails[]>([]);
+const dealerClients = ref<UserDetails[]>([]);
+const clientPlans = ref<Plan[]>([]);
+const selectedDealer = ref<UserDetails | null>(null);
+const selectedClient = ref<UserDetails | null>(null);
+const isLoadingDealers = ref(false);
+const isLoadingClients = ref(false);
+const isLoadingPlans = ref(false);
 
 // Fonction pour sauvegarder la position dans les cookies
 function saveMapPosition(mapInstance: L.Map) {
@@ -321,6 +482,11 @@ onMounted(async () => {
       if (irrigationStore.currentPlan) {
         await drawingStore.loadPlanElements(irrigationStore.currentPlan.id);
         await loadPlan(irrigationStore.currentPlan.id);
+      }
+
+      // Charger les concessionnaires au montage du composant si l'utilisateur est admin
+      if (authStore.isAdmin) {
+        await loadDealers();
       }
     }
   }
@@ -1139,10 +1305,80 @@ const deleteSelectedShape = () => {
     selectedShape.value = null;
   }
 };
+
+// Fonction pour charger les concessionnaires
+async function loadDealers() {
+  isLoadingDealers.value = true;
+  try {
+    const response = await api.get('/users/dealers/');
+    dealers.value = response.data;
+  } catch (error) {
+    console.error('Erreur lors du chargement des concessionnaires:', error);
+  } finally {
+    isLoadingDealers.value = false;
+  }
+}
+
+// Fonction pour charger les clients d'un concessionnaire
+async function loadDealerClients(dealerId: number) {
+  isLoadingClients.value = true;
+  try {
+    const response = await api.get(`/users/dealers/${dealerId}/clients/`);
+    dealerClients.value = response.data;
+  } catch (error) {
+    console.error('Erreur lors du chargement des clients:', error);
+  } finally {
+    isLoadingClients.value = false;
+  }
+}
+
+// Fonction pour charger les plans d'un client
+async function loadClientPlans(clientId: number) {
+  isLoadingPlans.value = true;
+  try {
+    const response = await api.get(`/plans/?utilisateur=${clientId}`);
+    clientPlans.value = response.data;
+  } catch (error) {
+    console.error('Erreur lors du chargement des plans:', error);
+  } finally {
+    isLoadingPlans.value = false;
+  }
+}
+
+// Fonctions de sélection
+function selectDealer(dealer: UserDetails) {
+  selectedDealer.value = dealer;
+  loadDealerClients(dealer.id);
+  selectedClient.value = null;
+  clientPlans.value = [];
+}
+
+function selectClient(client: UserDetails) {
+  selectedClient.value = client;
+  loadClientPlans(client.id);
+}
+
+// Fonctions de navigation
+function backToDealer() {
+  selectedDealer.value = null;
+  selectedClient.value = null;
+  clientPlans.value = [];
+  dealerClients.value = [];
+}
+
+function backToClient() {
+  selectedClient.value = null;
+  clientPlans.value = [];
+}
 </script>
 
 <style>
 @import 'leaflet/dist/leaflet.css';
+
+/* Masquer le contrôle des couches */
+.leaflet-control-layers-toggle {
+  display: none !important;
+}
 
 /* Masquer les contrôles de rotation */
 .leaflet-pm-toolbar .leaflet-pm-icon-rotate,

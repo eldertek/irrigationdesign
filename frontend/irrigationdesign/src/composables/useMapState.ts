@@ -5,21 +5,44 @@ import * as L from 'leaflet';
 export function useMapState() {
   const map = ref<LeafletMap | null>(null);
   const searchQuery = ref('');
+  const currentBaseMap = ref('Ville');
 
   const baseMaps = {
-    'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
+    'Ville': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
     }),
     'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: '© Esri'
+      attribution: '© Esri',
+      maxZoom: 19
     }),
-    'Terrain': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenTopoMap contributors'
+    'Cadastre': L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=CADASTRALPARCELS.PARCELLAIRE_EXPRESS&STYLE=normal&FORMAT=image/png&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
+      attribution: 'Cadastre - Carte © IGN/Geoportail',
+      maxZoom: 19
     })
   };
 
   const initMap = (mapInstance: LeafletMap) => {
     map.value = mapInstance;
+    // Ajouter le contrôle de couches
+    L.control.layers(baseMaps).addTo(mapInstance);
+    // Définir la couche par défaut
+    baseMaps[currentBaseMap.value as keyof typeof baseMaps].addTo(mapInstance);
+  };
+
+  const changeBaseMap = (baseMapName: keyof typeof baseMaps) => {
+    if (!map.value || !baseMaps[baseMapName]) return;
+    
+    // Retirer toutes les couches de base existantes
+    Object.values(baseMaps).forEach(layer => {
+      if (map.value?.hasLayer(layer)) {
+        map.value.removeLayer(layer);
+      }
+    });
+    
+    // Ajouter la nouvelle couche de base
+    baseMaps[baseMapName].addTo(map.value);
+    currentBaseMap.value = baseMapName;
   };
 
   const handleMapSetLocation = ((event: CustomEvent) => {
@@ -50,7 +73,10 @@ export function useMapState() {
   return {
     map,
     searchQuery,
+    currentBaseMap,
+    baseMaps,
     initMap,
-    searchLocation
+    searchLocation,
+    changeBaseMap
   };
 } 

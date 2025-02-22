@@ -145,19 +145,33 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.save()
 
 class DealerViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.filter(role='CONCESSIONNAIRE')
+    queryset = User.objects.filter(role=ROLE_DEALER)
     serializer_class = DealerSerializer
-    permission_classes = [IsAdmin]
+    permission_classes = [permissions.IsAuthenticated]
 
-    def perform_create(self, serializer):
-        serializer.save(role='CONCESSIONNAIRE')
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == ROLE_ADMIN:
+            return User.objects.filter(role=ROLE_DEALER)
+        return User.objects.none()
 
     @action(detail=True, methods=['get'])
     def clients(self, request, pk=None):
+        """
+        Récupère la liste des clients d'un concessionnaire.
+        """
         dealer = self.get_object()
-        clients = User.objects.filter(concessionnaire=dealer)
-        serializer = ClientSerializer(clients, many=True)
-        return Response(serializer.data)
+        if request.user.role == ROLE_ADMIN or request.user == dealer:
+            clients = User.objects.filter(concessionnaire=dealer, role=ROLE_CLIENT)
+            serializer = ClientSerializer(clients, many=True)
+            return Response(serializer.data)
+        return Response(
+            {'detail': 'Vous n\'avez pas la permission d\'accéder à ces données.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    def perform_create(self, serializer):
+        serializer.save(role=ROLE_DEALER)
 
 class ClientViewSet(viewsets.ModelViewSet):
     serializer_class = ClientSerializer
@@ -186,16 +200,33 @@ class PlanViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Filtre les plans selon le rôle de l'utilisateur :
-        - Admin : tous les plans
+        Filtre les plans selon le rôle de l'utilisateur et les paramètres de requête:
+        - Admin : tous les plans ou plans d'un utilisateur spécifique
         - Dealer : ses plans et ceux de ses clients
         - Client : uniquement ses plans
         """
         user = self.request.user
+        utilisateur_id = self.request.query_params.get('utilisateur')
+
+        # Si un ID d'utilisateur est spécifié dans la requête
+        if utilisateur_id:
+            try:
+                utilisateur = User.objects.get(id=utilisateur_id)
+                # Vérifier les permissions
+                if user.role == ROLE_ADMIN:
+                    return Plan.objects.filter(createur=utilisateur)
+                elif user.role == ROLE_DEALER and utilisateur in user.utilisateurs.all():
+                    return Plan.objects.filter(createur=utilisateur)
+                elif str(user.id) == utilisateur_id:
+                    return Plan.objects.filter(createur=user)
+                return Plan.objects.none()
+            except User.DoesNotExist:
+                return Plan.objects.none()
+
+        # Comportement par défaut sans paramètre utilisateur
         if user.role == ROLE_ADMIN:
             return Plan.objects.all()
         elif user.role == ROLE_DEALER:
-            # Utiliser le related_name correct 'utilisateurs' au lieu de 'clients'
             return Plan.objects.filter(
                 createur__in=[user.id] + list(user.utilisateurs.values_list('id', flat=True))
             )
