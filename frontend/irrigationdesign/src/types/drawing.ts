@@ -48,4 +48,24 @@ export interface DrawingElement {
   id?: number;
   type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE';
   data: ShapeData;
+}
+
+export interface ShapeType {
+  type: "unknown" | "Rectangle" | "Circle" | "Polygon" | "Line" | "Semicircle";
+  properties: {
+    type?: string;
+    style?: any;
+    dimensions?: {
+      width?: number;
+      height?: number;
+      radius?: number;
+      orientation?: number;
+    };
+    area?: number;
+    perimeter?: number;
+    length?: number;
+    rotation?: number;
+    [key: string]: any;
+  };
+  layer: any;
 } 

@@ -29,7 +29,7 @@
       </div>
 
       <!-- Sélection du client -->
-      <div class="mb-4">
+      <div v-if="authStore.user?.user_type === 'admin' || authStore.user?.user_type === 'dealer'" class="mb-4">
         <label class="block text-sm font-medium text-gray-700 mb-2">Client</label>
         <div v-if="isLoadingClients" class="animate-pulse">
           <div class="h-10 bg-gray-200 rounded"></div>
@@ -289,12 +289,22 @@ async function createPlan() {
   isCreating.value = true;
 
   try {
-    const data = {
+    const data: any = {
       nom: planData.value.nom.trim(),
-      description: planData.value.description.trim(),
-      concessionnaire: authStore.user?.user_type === 'admin' ? planData.value.concessionnaire : authStore.user?.id,
-      client: authStore.user?.user_type === 'client' ? authStore.user?.id : planData.value.client
+      description: planData.value.description.trim()
     };
+
+    // Gestion des IDs selon le type d'utilisateur
+    if (authStore.user?.user_type === 'admin') {
+      data.concessionnaire = planData.value.concessionnaire;
+      data.client = planData.value.client;
+    } else if (authStore.user?.user_type === 'dealer') {
+      data.concessionnaire = authStore.user.id;
+      data.client = planData.value.client;
+    } else if (authStore.user?.user_type === 'client') {
+      data.client = authStore.user.id;
+      // Ne pas inclure le concessionnaire pour un client
+    }
 
     const newPlan = await irrigationStore.createPlan(data);
     emit('created', newPlan.id);

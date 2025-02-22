@@ -191,8 +191,11 @@ interface User {
 
 interface Dealer {
   id: number;
+  first_name: string;
+  last_name: string;
   company_name?: string;
   full_name?: string;
+  role: 'CONCESSIONNAIRE';
 }
 
 const users = ref<User[]>([])

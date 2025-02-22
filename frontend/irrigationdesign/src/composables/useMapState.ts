@@ -41,7 +41,7 @@ export function useMapState() {
     });
     
     // Ajouter la nouvelle couche de base
-    baseMaps[baseMapName].addTo(map.value);
+    baseMaps[baseMapName].addTo(map.value as L.Map);
     currentBaseMap.value = baseMapName;
   };
 

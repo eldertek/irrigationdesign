@@ -1,0 +1,459 @@
+@import 'leaflet/dist/leaflet.css';
+
+/* Masquer le contrôle des couches */
+.leaflet-control-layers-toggle {
+  display: none !important;
+}
+
+/* Masquer les contrôles de rotation */
+.leaflet-pm-toolbar .leaflet-pm-icon-rotate,
+.button-container[title="Tourner des calques"],
+.leaflet-pm-toolbar .button-container[title="Tourner des calques"] {
+  display: none !important;
+}
+
+/* Masquer le bouton de rotation des calques */
+.button-container[title="Tourner des calques"] {
+  display: none !important;
+}
+
+/* Ajuster le z-index du conteneur de la carte */
+.leaflet-container {
+  z-index: 1;
+}
+
+/* Ajuster le z-index des contrôles de la carte */
+.leaflet-control-container {
+  z-index: 1000;
+}
+
+/* Styles pour les messages d'aide */
+.drawing-help-message {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  z-index: 2000;
+  pointer-events: none;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Styles pour les marqueurs personnalisés */
+.custom-div-icon {
+  background: transparent;
+  border: none;
+}
+
+.marker-pin {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #3388ff;
+  border: 2px solid white;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Styles pour les lignes de guide */
+.leaflet-pm-draggable {
+  cursor: move;
+  transition: transform 0.2s ease;
+  position: relative;
+  z-index: 1000 !important;
+}
+
+.leaflet-pm-draggable:hover {
+  transform: scale(1.2);
+}
+
+.leaflet-pm-drawing {
+  cursor: crosshair;
+}
+
+/* Styles pour le mode édition */
+.editing-mode .leaflet-container {
+  cursor: pointer;
+}
+
+.editing-mode .leaflet-interactive {
+  transition: all 0.2s ease;
+}
+
+.editing-mode .leaflet-marker-icon {
+  transition: transform 0.2s ease;
+}
+
+.editing-mode .leaflet-marker-icon:hover {
+  transform: scale(1.2);
+}
+
+/* Animation pour les guides visuels */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.drawing-guide {
+  animation: pulse 2s infinite;
+}
+
+/* États de la carte */
+.state-drawing .leaflet-container {
+  background-color: rgba(51, 136, 255, 0.05);
+}
+
+.state-editing .leaflet-container {
+  background-color: rgba(255, 193, 7, 0.05);
+}
+
+/* Animation de création de forme */
+@keyframes shapeCreated {
+  0% { opacity: 0.7; }
+  50% { opacity: 1; }
+  100% { opacity: 0.7; }
+}
+
+.shape-created {
+  animation: shapeCreated 0.3s ease-out;
+}
+
+/* Styles pour les guides de dessin */
+.drawing-guide-line {
+  stroke-dasharray: 5, 5;
+  animation: dash 20s linear infinite;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: 1000;
+  }
+}
+
+/* Amélioration des styles de sélection */
+.leaflet-interactive:hover {
+  filter: brightness(1.1);
+}
+
+.leaflet-interactive:active {
+  filter: brightness(0.9);
+}
+
+/* Style pour les infobulles des points de contrôle */
+.control-point-tooltip {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1000;
+  transform: translate(-50%, -130%);
+  top: 0;
+  left: 50%;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.control-point-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid rgba(0, 0, 0, 0.8);
+}
+
+/* Afficher les tooltips quand la forme est sélectionnée */
+.shape-selected .leaflet-pm-draggable .control-point-tooltip {
+  opacity: 1;
+}
+
+/* Animation d'apparition des tooltips */
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translate(-50%, -120%); }
+  to { opacity: 1; transform: translate(-50%, -130%); }
+}
+
+.shape-selected .control-point-tooltip {
+  animation: tooltipFadeIn 0.2s ease forwards;
+}
+
+/* Style pour les points de contrôle actifs */
+.leaflet-pm-draggable.active {
+  background-color: #3B82F6 !important;
+  border-color: white !important;
+}
+
+/* Conteneur des informations de mesure */
+.measurement-info {
+  position: absolute;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  pointer-events: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-width: 200px;
+  white-space: normal;
+}
+
+.measurement-info.distance { color: #2563EB; }
+.measurement-info.angle { color: #7C3AED; }
+.measurement-info.area { color: #059669; }
+
+/* Styles pour les messages d'aide contextuels */
+.context-help {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 1000;
+  transition: opacity 0.2s ease;
+}
+
+/* Styles pour les indicateurs de mesure */
+.measurement-label {
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* Styles pour le mode dessin actif */
+.drawing-mode .leaflet-container {
+  transition: background-color 0.3s ease;
+}
+
+.drawing-mode .leaflet-control-container {
+  opacity: 0.7;
+}
+
+/* Styles pour les formes en cours de dessin */
+.shape-drawing {
+  stroke-dasharray: 5, 5;
+  animation: drawing-dash 1s linear infinite;
+}
+
+@keyframes drawing-dash {
+  to {
+    stroke-dashoffset: 10;
+  }
+}
+
+/* Styles pour les tooltips de dessin */
+.drawing-tooltip {
+  background: rgba(0, 0, 0, 0.8);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  padding: 4px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.drawing-tooltip::before {
+  border-top-color: rgba(0, 0, 0, 0.8);
+}
+
+/* Styles pour le contrôle de rotation */
+.rotation-control {
+  width: 32px !important;
+  height: 32px !important;
+  margin-left: -16px !important;
+  margin-top: -16px !important;
+  cursor: pointer !important;
+  background: white !important;
+  border: 2px solid #3388ff !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2) !important;
+  transition: all 0.2s ease !important;
+  pointer-events: auto !important;
+  z-index: 1000 !important;
+}
+
+.rotation-control:hover {
+  transform: scale(1.1) !important;
+  background: #e6f0ff !important;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.rotation-control.rotating {
+  background: #e6f0ff !important;
+  transform: scale(1.1) !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2) !important;
+}
+
+.rotation-control svg {
+  width: 24px !important;
+  height: 24px !important;
+  color: #3388ff !important;
+  transition: transform 0.2s ease !important;
+  pointer-events: none !important;
+}
+
+.rotation-control.rotating svg {
+  animation: rotate 2s linear infinite !important;
+}
+
+/* Styles pour la forme en cours de rotation */
+.leaflet-interactive.rotating {
+  transition: transform 0.1s ease-out !important;
+}
+
+/* Curseur personnalisé pendant la rotation */
+.map-rotating {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="%233388ff"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>') 16 16, auto !important;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* S'assurer que le contrôle de rotation est toujours visible */
+.leaflet-marker-icon.rotation-control {
+  z-index: 1000 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: flex !important;
+}
+
+/* Ajuster la position de l'icône dans le contrôle */
+.rotation-control .leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Positionnement des outils de dessin */
+.drawing-tools-container {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 16px;
+  width: 320px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+/* Styles pour le texte */
+.text-container {
+  background: transparent !important;
+  border: none !important;
+}
+
+.text-annotation {
+  display: inline-block;
+  cursor: text;
+  white-space: pre-wrap;
+  outline: none;
+  user-select: text;
+  min-width: 100px;
+  transition: all 0.2s ease;
+  transform-origin: center;
+  font-family: system-ui, -apple-system, sans-serif;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.text-annotation:focus {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+.text-annotation.editing {
+  z-index: 1000;
+  position: relative;
+  min-height: 1em;
+  cursor: text;
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.text-annotation.editing::selection {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+/* Styles pour la rotation du texte */
+.text-rotation-handle {
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.text-container:hover + .text-rotation-handle,
+.text-rotation-handle:hover {
+  opacity: 1;
+}
+
+.text-rotation-handle .rotation-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid #3B82F6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+.text-rotation-handle .rotation-indicator::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3B82F6;
+  transform: translate(-50%, -50%);
+}
+
+.text-rotation-handle.rotating {
+  opacity: 1;
+  cursor: grabbing;
+}
+
+.text-rotation-handle.rotating .rotation-indicator {
+  background: #2563EB;
+  border-color: white;
+}
+
+/* Maintenir la lisibilité lors du zoom */
+.leaflet-container .text-annotation {
+  transform-origin: center;
+  will-change: transform;
+  backface-visibility: hidden;
+} 

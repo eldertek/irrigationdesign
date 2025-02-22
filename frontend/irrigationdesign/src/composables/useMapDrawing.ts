@@ -41,18 +41,17 @@ interface ExtendedLayerOptions extends L.LayerOptions {
   dashArray?: string;
 }
 
-// Extension des types Leaflet
+// Ajouter cette interface avant la déclaration du module 'leaflet'
+interface CustomIconOptions extends L.DivIconOptions {
+  html?: string;
+  className?: string;
+}
+
+// Modifier l'interface Layer pour éviter les conflits de type
 declare module 'leaflet' {
-  interface CustomIconOptions extends Omit<L.IconOptions, 'iconUrl'> {
-    html?: string;
-    iconAnchor?: [number, number];
-    iconUrl?: string;
-  }
-  
   interface Layer {
     properties?: any;
-    pm?: PMLayer;
-    _map: L.Map;
+    pm?: any;
     _textLayer?: L.Marker;
     options: L.LayerOptions;
   }
@@ -182,6 +181,18 @@ interface ControlPoint extends L.CircleMarker {
   measureDiv?: HTMLElement;
 }
 
+// Ajouter cette fonction utilitaire en haut du fichier
+const convertMouseEvent = (e: MouseEvent): MouseEvent => {
+  return {
+    ...e,
+    clientX: e.clientX,
+    clientY: e.clientY,
+    button: e.button || 0,
+    buttons: e.buttons || 0,
+    altKey: e.altKey || false,
+  } as MouseEvent;
+};
+
 export function useMapDrawing() {
   const map = ref<L.Map | null>(null);
   const featureGroup = ref<L.FeatureGroup | null>(null);
@@ -224,7 +235,7 @@ export function useMapDrawing() {
       
       // Mettre à jour l'icône avec la nouvelle taille
       const icon = marker.getIcon();
-      const newOptions: L.CustomIconOptions = {
+      const newOptions: CustomIconOptions = {
         html: createHtml(marker.properties.text, marker.properties.style),
         className: icon.options.className
       };
@@ -305,13 +316,13 @@ export function useMapDrawing() {
         marker.properties.style.rotation = rotation;
         
         const icon = marker.getIcon() as L.DivIcon;
-        const newOptions: L.CustomIconOptions = {
+        const newOptions: CustomIconOptions = {
           html: createHtml(marker.properties.text, marker.properties.style),
           className: icon.options.className
         };
         marker.setIcon(L.divIcon(newOptions));
       } else if (isDragging) {
-        const mouseEvent = e as unknown as L.LeafletMouseEvent;
+        const mouseEvent = convertMouseEvent(e);
         const newPos = map.value.mouseEventToLatLng(mouseEvent);
         marker.setLatLng(newPos);
       }
@@ -369,7 +380,7 @@ export function useMapDrawing() {
         if (newText) {
           marker.properties.text = newText;
           const icon = marker.getIcon() as L.DivIcon;
-          const newOptions: L.CustomIconOptions = {
+          const newOptions: CustomIconOptions = {
             html: createHtml(newText, marker.properties.style),
             className: icon.options.className
           };
@@ -1275,10 +1286,10 @@ export function useMapDrawing() {
   const updateRectangleControlPoints = (layer: L.Rectangle) => {
     if (!map.value || !featureGroup.value) return;
 
-    // Nettoyer les points de contrôle existants
     clearActiveControlPoints();
-
     const bounds = layer.getBounds();
+    const center = bounds.getCenter();
+    let startAngle = 0;
     const corners = [
       bounds.getNorthWest(),
       bounds.getNorthEast(),
@@ -1312,25 +1323,48 @@ export function useMapDrawing() {
         let isDragging = true;
         
         const onMouseMove = (e: L.LeafletMouseEvent) => {
-          if (!isDragging) return;
+          if (!isDragging || !map.value) return;
+
+          const currentAngle = Math.atan2(
+            e.latlng.lat - center.lat,
+            e.latlng.lng - center.lng
+          ) * 180 / Math.PI;
+
+          const rotation = currentAngle - startAngle;
           
-          // Mettre à jour le coin
-          corners[index] = e.latlng;
-          
-          // Créer les nouvelles bounds
-          const newBounds = L.latLngBounds([
-            [
-              Math.min(corners[0].lat, corners[2].lat),
-              Math.min(corners[0].lng, corners[2].lng)
-            ],
-            [
-              Math.max(corners[0].lat, corners[2].lat),
-              Math.max(corners[0].lng, corners[2].lng)
-            ]
-          ]);
-          
-          layer.setBounds(newBounds);
-          cornerPoint.setLatLng(e.latlng);
+          // Convertir les coins en points sur l'écran
+          const centerPoint = map.value.latLngToLayerPoint(center);
+          const cornerPoints = corners.map(corner => 
+            map.value!.latLngToLayerPoint(corner)
+          );
+
+          // Faire pivoter chaque coin
+          const rotatedCorners = cornerPoints.map(point => 
+            map.value!.layerPointToLatLng(
+              rotatePoint(point, centerPoint, rotation)
+            )
+          );
+
+          // Mettre à jour le rectangle
+          layer.setBounds(L.latLngBounds(rotatedCorners));
+
+          // Mettre à jour le point de rotation
+          const rotatedPoint = map.value.layerPointToLatLng(
+            rotatePoint(
+              map.value.latLngToLayerPoint(rotationPoint.getLatLng()),
+              centerPoint,
+              rotation
+            )
+          );
+          rotationPoint.setLatLng(rotatedPoint);
+
+          // Mettre à jour l'angle de départ pour la prochaine rotation
+          startAngle = currentAngle;
+
+          // Mettre à jour les coins pour la prochaine rotation
+          corners.forEach((_, i) => {
+            corners[i] = rotatedCorners[i];
+          });
         };
         
         const onMouseUp = () => {
@@ -1349,7 +1383,6 @@ export function useMapDrawing() {
     });
 
     // Ajouter le point de rotation (bleu)
-    const center = bounds.getCenter();
     const rotationPoint = createControlPoint(
       L.latLng(center.lat, center.lng + 0.0002), // Légèrement décalé vers le haut
       '#2563EB'
@@ -1369,6 +1402,7 @@ export function useMapDrawing() {
       ) * 180 / Math.PI;
 
       let isDragging = true;
+      let lastAngle = startAngle;
 
       const onMouseMove = (e: L.LeafletMouseEvent) => {
         if (!isDragging || !map.value) return;
@@ -1379,7 +1413,7 @@ export function useMapDrawing() {
         ) * 180 / Math.PI;
 
         const rotation = currentAngle - startAngle;
-
+        
         // Convertir les coins en points sur l'écran
         const centerPoint = map.value.latLngToLayerPoint(center);
         const cornerPoints = corners.map(corner => 
@@ -1547,7 +1581,6 @@ export function useMapDrawing() {
             isDragging = false;
             if (!map.value) return;
             map.value.off('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
           map.value.dragging.enable();
           };
           
@@ -1674,76 +1707,51 @@ export function useMapDrawing() {
     const startAngle = layer.getStartAngle();
     const stopAngle = layer.getStopAngle();
 
-    // Point central (vert)
-    const centerPoint = createControlPoint(center, '#059669');
-    activeControlPoints.push(centerPoint);
-
-    // Ajouter les mesures au point central
-    addMeasureEvents(centerPoint, layer, () => {
-      const area = (Math.PI * radius * radius) / 2;
-      return [
-        formatMeasure(radius, 'm', 'Rayon'),
-        formatMeasure(area, 'm²', 'Surface')
-      ].join('<br>');
-    });
-
-    // Point de contrôle du rayon (bleu)
-    const radiusAngle = (startAngle + stopAngle) / 2;
-    const radiusRad = (radiusAngle * Math.PI) / 180;
-    const radiusPoint = L.latLng(
-      center.lat + (radius / 111319.9) * Math.sin(radiusRad),
-      center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(radiusRad)
-    );
-    const radiusControl = createControlPoint(radiusPoint, '#2563EB');
-    activeControlPoints.push(radiusControl);
-
-    // Ajouter les mesures au point de contrôle du rayon
-    addMeasureEvents(radiusControl, layer, () => {
-      return formatMeasure(radius, 'm', 'Rayon');
-    });
-
-    // Points de contrôle des angles (rouge)
+    // Points de contrôle des angles
     const angles = [startAngle, stopAngle];
-    angles.forEach((angle, index) => {
-      const rad = (angle * Math.PI) / 180;
+    angles.forEach((currentAngle, index) => {
+      const rad = (currentAngle * Math.PI) / 180;
       const point = L.latLng(
         center.lat + (radius / 111319.9) * Math.sin(rad),
         center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(rad)
       );
+
       const angleControl = createControlPoint(point, '#DC2626');
       activeControlPoints.push(angleControl);
 
-      // Ajouter les mesures aux points de contrôle des angles
       addMeasureEvents(angleControl, layer, () => {
-        return `Angle: ${formatAngle(angle)}`;
+        return `Angle: ${formatAngle(currentAngle)}`;
       });
 
-      // Gestion du déplacement des points de contrôle
       angleControl.on('mousedown', (e: L.LeafletMouseEvent) => {
         if (!map.value) return;
         L.DomEvent.stopPropagation(e);
         map.value.dragging.disable();
 
         let isDragging = true;
+        let startDragAngle = currentAngle;
 
         const onMouseMove = (e: L.LeafletMouseEvent) => {
-          if (!isDragging) return;
+          if (!isDragging || !map.value) return;
+
           const newAngle = Math.atan2(
             e.latlng.lat - center.lat,
             e.latlng.lng - center.lng
           ) * 180 / Math.PI;
 
-          // Normaliser l'angle
-          const normalizedAngle = ((newAngle + 270) % 360 + 360) % 360;
+          const exactPoint = L.latLng(
+            center.lat + (radius / 111319.9) * Math.sin(newAngle * Math.PI / 180),
+            center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(newAngle * Math.PI / 180)
+          );
 
+          angleControl.setLatLng(exactPoint);
+
+          const currentOpeningAngle = layer.getOpeningAngle();
           if (index === 0) {
-            layer.setAngles(normalizedAngle, stopAngle);
+            layer.setAngles(newAngle, (newAngle + currentOpeningAngle) % 360);
           } else {
-            layer.setAngles(startAngle, normalizedAngle);
+            layer.setAngles(layer.getStartAngle(), newAngle);
           }
-
-          angleControl.setLatLng(e.latlng);
-          updateSemicircleControlPoints(layer);
         };
 
         const onMouseUp = () => {
@@ -1760,6 +1768,10 @@ export function useMapDrawing() {
     });
 
     // Gestion du déplacement du point central
+    const centerPoint = createControlPoint(center, '#059669');
+    activeControlPoints.push(centerPoint);
+
+    // Ajouter les événements de déplacement
     centerPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
       if (!map.value) return;
       L.DomEvent.stopPropagation(e);
@@ -1771,34 +1783,6 @@ export function useMapDrawing() {
         if (!isDragging) return;
         layer.setCenter(e.latlng);
         centerPoint.setLatLng(e.latlng);
-        updateSemicircleControlPoints(layer);
-      };
-
-      const onMouseUp = () => {
-        isDragging = false;
-        if (!map.value) return;
-        map.value.off('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-        map.value.dragging.enable();
-      };
-
-      map.value.on('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-    });
-
-    // Gestion du déplacement du point de contrôle du rayon
-    radiusControl.on('mousedown', (e: L.LeafletMouseEvent) => {
-      if (!map.value) return;
-      L.DomEvent.stopPropagation(e);
-      map.value.dragging.disable();
-
-      let isDragging = true;
-
-      const onMouseMove = (e: L.LeafletMouseEvent) => {
-        if (!isDragging) return;
-        const newRadius = center.distanceTo(e.latlng);
-        layer.setRadius(newRadius);
-        radiusControl.setLatLng(e.latlng);
         updateSemicircleControlPoints(layer);
       };
 
@@ -1833,6 +1817,7 @@ export function useMapDrawing() {
     updateShapeStyle,
     updateShapeProperties,
     updateTextFixedSize,
-    adjustView
+    adjustView,
+    clearActiveControlPoints
   };
-} 
+}

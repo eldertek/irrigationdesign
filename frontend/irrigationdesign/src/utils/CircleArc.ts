@@ -1,11 +1,5 @@
 import L from 'leaflet';
 
-declare module 'leaflet' {
-  interface Layer {
-    pm?: PMLayer;
-  }
-}
-
 interface PMLayer {
   enable: (options?: any) => void;
   disable: () => void;
@@ -38,7 +32,7 @@ export class CircleArc extends L.Polygon {
   private stopAngle: number;
   private numPoints: number;
   public properties: CircleArcProperties;
-  public pm?: PMLayer;
+  public pm: any;
 
   constructor(
     center: L.LatLng,
@@ -47,7 +41,6 @@ export class CircleArc extends L.Polygon {
     stopAngle: number = 180,
     options: L.PolylineOptions = {}
   ) {
-    // Initialiser avec un tableau vide de points et les options
     super([[]], {
       ...options,
       pmIgnore: false,
@@ -61,7 +54,6 @@ export class CircleArc extends L.Polygon {
     this.stopAngle = this.normalizeAngle(stopAngle);
     this.numPoints = 64;
 
-    // Initialiser les propriétés spécifiques au demi-cercle
     this.properties = {
       type: 'Semicircle',
       radius: this.radius,
@@ -74,7 +66,6 @@ export class CircleArc extends L.Polygon {
       }
     };
 
-    // Désactiver l'édition des sommets
     this.on('pm:enable', (e: any) => {
       if (this.pm) {
         this.pm._layers = [];
@@ -83,19 +74,16 @@ export class CircleArc extends L.Polygon {
       }
     });
 
-    // Empêcher la création de marqueurs d'édition
     this.on('pm:vertexadded', (e: any) => {
       if (this.pm) {
         this.pm._markerGroup?.clearLayers();
       }
     });
 
-    // Mettre à jour la géométrie une fois que la couche est ajoutée à la carte
     this.on('add', () => {
       if (this._map) {
         this.updateGeometry();
         
-        // Configurer Leaflet-Geoman pour cette forme
         if (this.pm) {
           this.pm.enable({
             allowSelfIntersection: false,
@@ -107,7 +95,6 @@ export class CircleArc extends L.Polygon {
   }
 
   private normalizeAngle(angle: number): number {
-    // Normaliser l'angle entre 0 et 360
     return ((angle % 360) + 360) % 360;
   }
 
@@ -117,23 +104,18 @@ export class CircleArc extends L.Polygon {
     const points: L.LatLng[] = [];
     const angleRange = (this.stopAngle - this.startAngle + 360) % 360;
     
-    // Ajouter le centre comme premier point
     points.push(this.center);
 
-    // Calculer les points de l'arc en coordonnées géographiques
     for (let i = 0; i <= this.numPoints; i++) {
       const angle = this.startAngle + (angleRange * i) / this.numPoints;
       const rad = (angle * Math.PI) / 180;
       
-      // Calculer le décalage en mètres
       const dx = this.radius * Math.cos(rad);
       const dy = this.radius * Math.sin(rad);
       
-      // Convertir le décalage en degrés de latitude/longitude
       const latOffset = (dy / 111319.9);
       const lngOffset = (dx / (111319.9 * Math.cos(this.center.lat * Math.PI / 180)));
       
-      // Créer le nouveau point
       const point = L.latLng(
         this.center.lat + latOffset,
         this.center.lng + lngOffset
@@ -142,7 +124,6 @@ export class CircleArc extends L.Polygon {
       points.push(point);
     }
 
-    // Fermer le polygone en revenant au centre
     points.push(this.center);
 
     return points;
@@ -158,8 +139,31 @@ export class CircleArc extends L.Polygon {
 
   setAngles(startAngle: number, stopAngle: number): this {
     // Normaliser les angles
-    this.startAngle = this.normalizeAngle(startAngle);
-    this.stopAngle = this.normalizeAngle(stopAngle);
+    const normalizedStart = this.normalizeAngle(startAngle);
+    const normalizedStop = this.normalizeAngle(stopAngle);
+    
+    // Calculer l'angle d'ouverture actuel
+    const currentOpeningAngle = this.getOpeningAngle();
+    
+    // Calculer le nouvel angle d'ouverture
+    let newOpeningAngle = (normalizedStop - normalizedStart + 360) % 360;
+    
+    // Si l'angle d'ouverture change trop brutalement, le limiter
+    const maxAngleChange = 45; // Degrés maximum de changement par mouvement
+    if (Math.abs(newOpeningAngle - currentOpeningAngle) > maxAngleChange) {
+      if (newOpeningAngle > currentOpeningAngle) {
+        newOpeningAngle = currentOpeningAngle + maxAngleChange;
+      } else {
+        newOpeningAngle = currentOpeningAngle - maxAngleChange;
+      }
+    }
+    
+    // Limiter l'angle d'ouverture entre 0° et 360°
+    newOpeningAngle = Math.max(0, Math.min(360, newOpeningAngle));
+    
+    // Mettre à jour les angles
+    this.startAngle = normalizedStart;
+    this.stopAngle = (normalizedStart + newOpeningAngle) % 360;
     
     // Mettre à jour les propriétés
     this.properties.startAngle = this.startAngle;
@@ -213,7 +217,6 @@ export class CircleArc extends L.Polygon {
     }
   }
 
-  // Surcharger la méthode toGeoJSON pour identifier correctement le type
   toGeoJSON() {
     const geoJSON = super.toGeoJSON();
     return {
@@ -227,4 +230,4 @@ export class CircleArc extends L.Polygon {
       }
     };
   }
-} 
+}

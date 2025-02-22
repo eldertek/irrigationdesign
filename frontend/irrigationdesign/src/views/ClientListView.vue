@@ -111,7 +111,7 @@
       <UserFormModal
         v-if="showAddClientModal"
         :user="selectedClient || {}"
-        :dealers="[authStore.user!]" 
+        :dealers="[{ ...authStore.user!, role: 'CONCESSIONNAIRE' }]"
         :is-admin="false"
         :current-dealer="authStore.user?.id?.toString()"
         @close="closeClientModal"
