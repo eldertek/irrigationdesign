@@ -109,6 +109,28 @@ export const irrigationService = {
   async deletePlan(planId: number) {
     return await api.delete(`/plans/${planId}/`);
   },
+
+  // Nouvelles méthodes pour les concessionnaires
+  async getDealers() {
+    return await api.get('/users/', { params: { role: 'CONCESSIONNAIRE' } });
+  },
+
+  async getDealerClients(dealerId: number) {
+    return await api.get('/users/', { 
+      params: { 
+        role: 'UTILISATEUR',
+        concessionnaire: dealerId 
+      } 
+    });
+  },
+
+  async getClientPlans(clientId: number) {
+    return await api.get('/plans/', { params: { client: clientId } });
+  },
+
+  async createPlanForClient(planData: any) {
+    return await api.post('/plans/', planData);
+  }
 };
 
 export default api; 

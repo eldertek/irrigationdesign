@@ -118,8 +118,9 @@ export const useIrrigationStore = defineStore('irrigation', {
         console.log('Plan creation response:', response.data);
         this.plans.push(response.data);
         return response.data;
-      } catch (error) {
-        console.error('Error creating plan:', error.response?.data || error);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('Error creating plan:', errorMessage);
         this.error = 'Erreur lors de la création du plan';
         throw error;
       } finally {

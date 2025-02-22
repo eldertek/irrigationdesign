@@ -201,8 +201,8 @@
                     class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
                   >
                     <div>
-                      <div class="font-medium text-gray-900">{{ dealer.company_name }}</div>
-                      <div class="text-sm text-gray-500">{{ dealer.email }}</div>
+                      <div class="font-medium text-gray-900">{{ dealer.first_name }} {{ dealer.last_name }}</div>
+                      <div class="text-sm text-gray-600">{{ dealer.company_name }}</div>
                     </div>
                     <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -216,16 +216,18 @@
             <div v-else-if="!selectedClient" class="space-y-2">
               <div class="flex items-center mb-4">
                 <button
-                  @click="backToDealer"
+                  @click="backToDealerList"
                   class="flex items-center text-sm text-gray-600 hover:text-gray-900"
                 >
                   <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                   </svg>
-                  Retour aux concessionnaires
+                  Retour à la liste des concessionnaires
                 </button>
                 <span class="mx-2 text-gray-400">|</span>
-                <span class="text-sm text-gray-600">{{ selectedDealer.company_name }}</span>
+                <span class="text-sm text-gray-600">
+                  {{ selectedDealer.first_name }} {{ selectedDealer.last_name }} ({{ selectedDealer.company_name }})
+                </span>
               </div>
               <h3 class="font-medium text-gray-700">Sélectionnez un client</h3>
               <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
@@ -246,7 +248,7 @@
                   >
                     <div>
                       <div class="font-medium text-gray-900">{{ client.first_name }} {{ client.last_name }}</div>
-                      <div class="text-sm text-gray-500">{{ client.email }}</div>
+                      <div class="text-sm text-gray-600">{{ client.company_name }}</div>
                     </div>
                     <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -260,17 +262,17 @@
             <div v-else class="space-y-2">
               <div class="flex items-center mb-4">
                 <button
-                  @click="backToClient"
+                  @click="backToClientList"
                   class="flex items-center text-sm text-gray-600 hover:text-gray-900"
                 >
                   <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                   </svg>
-                  Retour aux clients
+                  Retour à la liste des clients
                 </button>
                 <span class="mx-2 text-gray-400">|</span>
                 <span class="text-sm text-gray-600">
-                  {{ selectedDealer.company_name }} > {{ selectedClient.first_name }} {{ selectedClient.last_name }}
+                  {{ selectedClient.first_name }} {{ selectedClient.last_name }} ({{ selectedClient.company_name }})
                 </span>
               </div>
               <h3 class="font-medium text-gray-700">Plans disponibles</h3>
@@ -302,7 +304,86 @@
             </div>
           </div>
 
-          <!-- Interface standard (non-admin) -->
+          <!-- Interface concessionnaire -->
+          <div v-else-if="authStore.isDealer" class="space-y-4">
+            <!-- Liste des clients -->
+            <div v-if="!selectedClient" class="space-y-2">
+              <h3 class="font-medium text-gray-700">Sélectionnez un client</h3>
+              <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
+                <template v-if="isLoadingClients">
+                  <div v-for="i in 3" :key="i" class="animate-pulse">
+                    <div class="p-3 bg-white rounded-lg border border-gray-200">
+                      <div class="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <button
+                    v-for="client in dealerClients"
+                    :key="client.id"
+                    @click="selectClient(client)"
+                    class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
+                  >
+                    <div>
+                      <div class="font-medium text-gray-900">{{ client.first_name }} {{ client.last_name }}</div>
+                      <div class="text-sm text-gray-600">{{ client.company_name }}</div>
+                    </div>
+                    <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <!-- Liste des plans du client -->
+            <div v-else class="space-y-2">
+              <div class="flex items-center mb-4">
+                <button
+                  @click="backToClientList"
+                  class="flex items-center text-sm text-gray-600 hover:text-gray-900"
+                >
+                  <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                  Retour à la liste des clients
+                </button>
+                <span class="mx-2 text-gray-400">|</span>
+                <span class="text-sm text-gray-600">
+                  {{ selectedClient.first_name }} {{ selectedClient.last_name }}
+                </span>
+              </div>
+              <h3 class="font-medium text-gray-700">Plans disponibles</h3>
+              <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
+                <template v-if="isLoadingPlans">
+                  <div v-for="i in 3" :key="i" class="animate-pulse">
+                    <div class="p-3 bg-white rounded-lg border border-gray-200">
+                      <div class="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div class="h-4 bg-gray-100 rounded w-2/3 mb-2"></div>
+                      <div class="h-3 bg-gray-50 rounded w-1/3"></div>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <button
+                    v-for="plan in clientPlans"
+                    :key="plan.id"
+                    @click="loadPlan(plan.id)"
+                    class="w-full px-4 py-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
+                  >
+                    <div class="font-medium text-gray-900">{{ plan.nom }}</div>
+                    <div class="text-sm text-gray-500">{{ plan.description }}</div>
+                    <div class="text-xs text-gray-400 mt-1">
+                      Modifié le {{ formatLastSaved(plan.date_modification) }}
+                    </div>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interface client -->
           <div v-else class="max-h-96 overflow-y-auto">
             <div v-if="irrigationStore.plans.length === 0" class="text-center py-8">
               <p class="text-gray-500">Aucun plan disponible</p>
@@ -487,6 +568,11 @@ onMounted(async () => {
       // Charger les concessionnaires au montage du composant si l'utilisateur est admin
       if (authStore.isAdmin) {
         await loadDealers();
+      }
+
+      // Charger les clients si c'est un concessionnaire
+      if (authStore.isDealer) {
+        await loadDealerClients();
       }
     }
   }
@@ -1027,7 +1113,13 @@ function calculateShapeProperties(layer: L.Layer, type: string): {
 // Fonction pour créer un nouveau plan
 async function createNewPlan() {
   try {
-    const plan = await irrigationStore.createPlan(newPlanData.value);
+    const planData = {
+      ...newPlanData.value,
+      client: selectedClient.value?.id || null,
+      concessionnaire: authStore.user?.id || null
+    };
+
+    const plan = await irrigationStore.createPlan(planData);
     currentPlan.value = plan;
     irrigationStore.setCurrentPlan(plan);
     drawingStore.setCurrentPlan(plan.id);
@@ -1310,7 +1402,9 @@ const deleteSelectedShape = () => {
 async function loadDealers() {
   isLoadingDealers.value = true;
   try {
-    const response = await api.get('/users/dealers/');
+    const response = await api.get('/users/', {
+      params: { role: 'CONCESSIONNAIRE' }
+    });
     dealers.value = response.data;
   } catch (error) {
     console.error('Erreur lors du chargement des concessionnaires:', error);
@@ -1320,10 +1414,15 @@ async function loadDealers() {
 }
 
 // Fonction pour charger les clients d'un concessionnaire
-async function loadDealerClients(dealerId: number) {
+async function loadDealerClients() {
   isLoadingClients.value = true;
   try {
-    const response = await api.get(`/users/dealers/${dealerId}/clients/`);
+    const response = await api.get('/users/', {
+      params: { 
+        role: 'UTILISATEUR',
+        concessionnaire: authStore.user?.id 
+      }
+    });
     dealerClients.value = response.data;
   } catch (error) {
     console.error('Erreur lors du chargement des clients:', error);
@@ -1336,7 +1435,9 @@ async function loadDealerClients(dealerId: number) {
 async function loadClientPlans(clientId: number) {
   isLoadingPlans.value = true;
   try {
-    const response = await api.get(`/plans/?utilisateur=${clientId}`);
+    const response = await api.get('/plans/', {
+      params: { client: clientId }
+    });
     clientPlans.value = response.data;
   } catch (error) {
     console.error('Erreur lors du chargement des plans:', error);
@@ -1346,11 +1447,24 @@ async function loadClientPlans(clientId: number) {
 }
 
 // Fonctions de sélection
-function selectDealer(dealer: UserDetails) {
+async function selectDealer(dealer: UserDetails) {
   selectedDealer.value = dealer;
-  loadDealerClients(dealer.id);
   selectedClient.value = null;
   clientPlans.value = [];
+  isLoadingClients.value = true;
+  try {
+    const response = await api.get('/users/', {
+      params: { 
+        role: 'UTILISATEUR',
+        concessionnaire: dealer.id 
+      }
+    });
+    dealerClients.value = response.data;
+  } catch (error) {
+    console.error('Erreur lors du chargement des clients:', error);
+  } finally {
+    isLoadingClients.value = false;
+  }
 }
 
 function selectClient(client: UserDetails) {
@@ -1359,14 +1473,14 @@ function selectClient(client: UserDetails) {
 }
 
 // Fonctions de navigation
-function backToDealer() {
+function backToDealerList() {
   selectedDealer.value = null;
   selectedClient.value = null;
-  clientPlans.value = [];
   dealerClients.value = [];
+  clientPlans.value = [];
 }
 
-function backToClient() {
+function backToClientList() {
   selectedClient.value = null;
   clientPlans.value = [];
 }
