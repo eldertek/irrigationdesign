@@ -1,7 +1,7 @@
 <template>
-  <div class="h-full flex overflow-hidden">
+  <div class="h-full flex">
     <!-- Carte -->
-    <div class="flex-1 relative overflow-hidden">
+    <div class="flex-1 relative">
       <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
       
       <!-- Barre d'outils principale -->

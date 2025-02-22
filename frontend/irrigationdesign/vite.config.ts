@@ -40,16 +40,16 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: undefined,
-        entryFileNames: 'assets/index.js',
+        entryFileNames: 'assets/[name].js',
         chunkFileNames: 'assets/[name].js',
         assetFileNames: (assetInfo) => {
           if (assetInfo.name === 'index.css') {
-            return 'assets/index.css'
+            return 'assets/[name].css'
           }
           return 'assets/[name].[ext]'
         }
       }
     }
   },
-  base: '/'
+  base: process.env.NODE_ENV === 'production' ? '/static/frontend/' : '/'
 })

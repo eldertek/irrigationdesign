@@ -1,6 +1,6 @@
 <template>
-  <div class="min-h-screen bg-gray-50 py-8 overflow-auto">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <div class="h-full bg-gray-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div class="flex justify-between items-center mb-8">
         <h1 class="text-3xl font-extrabold text-gray-900">
           {{ isAdmin ? 'Gestion des utilisateurs' : 'Mes clients' }}
@@ -99,10 +99,7 @@
                     </div>
                     <div class="ml-4">
                       <div class="text-sm font-medium text-gray-900">
-                        {{ user.first_name }} {{ user.last_name.toUpperCase() }}
-                        <span v-if="user.company_name" class="text-gray-500">
-                          ({{ user.company_name }})
-                        </span>
+                        {{ formatUserName(user) }}
                       </div>
                       <div class="text-sm text-gray-500">
                         {{ user.username }}
@@ -172,7 +169,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore, formatUserName } from '@/stores/auth'
 import UserFormModal from '@/components/UserFormModal.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
 import api from '@/services/api'

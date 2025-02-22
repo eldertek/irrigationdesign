@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-50 overflow-auto">
+  <div class="h-full bg-gray-50">
     <div class="container mx-auto px-4 py-8">
       <div class="sm:flex sm:items-center">
         <div class="sm:flex-auto">
@@ -22,89 +22,87 @@
       </div>
 
       <!-- Liste des clients -->
-      <div class="mt-8 flex flex-col">
-        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-            <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-              <table class="min-w-full divide-y divide-gray-300">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
-                      Client
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Email
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Entreprise
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Nombre de plans
-                    </th>
-                    <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                      <span class="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 bg-white">
-                  <tr v-if="loading" class="animate-pulse">
-                    <td colspan="5" class="py-4 px-6">
-                      <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                    </td>
-                  </tr>
-                  <tr v-else-if="clients.length === 0">
-                    <td colspan="5" class="py-4 px-6 text-center text-gray-500">
-                      Aucun client trouvé
-                    </td>
-                  </tr>
-                  <tr v-for="client in clients" :key="client.id" class="hover:bg-gray-50">
-                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
-                      <div class="flex items-center">
-                        <div class="h-10 w-10 flex-shrink-0">
-                          <div class="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
-                            <span class="text-primary-600 font-medium">
-                              {{ getInitials(client.first_name, client.last_name) }}
-                            </span>
-                          </div>
-                        </div>
-                        <div class="ml-4">
-                          <div class="font-medium text-gray-900">
-                            {{ client.first_name }} {{ client.last_name.toUpperCase() }}
-                          </div>
-                          <div class="text-gray-500">{{ client.username }}</div>
+      <div class="mt-8">
+        <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-300">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
+                    Client
+                  </th>
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    Email
+                  </th>
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    Entreprise
+                  </th>
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    Nombre de plans
+                  </th>
+                  <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                    <span class="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200 bg-white">
+                <tr v-if="loading" class="animate-pulse">
+                  <td colspan="5" class="py-4 px-6">
+                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                  </td>
+                </tr>
+                <tr v-else-if="clients.length === 0">
+                  <td colspan="5" class="py-4 px-6 text-center text-gray-500">
+                    Aucun client trouvé
+                  </td>
+                </tr>
+                <tr v-for="client in clients" :key="client.id" class="hover:bg-gray-50">
+                  <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
+                    <div class="flex items-center">
+                      <div class="h-10 w-10 flex-shrink-0">
+                        <div class="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
+                          <span class="text-primary-600 font-medium">
+                            {{ getInitials(client.first_name, client.last_name) }}
+                          </span>
                         </div>
                       </div>
-                    </td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {{ client.email }}
-                    </td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {{ client.company_name || '-' }}
-                    </td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      <div class="flex items-center">
-                        <span class="font-medium">{{ client.plans_count || 0 }}</span>
-                        <span class="text-gray-400 ml-1">plan{{ (client.plans_count || 0) > 1 ? 's' : '' }}</span>
+                      <div class="ml-4">
+                        <div class="font-medium text-gray-900">
+                          {{ formatUserName(client) }}
+                        </div>
+                        <div class="text-gray-500">{{ client.username }}</div>
                       </div>
-                    </td>
-                    <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                      <button
-                        @click="editClient(client)"
-                        class="text-primary-600 hover:text-primary-900 mr-4"
-                      >
-                        Modifier
-                      </button>
-                      <button
-                        @click="deleteClient(client)"
-                        class="text-red-600 hover:text-red-900"
-                      >
-                        Supprimer
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                    </div>
+                  </td>
+                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    {{ client.email }}
+                  </td>
+                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    {{ client.company_name || '-' }}
+                  </td>
+                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    <div class="flex items-center">
+                      <span class="font-medium">{{ client.plans_count || 0 }}</span>
+                      <span class="text-gray-400 ml-1">plan{{ (client.plans_count || 0) > 1 ? 's' : '' }}</span>
+                    </div>
+                  </td>
+                  <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                    <button
+                      @click="editClient(client)"
+                      class="text-primary-600 hover:text-primary-900 mr-4"
+                    >
+                      Modifier
+                    </button>
+                    <button
+                      @click="deleteClient(client)"
+                      class="text-red-600 hover:text-red-900"
+                    >
+                      Supprimer
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -134,7 +132,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore, formatUserName } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import api from '@/services/api'
 import UserFormModal from '@/components/UserFormModal.vue'

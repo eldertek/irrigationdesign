@@ -141,17 +141,15 @@ watch(pageTitle, (newTitle) => {
 </script>
 
 <template>
-  <div class="h-screen flex flex-col overflow-hidden">
+  <div class="h-screen flex flex-col">
     <header v-if="isAuthenticated" class="bg-white shadow-sm z-[2000]">
       <nav class="mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 items-center justify-between">
-          <!-- Logo et navigation principale -->
           <div class="flex items-center space-x-8">
             <router-link to="/" class="text-xl font-semibold text-primary-600">
               IrrigationDesign
             </router-link>
             
-            <!-- Navigation principale -->
             <div class="hidden md:flex space-x-6">
               <router-link
                 v-for="item in navigationItems"
@@ -169,14 +167,11 @@ watch(pageTitle, (newTitle) => {
             </div>
           </div>
 
-          <!-- Barre de recherche -->
           <div class="flex-1 max-w-2xl mx-8">
             <SearchBar @select-location="handleLocationSelect" />
           </div>
 
-          <!-- Actions utilisateur -->
           <div class="flex items-center space-x-4">
-            <!-- Notifications -->
             <button
               class="p-2 text-gray-400 hover:text-gray-500 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
             >
@@ -191,7 +186,6 @@ watch(pageTitle, (newTitle) => {
               </svg>
             </button>
 
-            <!-- Menu utilisateur -->
             <div class="relative">
               <button
                 @click="showProfileMenu = !showProfileMenu"
@@ -208,7 +202,6 @@ watch(pageTitle, (newTitle) => {
                 />
               </button>
 
-              <!-- Menu déroulant -->
               <div
                 v-if="showProfileMenu"
                 class="absolute right-0 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-[3000]"
@@ -234,9 +227,8 @@ watch(pageTitle, (newTitle) => {
         </div>
       </nav>
     </header>
-
-    <main class="flex-1 overflow-hidden">
-      <router-view />
+    <main class="flex-1 overflow-auto">
+      <router-view></router-view>
     </main>
   </div>
 </template>

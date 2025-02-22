@@ -111,7 +111,7 @@
                     >
                       <option value="">Sélectionner un concessionnaire</option>
                       <option v-for="dealer in availableDealers" :key="dealer.id" :value="dealer.id">
-                        {{ dealer.company_name || `${dealer.first_name} ${dealer.last_name}` }}
+                        {{ formatUserName(dealer) }}
                       </option>
                     </select>
                   </div>
@@ -211,7 +211,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, type PropType } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore, formatUserName } from '@/stores/auth'
 
 interface UserData {
   first_name: string
@@ -225,6 +225,14 @@ interface UserData {
   password?: string
   password_confirm?: string
   id?: number
+}
+
+interface Dealer {
+  id: number
+  first_name: string
+  last_name: string
+  company_name?: string
+  role: string
 }
 
 interface ApiError {
@@ -245,7 +253,7 @@ const props = defineProps({
     default: null
   },
   dealers: {
-    type: Array as PropType<Array<Record<string, any>>>,
+    type: Array as PropType<Array<Dealer>>,
     default: () => []
   },
   isAdmin: {

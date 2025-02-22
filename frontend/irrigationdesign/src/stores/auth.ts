@@ -122,6 +122,13 @@ function deleteCookie(name: string) {
   document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
 }
 
+// Fonction utilitaire pour formater les noms d'utilisateurs
+export function formatUserName(user: { first_name: string; last_name: string; company_name?: string }): string {
+  if (!user) return 'Non spécifié';
+  const name = `${user.first_name} ${user.last_name.toUpperCase()}`;
+  return user.company_name ? `${name} (${user.company_name})` : name;
+}
+
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     user: null,

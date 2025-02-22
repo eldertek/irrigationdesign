@@ -1,11 +1,11 @@
 <template>
-  <div class="min-h-screen bg-gray-50 overflow-auto">
+  <div class="h-full bg-gray-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div class="sm:flex sm:items-center">
         <div class="sm:flex-auto">
-          <h1 class="text-2xl font-semibold text-gray-900">Plans d'irrigation</h1>
+          <h1 class="text-2xl font-semibold text-gray-900">{{ plansList.title }}</h1>
           <p class="mt-2 text-sm text-gray-700">
-            Gérez vos plans d'irrigation
+            {{ plansList.description }}
           </p>
         </div>
         <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
@@ -18,184 +18,109 @@
         </div>
       </div>
 
-      <!-- Mes plans -->
+      <!-- Liste des plans -->
       <div class="mt-8">
-        <div class="mb-4">
-          <h2 class="text-lg font-medium text-gray-900">Mes plans</h2>
-          <p class="mt-1 text-sm text-gray-500">
-            Plans que vous avez créés
-          </p>
-        </div>
-        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div class="inline-block min-w-full py-2 align-middle">
-            <div class="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5">
-              <table class="min-w-full divide-y divide-gray-300">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6 lg:pl-8">
-                      Nom du plan
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Description
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Créé le
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Modifié le
-                    </th>
-                    <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6 lg:pr-8">
-                      <span class="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 bg-white">
-                  <tr v-if="myPlans.length === 0">
-                    <td colspan="5" class="py-4 px-6 text-center text-gray-500">
-                      Vous n'avez pas encore créé de plans
-                    </td>
-                  </tr>
-                  <tr v-for="plan in myPlans" :key="plan.id" class="hover:bg-gray-50">
-                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6 lg:pl-8">
-                      {{ plan.nom }}
-                    </td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {{ plan.description || '-' }}
-                    </td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {{ formatDate(plan.date_creation) }}
-                    </td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {{ formatDate(plan.date_modification) }}
-                    </td>
-                    <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 lg:pr-8">
-                      <button
-                        @click="editPlan(plan)"
-                        class="text-primary-600 hover:text-primary-900 mr-4"
-                      >
-                        Ouvrir
-                      </button>
-                      <button
-                        @click="openEditPlanModal(plan)"
-                        class="text-primary-600 hover:text-primary-900 mr-4"
-                      >
-                        Modifier
-                      </button>
-                      <button
-                        v-if="plan.createur.id === authStore.user?.id"
-                        @click="deletePlan(plan)"
-                        class="text-red-600 hover:text-red-900"
-                      >
-                        Supprimer
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Autres plans -->
-      <div v-if="authStore.isAdmin || authStore.isDealer" class="mt-12">
-        <div class="mb-4">
-          <h2 class="text-lg font-medium text-gray-900">Plans des clients</h2>
-          <p class="mt-1 text-sm text-gray-500">
-            {{ authStore.isAdmin ? 'Tous les plans créés par les clients et les concessionnaires' : 'Plans de vos clients' }}
-          </p>
-        </div>
-        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div class="inline-block min-w-full py-2 align-middle">
-            <div class="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5">
-              <table class="min-w-full divide-y divide-gray-300">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6 lg:pl-8">
-                      Nom du plan
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Description
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Client
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      {{ authStore.isAdmin ? 'Concession' : 'Entreprise' }}
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Créé le
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Modifié le
-                    </th>
-                    <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6 lg:pr-8">
-                      <span class="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 bg-white">
-                  <tr v-if="otherPlans.length === 0">
-                    <td colspan="7" class="py-4 px-6 text-center text-gray-500">
-                      {{ authStore.isAdmin ? 'Aucun plan client disponible' : 'Aucun plan de vos clients disponible' }}
-                    </td>
-                  </tr>
-                  <tr v-for="plan in otherPlans" :key="plan.id" class="hover:bg-gray-50">
-                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6 lg:pl-8">
-                      {{ plan.nom }}
-                    </td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {{ plan.description || '-' }}
-                    </td>
-                    <td class="px-3 py-4 text-sm text-gray-900">
-                      <div class="flex items-center">
-                        <div class="h-8 w-8 flex-shrink-0">
-                          <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
-                            <span class="text-primary-700 font-medium text-sm">
-                              {{ getInitials(plan.createur) }}
-                            </span>
-                          </div>
-                        </div>
-                        <div class="ml-3">
-                          <div class="font-medium">{{ formatUserName(plan.createur) }}</div>
-                          <div class="text-gray-500 text-xs">{{ plan.createur.email }}</div>
+        <div class="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5 rounded-lg">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-300">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6 lg:pl-8">
+                    Nom du plan
+                  </th>
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    Description
+                  </th>
+                  <th v-if="!authStore.isDealer" scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    Concessionnaire
+                  </th>
+                  <th v-if="!authStore.isClient" scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    Client
+                  </th>
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    Créé le
+                  </th>
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    Modifié le
+                  </th>
+                  <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6 lg:pr-8">
+                    <span class="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200 bg-white">
+                <tr v-if="plansList.plans.length === 0">
+                  <td colspan="7" class="py-4 px-6 text-center text-gray-500">
+                    Aucun plan disponible
+                  </td>
+                </tr>
+                <tr v-for="plan in plansList.plans" :key="plan.id" class="hover:bg-gray-50">
+                  <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6 lg:pl-8">
+                    {{ plan.nom }}
+                  </td>
+                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    {{ plan.description || '-' }}
+                  </td>
+                  <td v-if="!authStore.isDealer" class="px-3 py-4 text-sm text-gray-900">
+                    <div v-if="plan.concessionnaire_details" class="flex items-center">
+                      <div class="h-8 w-8 flex-shrink-0">
+                        <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
+                          <span class="text-primary-700 font-medium text-sm">
+                            {{ getInitials(plan.concessionnaire_details) }}
+                          </span>
                         </div>
                       </div>
-                    </td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {{ plan.createur.company_name || plan.createur.concessionnaire_name || '-' }}
-                    </td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {{ formatDate(plan.date_creation) }}
-                    </td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {{ formatDate(plan.date_modification) }}
-                    </td>
-                    <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 lg:pr-8">
-                      <button
-                        @click="editPlan(plan)"
-                        class="text-primary-600 hover:text-primary-900 mr-4"
-                      >
-                        Ouvrir
-                      </button>
-                      <button
-                        @click="openEditPlanModal(plan)"
-                        class="text-primary-600 hover:text-primary-900 mr-4"
-                      >
-                        Modifier
-                      </button>
-                      <button
-                        v-if="plan.createur.id === authStore.user?.id"
-                        @click="deletePlan(plan)"
-                        class="text-red-600 hover:text-red-900"
-                      >
-                        Supprimer
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                      <div class="ml-3">
+                        <div class="font-medium">{{ formatUserName(plan.concessionnaire_details) }}</div>
+                      </div>
+                    </div>
+                    <div v-else class="text-gray-500">-</div>
+                  </td>
+                  <td v-if="!authStore.isClient" class="px-3 py-4 text-sm text-gray-900">
+                    <div v-if="plan.client_details" class="flex items-center">
+                      <div class="h-8 w-8 flex-shrink-0">
+                        <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
+                          <span class="text-primary-700 font-medium text-sm">
+                            {{ getInitials(plan.client_details) }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="ml-3">
+                        <div class="font-medium">{{ formatUserName(plan.client_details) }}</div>
+                      </div>
+                    </div>
+                    <div v-else class="text-gray-500">-</div>
+                  </td>
+                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    {{ formatDate(plan.date_creation) }}
+                  </td>
+                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    {{ formatDate(plan.date_modification) }}
+                  </td>
+                  <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 lg:pr-8">
+                    <button
+                      @click="editPlan(plan)"
+                      class="text-primary-600 hover:text-primary-900 mr-4"
+                    >
+                      Ouvrir
+                    </button>
+                    <button
+                      @click="openEditPlanModal(plan)"
+                      class="text-primary-600 hover:text-primary-900 mr-4"
+                    >
+                      Modifier
+                    </button>
+                    <button
+                      v-if="canDeletePlan(plan)"
+                      @click="deletePlan(plan)"
+                      class="text-red-600 hover:text-red-900"
+                    >
+                      Supprimer
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -232,7 +157,40 @@
                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                 ></textarea>
               </div>
+
+              <!-- Sélection du client pour les concessionnaires -->
+              <div v-if="authStore.isDealer">
+                <label for="client" class="block text-sm font-medium text-gray-700">
+                  Client
+                </label>
+                <select
+                  id="client"
+                  v-model="newPlan.client"
+                  required
+                  class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                >
+                  <option value="">Sélectionner un client</option>
+                  <option v-for="client in clients" :key="client.id" :value="client.id">
+                    {{ formatUserName(client) }}
+                  </option>
+                </select>
+              </div>
             </div>
+
+            <!-- Message d'erreur -->
+            <div v-if="error" class="mt-4 bg-red-50 p-4 rounded-md">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="ml-3">
+                  <p class="text-sm font-medium text-red-800">{{ error }}</p>
+                </div>
+              </div>
+            </div>
+
             <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
               <button
                 type="button"
@@ -290,6 +248,55 @@
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
               ></textarea>
             </div>
+
+            <!-- Assignation concessionnaire/client (admin uniquement) -->
+            <div v-if="authStore.isAdmin" class="space-y-4">
+              <div>
+                <label for="edit-concessionnaire" class="block text-sm font-medium text-gray-700">
+                  Concessionnaire
+                </label>
+                <select
+                  id="edit-concessionnaire"
+                  v-model="editPlanData.concessionnaire"
+                  class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                >
+                  <option :value="null">Aucun</option>
+                  <option v-for="dealer in dealers" :key="dealer.id" :value="dealer.id">
+                    {{ formatUserName(dealer) }}
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label for="edit-client" class="block text-sm font-medium text-gray-700">
+                  Client
+                </label>
+                <select
+                  id="edit-client"
+                  v-model="editPlanData.client"
+                  class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                >
+                  <option :value="null">Aucun</option>
+                  <option v-for="client in filteredClients" :key="client.id" :value="client.id">
+                    {{ formatUserName(client) }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div v-if="error" class="mt-4 bg-red-50 p-4 rounded-md">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="ml-3">
+                  <p class="text-sm font-medium text-red-800">{{ error }}</p>
+                </div>
+              </div>
+            </div>
+
             <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
               <button
                 type="button"
@@ -300,9 +307,31 @@
               </button>
               <button
                 type="submit"
-                class="inline-flex w-full justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:text-sm"
+                :disabled="loading"
+                class="inline-flex w-full justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:text-sm disabled:opacity-50"
               >
-                Enregistrer
+                <svg
+                  v-if="loading"
+                  class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                {{ loading ? 'Enregistrement...' : 'Enregistrer' }}
               </button>
             </div>
           </form>
@@ -313,30 +342,60 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useIrrigationStore } from '@/stores/irrigation'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore, formatUserName } from '@/stores/auth'
 import { useDrawingStore } from '@/stores/drawing'
-import type { Plan, UserDetails } from '@/stores/irrigation'
+import type { Plan as StorePlan } from '@/stores/irrigation'
 import api from '@/services/api'
+
+interface LocalUser {
+  id: number
+  first_name: string
+  last_name: string
+  email: string
+  company_name?: string
+  role?: string
+  concessionnaire?: number | null
+}
+
+interface LocalPlan extends Omit<StorePlan, 'client' | 'concessionnaire'> {
+  client: number | null
+  concessionnaire: number | null
+  client_details?: LocalUser | null
+  concessionnaire_details?: LocalUser | null
+}
 
 const router = useRouter()
 const irrigationStore = useIrrigationStore()
 const authStore = useAuthStore()
 const drawingStore = useDrawingStore()
 
-const plans = ref<Plan[]>([])
+const plans = ref<LocalPlan[]>([])
+const dealers = ref<LocalUser[]>([])
+const clients = ref<LocalUser[]>([])
 const showNewPlanModal = ref(false)
 const showEditPlanModal = ref(false)
 const newPlan = ref({
   nom: '',
-  description: ''
+  description: '',
+  client: null as number | null
 })
 const editPlanData = ref({
   id: 0,
   nom: '',
-  description: ''
+  description: '',
+  concessionnaire: null as number | null,
+  client: null as number | null
+})
+const loading = ref(false)
+const error = ref<string | null>(null)
+
+// Filtrer les clients en fonction du concessionnaire sélectionné
+const filteredClients = computed(() => {
+  if (!editPlanData.value.concessionnaire) return []
+  return clients.value.filter(client => client.concessionnaire === editPlanData.value.concessionnaire)
 })
 
 const myPlans = computed(() => {
@@ -344,11 +403,55 @@ const myPlans = computed(() => {
 })
 
 const otherPlans = computed(() => {
-  return plans.value.filter(plan => plan.createur.id !== authStore.user?.id)
+  return plans.value.filter(plan => {
+    if (authStore.isAdmin) {
+      // Admin voit tous les plans sauf les siens
+      return plan.createur.id !== authStore.user?.id
+    } else if (authStore.isDealer) {
+      // Concessionnaire voit les plans où il est assigné comme concessionnaire
+      return plan.concessionnaire === authStore.user?.id
+    } else {
+      // Client voit les plans où il est assigné comme client
+      return plan.client === authStore.user?.id
+    }
+  })
+})
+
+// Computed properties pour le filtrage des plans
+const plansList = computed(() => {
+  if (authStore.isAdmin) {
+    return {
+      title: "Tous les plans",
+      description: "Liste complète des plans",
+      plans: plans.value
+    }
+  } else if (authStore.isDealer) {
+    return {
+      title: "Plans des clients",
+      description: "Plans où vous êtes assigné comme concessionnaire",
+      plans: plans.value.filter(plan => plan.concessionnaire === authStore.user?.id)
+    }
+  } else {
+    // Client
+    return {
+      title: "Mes plans",
+      description: "Plans qui vous sont assignés ou que vous avez créés",
+      plans: plans.value.filter(plan => 
+        plan.client === authStore.user?.id || 
+        plan.createur.id === authStore.user?.id
+      )
+    }
+  }
 })
 
 onMounted(async () => {
   await loadPlans()
+  if (authStore.isAdmin) {
+    await loadDealersAndClients()
+  } else if (authStore.isDealer) {
+    // Charger les clients du concessionnaire
+    await loadClientsForDealer(authStore.user?.id || 0)
+  }
 })
 
 async function loadPlans() {
@@ -360,11 +463,29 @@ async function loadPlans() {
   }
 }
 
+async function loadDealersAndClients() {
+  try {
+    const [dealersResponse, clientsResponse] = await Promise.all([
+      api.get('/users/', {
+        params: { role: 'CONCESSIONNAIRE' }
+      }),
+      api.get('/users/', {
+        params: { role: 'UTILISATEUR' }
+      })
+    ])
+    dealers.value = dealersResponse.data
+    clients.value = clientsResponse.data
+  } catch (error) {
+    console.error('Erreur lors du chargement des dealers et clients:', error)
+  }
+}
+
 function openNewPlanModal() {
   showNewPlanModal.value = true
   newPlan.value = {
     nom: '',
-    description: ''
+    description: '',
+    client: null
   }
 }
 
@@ -372,6 +493,11 @@ async function createPlan() {
   try {
     if (!newPlan.value.nom.trim()) {
       throw new Error('Le nom du plan est requis')
+    }
+
+    // Vérifier que le client est sélectionné pour les concessionnaires
+    if (authStore.isDealer && !newPlan.value.client) {
+      throw new Error('Vous devez sélectionner un client')
     }
 
     // Vérifier s'il y a un plan courant avec des changements non sauvegardés
@@ -382,11 +508,18 @@ async function createPlan() {
       irrigationStore.clearCurrentPlan()
     }
 
-    // Créer le nouveau plan
-    const newPlanData = await irrigationStore.createPlan({
+    const planData = {
       nom: newPlan.value.nom.trim(),
-      description: newPlan.value.description.trim()
-    })
+      description: newPlan.value.description.trim(),
+      client: newPlan.value.client,
+      // Le concessionnaire est géré automatiquement côté serveur
+      concessionnaire: authStore.isDealer ? authStore.user?.id : null
+    }
+
+    console.log('Sending plan data:', planData)
+    
+    // Créer le nouveau plan
+    const newPlanData = await irrigationStore.createPlan(planData)
     
     showNewPlanModal.value = false
     await loadPlans()
@@ -396,11 +529,11 @@ async function createPlan() {
     router.push('/')
   } catch (error: any) {
     console.error('Erreur lors de la création du plan:', error)
-    alert(error.message || 'Une erreur est survenue lors de la création du plan')
+    error.value = error.response?.data?.detail || error.message || 'Une erreur est survenue lors de la création du plan'
   }
 }
 
-async function editPlan(plan: Plan) {
+async function editPlan(plan: LocalPlan) {
   try {
     // Définir le plan courant dans le store
     irrigationStore.setCurrentPlan(plan)
@@ -414,7 +547,7 @@ async function editPlan(plan: Plan) {
   }
 }
 
-async function deletePlan(plan: Plan) {
+async function deletePlan(plan: LocalPlan) {
   if (!plan?.id) return
 
   if (confirm('Êtes-vous sûr de vouloir supprimer ce plan ?')) {
@@ -443,43 +576,135 @@ function formatDate(dateString: string) {
   })
 }
 
-function formatUserName(user: UserDetails): string {
-  if (!user) return 'Non spécifié'
-  const name = `${user.first_name} ${user.last_name}`.trim()
-  return name || user.username
-}
-
-function getInitials(user: UserDetails): string {
+function getInitials(user: LocalUser | null): string {
   if (!user) return ''
-  const initials = user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
-  return initials.length > 2 ? initials.slice(0, 2) : initials
+  return (user.first_name.charAt(0) + user.last_name.charAt(0)).toUpperCase()
 }
 
-function openEditPlanModal(plan: Plan) {
+function openEditPlanModal(plan: LocalPlan) {
   editPlanData.value = {
     id: plan.id,
     nom: plan.nom,
-    description: plan.description
+    description: plan.description,
+    concessionnaire: plan.concessionnaire || null,
+    client: plan.client || null
   }
+  
+  // Si un concessionnaire est déjà assigné, charger ses clients
+  if (plan.concessionnaire) {
+    loadClientsForDealer(plan.concessionnaire)
+  }
+  
   showEditPlanModal.value = true
 }
 
+// Fonction pour charger les clients d'un concessionnaire spécifique
+async function loadClientsForDealer(dealerId: number) {
+  try {
+    const response = await api.get('/users/', {
+      params: { 
+        role: 'UTILISATEUR',
+        concessionnaire: dealerId
+      }
+    })
+    clients.value = response.data
+  } catch (error) {
+    console.error('Erreur lors du chargement des clients:', error)
+  }
+}
+
+// Fonction de validation avant la mise à jour
 async function updatePlan() {
+  error.value = null
+  loading.value = true
+  
   try {
     if (!editPlanData.value.nom.trim()) {
-      throw new Error('Le nom du plan est requis');
+      throw new Error('Le nom du plan est requis')
     }
 
-    await irrigationStore.updatePlanDetails(editPlanData.value.id, {
-      nom: editPlanData.value.nom.trim(),
-      description: editPlanData.value.description.trim()
-    });
+    // Validation de la logique client/concessionnaire
+    if (editPlanData.value.client && !editPlanData.value.concessionnaire) {
+      throw new Error('Un concessionnaire doit être sélectionné pour assigner un client')
+    }
 
-    showEditPlanModal.value = false;
-    await loadPlans();
-  } catch (error: any) {
-    console.error('Erreur lors de la mise à jour du plan:', error);
-    alert(error.message || 'Une erreur est survenue lors de la mise à jour du plan');
+    const response = await irrigationStore.updatePlanDetails(editPlanData.value.id, {
+      nom: editPlanData.value.nom.trim(),
+      description: editPlanData.value.description.trim(),
+      concessionnaire: editPlanData.value.concessionnaire,
+      client: editPlanData.value.client
+    })
+
+    if (response) {
+      showEditPlanModal.value = false
+      await loadPlans()
+    }
+  } catch (err: any) {
+    console.error('Erreur lors de la mise à jour du plan:', err)
+    if (err.response?.data?.detail) {
+      error.value = err.response.data.detail
+    } else if (err.response?.data?.non_field_errors) {
+      error.value = err.response.data.non_field_errors[0]
+    } else if (err.response?.data) {
+      // Gestion des erreurs de validation par champ
+      const errors = Object.entries(err.response.data)
+        .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages[0] : messages}`)
+      error.value = errors.join('\n')
+    } else {
+      error.value = err.message || 'Une erreur est survenue lors de la mise à jour du plan'
+    }
+  } finally {
+    loading.value = false
   }
+}
+
+// Ajout d'un watcher pour charger les clients quand le concessionnaire change
+watch(() => editPlanData.value.concessionnaire, async (newDealerId) => {
+  if (newDealerId) {
+    await loadClientsForDealer(newDealerId)
+    // Réinitialiser le client si le concessionnaire change
+    if (editPlanData.value.client) {
+      const clientExists = clients.value.some(c => c.id === editPlanData.value.client)
+      if (!clientExists) {
+        editPlanData.value.client = null
+      }
+    }
+  } else {
+    clients.value = []
+    editPlanData.value.client = null
+  }
+})
+
+// Fonction pour déterminer si l'utilisateur peut supprimer un plan
+function canDeletePlan(plan: LocalPlan): boolean {
+  const user = authStore.user
+  if (!user) return false
+
+  if (user.user_type === 'admin') return true
+  if (user.user_type === 'dealer') return plan.concessionnaire === user.id
+  return plan.client === user.id || plan.createur.id === user.id
+}
+
+// Computed property pour obtenir les informations des utilisateurs
+const userDetails = computed(() => {
+  const users = new Map<number, LocalUser>()
+  
+  plans.value.forEach(plan => {
+    if (plan.createur) users.set(plan.createur.id, plan.createur)
+    if (plan.concessionnaire_details) {
+      users.set(plan.concessionnaire_details.id, plan.concessionnaire_details)
+    }
+    if (plan.client_details) {
+      users.set(plan.client_details.id, plan.client_details)
+    }
+  })
+  
+  return users
+})
+
+// Fonction pour obtenir les détails d'un utilisateur
+function getUserDetails(userId: number | null): LocalUser | null {
+  if (!userId) return null
+  return userDetails.value.get(userId) || null
 }
 </script> 

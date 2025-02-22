@@ -19,6 +19,7 @@ export interface UserDetails {
   role: string;
   company_name?: string;
   phone?: string | null;
+  concessionnaire?: number | null;
 }
 
 export interface Plan {
@@ -28,22 +29,9 @@ export interface Plan {
   date_creation: string;
   date_modification: string;
   createur: UserDetails;
-  concessionnaire: UserDetails | null;
-  preferences: {
-    currentTool?: string;
-    currentStyle?: {
-      fillColor?: string;
-      fillOpacity?: number;
-      strokeColor?: string;
-      strokeStyle?: string;
-      strokeWidth?: number;
-    };
-    last_viewport?: {
-      lat: number;
-      lng: number;
-      zoom: number;
-    };
-  };
+  concessionnaire: number | null;
+  client: number | null;
+  preferences?: any;
   elements?: any[];
   historique?: PlanHistory[];
   version?: number;
@@ -52,6 +40,8 @@ export interface Plan {
 interface NewPlan {
   nom: string;
   description: string;
+  client?: number | null;
+  concessionnaire?: number | null;
 }
 
 export const useIrrigationStore = defineStore('irrigation', {
@@ -123,10 +113,13 @@ export const useIrrigationStore = defineStore('irrigation', {
     async createPlan(planData: NewPlan) {
       this.loading = true;
       try {
+        console.log('Creating plan with data:', planData);
         const response = await api.post('/plans/', planData);
+        console.log('Plan creation response:', response.data);
         this.plans.push(response.data);
         return response.data;
       } catch (error) {
+        console.error('Error creating plan:', error.response?.data || error);
         this.error = 'Erreur lors de la création du plan';
         throw error;
       } finally {
@@ -182,33 +175,22 @@ export const useIrrigationStore = defineStore('irrigation', {
       }
     },
 
-    async updatePlanDetails(planId: number, { nom, description }: { nom: string; description: string }) {
+    async updatePlanDetails(planId: number, planData: Partial<Plan>) {
       try {
-        this.loading = true;
-        this.error = null;
-        
-        const response = await api.patch(`/plans/${planId}/`, {
-          nom,
-          description
-        });
-
+        const response = await api.patch(`/plans/${planId}/`, planData);
         // Mettre à jour le plan dans la liste
         const index = this.plans.findIndex(p => p.id === planId);
         if (index !== -1) {
           this.plans[index] = { ...this.plans[index], ...response.data };
         }
-
         // Mettre à jour le plan courant si c'est celui qui est modifié
         if (this.currentPlan?.id === planId) {
           this.currentPlan = { ...this.currentPlan, ...response.data };
         }
-
         return response.data;
-      } catch (error: any) {
-        this.error = error.message;
+      } catch (error) {
+        console.error('Erreur lors de la mise à jour du plan:', error);
         throw error;
-      } finally {
-        this.loading = false;
       }
     },
 

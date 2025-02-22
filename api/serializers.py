@@ -57,16 +57,85 @@ class UserDetailsSerializer(serializers.ModelSerializer):
 
 class PlanSerializer(serializers.ModelSerializer):
     createur = UserDetailsSerializer(read_only=True)
-    concessionnaire = UserDetailsSerializer(source='createur.concessionnaire', read_only=True)
+    concessionnaire = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(role='CONCESSIONNAIRE'),
+        required=False,
+        allow_null=True
+    )
+    client = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(role='UTILISATEUR'),
+        required=False,
+        allow_null=True
+    )
+    concessionnaire_details = UserDetailsSerializer(source='concessionnaire', read_only=True)
+    client_details = UserDetailsSerializer(source='client', read_only=True)
     
     class Meta:
         model = Plan
-        fields = ['id', 'nom', 'description', 'date_creation', 'date_modification', 'createur', 'concessionnaire', 'preferences']
+        fields = ['id', 'nom', 'description', 'date_creation', 'date_modification', 
+                 'createur', 'concessionnaire', 'client', 'preferences',
+                 'concessionnaire_details', 'client_details']
         read_only_fields = ['date_creation', 'date_modification', 'createur']
 
+    def validate(self, data):
+        request = self.context.get('request')
+        if not request or not request.user:
+            raise serializers.ValidationError("Utilisateur non authentifié")
+
+        user = request.user
+        concessionnaire = data.get('concessionnaire')
+        client = data.get('client')
+
+        # Validation selon le rôle
+        if user.role == 'CONCESSIONNAIRE':
+            # Un concessionnaire doit spécifier un client
+            if not client:
+                raise serializers.ValidationError({
+                    "client": "Un client doit être sélectionné"
+                })
+            # Le client doit appartenir au concessionnaire
+            if client.concessionnaire != user:
+                raise serializers.ValidationError({
+                    "client": "Ce client ne vous appartient pas"
+                })
+            # Le concessionnaire est automatiquement assigné
+            data['concessionnaire'] = user
+
+        elif user.role == 'UTILISATEUR':
+            # Un client crée toujours un plan pour lui-même
+            data['client'] = user
+            # Le concessionnaire est soit spécifié, soit celui du client
+            if not concessionnaire:
+                data['concessionnaire'] = user.concessionnaire
+
+        # Validation générale de la cohérence client/concessionnaire
+        if client and concessionnaire:
+            if client.concessionnaire != concessionnaire:
+                raise serializers.ValidationError({
+                    "client": "Le client doit appartenir au concessionnaire sélectionné"
+                })
+
+        return data
+
     def create(self, validated_data):
-        validated_data['createur'] = self.context['request'].user
+        print("[PlanSerializer] Création avec données:", validated_data)
+        # Si un client est spécifié, il devient le créateur
+        if 'client' in validated_data and validated_data['client']:
+            validated_data['createur'] = validated_data['client']
+        else:
+            validated_data['createur'] = self.context['request'].user
         return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        print("[PlanSerializer] Début update avec données:", validated_data)
+        
+        # Si un client est assigné, il devient le créateur
+        if 'client' in validated_data and validated_data['client']:
+            instance.createur = validated_data['client']
+        
+        instance = super().update(instance, validated_data)
+        print(f"[PlanSerializer] Fin update - concessionnaire_id: {instance.concessionnaire_id}, client_id: {instance.client_id}")
+        return instance
 
 class FormeGeometriqueSerializer(serializers.ModelSerializer):
     class Meta:
@@ -131,7 +200,16 @@ class TexteAnnotationSerializer(serializers.ModelSerializer):
 
 class PlanDetailSerializer(serializers.ModelSerializer):
     createur = UserDetailsSerializer(read_only=True)
-    concessionnaire = UserDetailsSerializer(source='createur.concessionnaire', read_only=True)
+    concessionnaire = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(role='CONCESSIONNAIRE'),
+        required=False,
+        allow_null=True
+    )
+    client = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(role='UTILISATEUR'),
+        required=False,
+        allow_null=True
+    )
     formes = FormeGeometriqueSerializer(many=True, read_only=True)
     connexions = ConnexionSerializer(many=True, read_only=True)
     annotations = TexteAnnotationSerializer(many=True, read_only=True)
@@ -141,7 +219,40 @@ class PlanDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'nom', 'description', 'date_creation', 
             'date_modification', 'createur', 'concessionnaire',
-            'formes', 'connexions', 'annotations', 'preferences',
-            'elements', 'historique'
+            'client', 'formes', 'connexions', 'annotations', 
+            'preferences', 'elements', 'historique'
         ]
-        read_only_fields = ['id', 'date_creation', 'date_modification', 'createur'] 
+        read_only_fields = ['id', 'date_creation', 'date_modification', 'createur']
+
+    def validate(self, data):
+        print("[PlanDetailSerializer] Début validation avec données:", data)
+        concessionnaire = data.get('concessionnaire')
+        client = data.get('client')
+
+        if client and not concessionnaire:
+            raise serializers.ValidationError({
+                "concessionnaire": "Un concessionnaire doit être sélectionné pour assigner un client"
+            })
+
+        if client and concessionnaire:
+            if client.concessionnaire_id != concessionnaire.id:
+                raise serializers.ValidationError({
+                    "client": "Le client doit appartenir au concessionnaire sélectionné"
+                })
+
+        return data
+
+    def update(self, instance, validated_data):
+        print("[PlanDetailSerializer] Début update avec données:", validated_data)
+        
+        # Si un client est assigné, il devient le créateur
+        if 'client' in validated_data and validated_data['client']:
+            instance.createur = validated_data['client']
+            
+        instance = super().update(instance, validated_data)
+        print(f"[PlanDetailSerializer] Fin update - concessionnaire_id: {instance.concessionnaire_id}, client_id: {instance.client_id}")
+        return instance
+
+    def create(self, validated_data):
+        validated_data['createur'] = self.context['request'].user
+        return super().create(validated_data) 

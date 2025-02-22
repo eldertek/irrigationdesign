@@ -20,6 +20,7 @@ import requests
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied
 
 User = get_user_model()  # Ceci pointera vers authentication.Utilisateur
 
@@ -200,52 +201,70 @@ class PlanViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Filtre les plans selon le rôle de l'utilisateur et les paramètres de requête:
-        - Admin : tous les plans ou plans d'un utilisateur spécifique
-        - Dealer : ses plans et ceux de ses clients
-        - Client : uniquement ses plans
+        Filtre les plans selon le rôle de l'utilisateur:
+        - Admin : tous les plans
+        - Concessionnaire : uniquement les plans où il est assigné comme concessionnaire
+        - Client : uniquement les plans où il est assigné comme client
+        Note: Si un client/concessionnaire est retiré du plan, il perd l'accès au plan
         """
         user = self.request.user
-        utilisateur_id = self.request.query_params.get('utilisateur')
+        base_queryset = Plan.objects.all()
 
-        # Si un ID d'utilisateur est spécifié dans la requête
-        if utilisateur_id:
-            try:
-                utilisateur = User.objects.get(id=utilisateur_id)
-                # Vérifier les permissions
-                if user.role == ROLE_ADMIN:
-                    return Plan.objects.filter(createur=utilisateur)
-                elif user.role == ROLE_DEALER and utilisateur in user.utilisateurs.all():
-                    return Plan.objects.filter(createur=utilisateur)
-                elif str(user.id) == utilisateur_id:
-                    return Plan.objects.filter(createur=user)
-                return Plan.objects.none()
-            except User.DoesNotExist:
-                return Plan.objects.none()
-
-        # Comportement par défaut sans paramètre utilisateur
         if user.role == ROLE_ADMIN:
-            return Plan.objects.all()
+            return base_queryset
         elif user.role == ROLE_DEALER:
-            return Plan.objects.filter(
-                createur__in=[user.id] + list(user.utilisateurs.values_list('id', flat=True))
-            )
+            return base_queryset.filter(concessionnaire=user)
         else:  # client
-            return Plan.objects.filter(createur=user)
+            return base_queryset.filter(client=user)
 
     def get_serializer_class(self):
-        """
-        Utilise un sérialiseur différent pour les détails d'un plan
-        """
-        if self.action in ['retrieve', 'create', 'update', 'partial_update']:
+        if self.action in ['retrieve', 'update', 'partial_update']:
             return PlanDetailSerializer
         return self.serializer_class
 
     def perform_create(self, serializer):
         """
-        Associe automatiquement le créateur au plan
+        Lors de la création d'un plan:
+        - Le créateur est toujours l'utilisateur courant
+        - Pour un concessionnaire, vérifie que le client lui appartient
+        - Pour un client, il est automatiquement assigné comme client
         """
-        serializer.save(createur=self.request.user)
+        user = self.request.user
+        data = {}
+
+        if user.role == ROLE_DEALER:
+            if not serializer.validated_data.get('client'):
+                raise ValidationError({'client': 'Un client doit être spécifié'})
+            data['concessionnaire'] = user
+        elif user.role == ROLE_CLIENT:
+            data['client'] = user
+            # Si pas de concessionnaire spécifié, utiliser celui du client
+            if not serializer.validated_data.get('concessionnaire'):
+                data['concessionnaire'] = user.concessionnaire
+
+        serializer.save(createur=user, **data)
+
+    def perform_update(self, serializer):
+        """
+        Lors de la mise à jour d'un plan:
+        - Vérifie les permissions selon le rôle
+        - Maintient la cohérence des relations client/concessionnaire
+        - Si un client est retiré, il perd l'accès au plan
+        - Si un concessionnaire est retiré, il perd l'accès au plan et le client aussi
+        """
+        instance = serializer.instance
+        user = self.request.user
+
+        if user.role == ROLE_DEALER and instance.concessionnaire != user:
+            raise PermissionDenied("Vous ne pouvez pas modifier les plans d'autres concessionnaires")
+        elif user.role == ROLE_CLIENT and instance.client != user:
+            raise PermissionDenied("Vous ne pouvez pas modifier ce plan")
+
+        # Si le concessionnaire est retiré, retirer aussi le client
+        if 'concessionnaire' in serializer.validated_data and not serializer.validated_data['concessionnaire']:
+            serializer.validated_data['client'] = None
+
+        serializer.save()
 
     @action(detail=True, methods=['post'])
     @transaction.atomic

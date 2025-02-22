@@ -40,13 +40,26 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        """Retourne la liste des utilisateurs selon le rôle de l'utilisateur connecté."""
+        """Retourne la liste des utilisateurs selon le rôle de l'utilisateur connecté et les filtres."""
         user = self.request.user
+        queryset = User.objects.all()
+
+        # Filtrer par rôle si spécifié
+        role = self.request.query_params.get('role')
+        if role:
+            queryset = queryset.filter(role=role)
+
+        # Filtrer par concessionnaire si spécifié
+        concessionnaire_id = self.request.query_params.get('concessionnaire')
+        if concessionnaire_id:
+            queryset = queryset.filter(concessionnaire_id=concessionnaire_id)
+
+        # Appliquer les restrictions selon le rôle de l'utilisateur
         if user.role == 'ADMIN':
-            return User.objects.all()
+            return queryset
         elif user.role == 'CONCESSIONNAIRE':
-            return User.objects.filter(concessionnaire=user)
-        return User.objects.filter(id=user.id)
+            return queryset.filter(concessionnaire=user)
+        return queryset.filter(id=user.id)
 
     def get_permissions(self):
         """Définit les permissions selon l'action."""

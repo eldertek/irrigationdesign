@@ -17,6 +17,24 @@ class Plan(models.Model):
         related_name='plans',
         verbose_name='Créateur'
     )
+    concessionnaire = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='plans_concessionnaire',
+        verbose_name='Concessionnaire assigné',
+        limit_choices_to={'role': 'CONCESSIONNAIRE'}
+    )
+    client = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='plans_client',
+        verbose_name='Client assigné',
+        limit_choices_to={'role': 'UTILISATEUR'}
+    )
     preferences = models.JSONField(
         default=dict,
         blank=True,
