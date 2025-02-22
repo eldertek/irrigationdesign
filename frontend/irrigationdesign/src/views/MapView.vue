@@ -110,59 +110,13 @@
       </div>
 
       <!-- Modal Nouveau Plan -->
-      <div v-if="showNewPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
-        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold text-gray-900">Créer un nouveau plan</h2>
-            <button
-              @click="showNewPlanModal = false"
-              class="text-gray-400 hover:text-gray-500 focus:outline-none"
-            >
-              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <form @submit.prevent="createNewPlan" class="space-y-4">
-            <div>
-              <label for="nom" class="block text-sm font-medium text-gray-700">Nom du plan</label>
-              <input
-                type="text"
-                id="nom"
-                v-model="newPlanData.nom"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                required
-                placeholder="Entrez le nom du plan"
-              />
-            </div>
-            <div>
-              <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
-              <textarea
-                id="description"
-                v-model="newPlanData.description"
-                rows="3"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                placeholder="Décrivez votre plan"
-              ></textarea>
-            </div>
-            <div class="flex justify-end space-x-3">
-              <button
-                type="button"
-                @click="showNewPlanModal = false"
-                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                class="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700"
-              >
-                Créer
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+      <NewPlanModal
+        ref="newPlanModalRef"
+        v-model="showNewPlanModal"
+        @created="onPlanCreated"
+        @dealerSelected="dealer => selectedDealer = dealer"
+        @clientSelected="client => selectedClient = client"
+      />
 
       <!-- Modal Charger un Plan -->
       <div v-if="showLoadPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
@@ -201,8 +155,7 @@
                     class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
                   >
                     <div>
-                      <div class="font-medium text-gray-900">{{ dealer.first_name }} {{ dealer.last_name }}</div>
-                      <div class="text-sm text-gray-600">{{ dealer.company_name }}</div>
+                      <div class="font-medium text-gray-900">{{ dealer.first_name }} {{ dealer.last_name }} ({{ dealer.company_name }})</div>
                     </div>
                     <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -241,14 +194,13 @@
                 </template>
                 <template v-else>
                   <button
-                    v-for="client in dealerClients"
+                    v-for="client in filteredClients"
                     :key="client.id"
                     @click="selectClient(client)"
                     class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
                   >
                     <div>
-                      <div class="font-medium text-gray-900">{{ client.first_name }} {{ client.last_name }}</div>
-                      <div class="text-sm text-gray-600">{{ client.company_name }}</div>
+                      <div class="font-medium text-gray-900">{{ client.first_name }} {{ client.last_name }} ({{ client.company_name }})</div>
                     </div>
                     <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -320,14 +272,13 @@
                 </template>
                 <template v-else>
                   <button
-                    v-for="client in dealerClients"
+                    v-for="client in filteredClients"
                     :key="client.id"
                     @click="selectClient(client)"
                     class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
                   >
                     <div>
-                      <div class="font-medium text-gray-900">{{ client.first_name }} {{ client.last_name }}</div>
-                      <div class="text-sm text-gray-600">{{ client.company_name }}</div>
+                      <div class="font-medium text-gray-900">{{ client.first_name }} {{ client.last_name }} ({{ client.company_name }})</div>
                     </div>
                     <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -410,7 +361,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch, onBeforeUnmount, onUnmounted } from 'vue';
+import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed } from 'vue';
 import type { LatLngTuple, LatLng } from 'leaflet';
 import * as L from 'leaflet';
 import * as turf from '@turf/turf';
@@ -426,6 +377,7 @@ import { CircleArc } from '@/utils/CircleArc';
 import { useAuthStore } from '@/stores/auth';
 import type { UserDetails } from '@/stores/irrigation';
 import api from '@/services/api';
+import NewPlanModal from '@/components/NewPlanModal.vue';
 
 const mapContainer = ref<HTMLElement | null>(null);
 const irrigationStore = useIrrigationStore();
@@ -485,6 +437,29 @@ const isLoadingDealers = ref(false);
 const isLoadingClients = ref(false);
 const isLoadingPlans = ref(false);
 
+// Référence vers le composant NewPlanModal
+const newPlanModalRef = ref<InstanceType<typeof NewPlanModal> | null>(null);
+
+// Computed pour les clients filtrés selon le concessionnaire sélectionné
+const filteredClients = computed(() => {
+  console.log('[MapView][filteredClients] Computing with:', {
+    userType: authStore.user?.user_type,
+    selectedDealer: selectedDealer.value,
+    dealerClients: dealerClients.value
+  });
+
+  if (authStore.user?.user_type === 'admin') {
+    const clients = selectedDealer.value ? dealerClients.value : [];
+    console.log('[MapView][filteredClients] Admin clients:', clients);
+    return clients;
+  } else if (authStore.user?.user_type === 'dealer') {
+    console.log('[MapView][filteredClients] Dealer clients:', dealerClients.value);
+    return dealerClients.value;
+  }
+  console.log('[MapView][filteredClients] No clients returned');
+  return [];
+});
+
 // Fonction pour sauvegarder la position dans les cookies
 function saveMapPosition(mapInstance: L.Map) {
   const center = mapInstance.getCenter();
@@ -513,6 +488,7 @@ function getMapPosition(): { lat: number; lng: number; zoom: number } | null {
 }
 
 onMounted(async () => {
+  console.log('[onMounted] Starting initialization...');
   if (mapContainer.value) {
     // Récupérer la dernière position sauvegardée ou utiliser la position par défaut
     const savedPosition = getMapPosition();
@@ -566,12 +542,14 @@ onMounted(async () => {
       }
 
       // Charger les concessionnaires au montage du composant si l'utilisateur est admin
-      if (authStore.isAdmin) {
+      if (authStore.user?.user_type === 'admin') {
+        console.log('[onMounted] Loading dealers for admin...');
         await loadDealers();
       }
 
       // Charger les clients si c'est un concessionnaire
-      if (authStore.isDealer) {
+      if (authStore.user?.user_type === 'dealer') {
+        console.log('[onMounted] Loading clients for dealer...');
         await loadDealerClients();
       }
     }
@@ -1415,61 +1393,78 @@ async function loadDealers() {
 
 // Fonction pour charger les clients d'un concessionnaire
 async function loadDealerClients() {
+  console.log('[loadDealerClients] Starting...');
+  console.log('[loadDealerClients] authStore.user:', authStore.user);
   isLoadingClients.value = true;
   try {
+    // Pour un concessionnaire, utiliser son propre ID
+    const dealerId = authStore.user?.id;
+    console.log('[loadDealerClients] Using dealerId:', dealerId);
+
+    if (!dealerId) {
+      console.error('[loadDealerClients] No dealer ID available');
+      return;
+    }
+
     const response = await api.get('/users/', {
       params: { 
         role: 'UTILISATEUR',
-        concessionnaire: authStore.user?.id 
+        concessionnaire: dealerId
       }
     });
-    dealerClients.value = response.data;
+    console.log('[loadDealerClients] Response:', response.data);
+    
+    // S'assurer que nous avons toujours un tableau
+    if (Array.isArray(response.data)) {
+      dealerClients.value = response.data;
+    } else if (response.data) {
+      dealerClients.value = [response.data];
+    } else {
+      dealerClients.value = [];
+    }
+    
+    console.log('[loadDealerClients] Processed clients:', dealerClients.value);
   } catch (error) {
-    console.error('Erreur lors du chargement des clients:', error);
+    console.error('[loadDealerClients] Error:', error);
+    dealerClients.value = [];
   } finally {
     isLoadingClients.value = false;
   }
 }
 
-// Fonction pour charger les plans d'un client
-async function loadClientPlans(clientId: number) {
-  isLoadingPlans.value = true;
-  try {
-    const response = await api.get('/plans/', {
-      params: { client: clientId }
-    });
-    clientPlans.value = response.data;
-  } catch (error) {
-    console.error('Erreur lors du chargement des plans:', error);
-  } finally {
-    isLoadingPlans.value = false;
-  }
-}
+async function selectClient(client: UserDetails) {
+  console.log('[MapView][selectClient] Starting with client:', client);
+  console.log('[MapView][selectClient] Current state:', {
+    selectedDealer: selectedDealer.value,
+    selectedClient: selectedClient.value,
+    newPlanModalRef: !!newPlanModalRef.value
+  });
 
-// Fonctions de sélection
-async function selectDealer(dealer: UserDetails) {
-  selectedDealer.value = dealer;
-  selectedClient.value = null;
-  clientPlans.value = [];
-  isLoadingClients.value = true;
-  try {
-    const response = await api.get('/users/', {
-      params: { 
-        role: 'UTILISATEUR',
-        concessionnaire: dealer.id 
-      }
-    });
-    dealerClients.value = response.data;
-  } catch (error) {
-    console.error('Erreur lors du chargement des clients:', error);
-  } finally {
-    isLoadingClients.value = false;
-  }
-}
+  if (newPlanModalRef.value) {
+    console.log('[MapView][selectClient] Using NewPlanModal ref');
+    newPlanModalRef.value.selectClient(client);
+    selectedClient.value = client;
+    console.log('[MapView][selectClient] Updated selectedClient:', selectedClient.value);
 
-function selectClient(client: UserDetails) {
-  selectedClient.value = client;
-  loadClientPlans(client.id);
+    // Charger les plans du client
+    isLoadingPlans.value = true;
+    try {
+      const response = await api.get('/plans/', {
+        params: {
+          client: client.id
+        }
+      });
+      console.log('[MapView][selectClient] Loaded client plans:', response.data);
+      clientPlans.value = response.data;
+    } catch (error) {
+      console.error('[MapView][selectClient] Error loading client plans:', error);
+      clientPlans.value = [];
+    } finally {
+      isLoadingPlans.value = false;
+    }
+  } else {
+    console.warn('[MapView][selectClient] NewPlanModal ref is not available');
+  }
 }
 
 // Fonctions de navigation
@@ -1484,6 +1479,74 @@ function backToClientList() {
   selectedClient.value = null;
   clientPlans.value = [];
 }
+
+// Ajouter la fonction de callback
+async function onPlanCreated(planId: number) {
+  const plan = await irrigationStore.getPlanById(planId);
+  if (plan) {
+    currentPlan.value = plan;
+    irrigationStore.setCurrentPlan(plan);
+    drawingStore.setCurrentPlan(plan.id);
+    showNewPlanModal.value = false;
+  }
+}
+
+// Fonctions de sélection
+async function selectDealer(dealer: UserDetails) {
+  console.log('[MapView][selectDealer] Starting with dealer:', dealer);
+  console.log('[MapView][selectDealer] Current state:', {
+    authStore: {
+      user: authStore.user,
+      isAdmin: authStore.isAdmin
+    },
+    selectedDealer: selectedDealer.value,
+    dealerClients: dealerClients.value
+  });
+
+  try {
+    if (newPlanModalRef.value) {
+      console.log('[MapView][selectDealer] Using NewPlanModal ref');
+      await newPlanModalRef.value.selectDealer(dealer);
+      selectedDealer.value = dealer;
+      dealerClients.value = newPlanModalRef.value.dealerClients;
+      console.log('[MapView][selectDealer] Updated state:', {
+        selectedDealer: selectedDealer.value,
+        dealerClients: dealerClients.value
+      });
+    } else {
+      console.warn('[MapView][selectDealer] NewPlanModal ref is not available');
+    }
+  } catch (error) {
+    console.error('[MapView][selectDealer] Error:', error);
+  }
+}
+
+// Ajouter un watcher pour charger les clients quand un concessionnaire est sélectionné
+watch(selectedDealer, async (newDealer) => {
+  console.log('[MapView][watch selectedDealer] New dealer selected:', newDealer);
+  console.log('[MapView][watch selectedDealer] Current user type:', authStore.user?.user_type);
+  
+  if (newDealer && authStore.user?.user_type === 'admin') {
+    console.log('[MapView][watch selectedDealer] Loading clients for dealer:', newDealer.id);
+    isLoadingClients.value = true;
+    try {
+      const response = await api.get('/users/', {
+        params: { 
+          role: 'UTILISATEUR',
+          concessionnaire: newDealer.id 
+        }
+      });
+      console.log('[MapView][watch selectedDealer] API response:', response.data);
+      dealerClients.value = Array.isArray(response.data) ? response.data : [response.data];
+      console.log('[MapView][watch selectedDealer] Updated dealerClients:', dealerClients.value);
+    } catch (error) {
+      console.error('[MapView][watch selectedDealer] Error loading clients:', error);
+      dealerClients.value = [];
+    } finally {
+      isLoadingClients.value = false;
+    }
+  }
+});
 </script>
 
 <style>
