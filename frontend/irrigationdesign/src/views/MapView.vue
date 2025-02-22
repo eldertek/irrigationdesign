@@ -2,10 +2,46 @@
   <div class="h-full flex">
     <!-- Carte -->
     <div class="flex-1 relative">
+      <!-- Vue d'accueil quand aucun plan n'est chargé -->
+      <div v-if="!currentPlan" class="absolute inset-0 flex items-center justify-center bg-gray-50 z-[1000]">
+        <div class="text-center max-w-lg mx-auto p-8">
+          <div class="relative w-48 h-48 mx-auto mb-12 rounded-full bg-gradient-to-br from-primary-100 to-primary-50 p-8 shadow-lg ring-4 ring-white">
+            <img 
+              src="@/assets/logo.svg" 
+              alt="IrrigationDesign Logo" 
+              class="w-full h-full object-contain filter drop-shadow-md"
+            />
+            <div class="absolute inset-0 rounded-full bg-gradient-to-t from-transparent to-white/10 pointer-events-none"></div>
+          </div>
+          <h1 class="text-3xl font-bold text-gray-900 mb-4">Bienvenue sur IrrigationDesign</h1>
+          <p class="text-gray-600 mb-8">Pour commencer à dessiner, vous devez d'abord créer un nouveau plan ou charger un plan existant.</p>
+          <div class="space-y-4">
+            <button
+              @click="showNewPlanModal = true"
+              class="w-full flex items-center justify-center px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
+            >
+              <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              Créer un nouveau plan
+            </button>
+            <button
+              @click="showLoadPlanModal = true"
+              class="w-full flex items-center justify-center px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
+            >
+              <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Charger un plan existant
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
       
       <!-- Barre d'outils principale -->
-      <div class="absolute bottom-6 left-6 z-[1000]">
+      <div v-if="currentPlan" class="absolute bottom-6 left-6 z-[1000]">
         <!-- Sélecteur de type de carte -->
         <div class="bg-white rounded-lg shadow-lg p-3 mb-3">
           <h2 class="text-sm font-semibold text-gray-700 mb-2">Type de carte</h2>
@@ -98,7 +134,7 @@
       </div>
 
       <!-- Outils de dessin -->
-      <div class="drawing-tools-container absolute top-4 right-4 z-[1000]">
+      <div v-if="currentPlan" class="drawing-tools-container absolute top-4 right-4 z-[1000]">
         <DrawingTools
           :current-tool="currentTool"
           :selected-shape="selectedShape"
@@ -489,7 +525,12 @@ function getMapPosition(): { lat: number; lng: number; zoom: number } | null {
 
 onMounted(async () => {
   console.log('[onMounted] Starting initialization...');
-  if (mapContainer.value) {
+  
+  // Charger les plans et le plan courant si nécessaire
+  await irrigationStore.fetchPlans();
+  
+  // Si un plan est déjà chargé, initialiser la carte
+  if (irrigationStore.currentPlan && mapContainer.value) {
     // Récupérer la dernière position sauvegardée ou utiliser la position par défaut
     const savedPosition = getMapPosition();
     const center: LatLngTuple = savedPosition 
@@ -534,25 +575,21 @@ onMounted(async () => {
         }
       }) as EventListener);
 
-      // Charger les plans et le plan courant si nécessaire
-      await irrigationStore.fetchPlans();
-      if (irrigationStore.currentPlan) {
-        await drawingStore.loadPlanElements(irrigationStore.currentPlan.id);
-        await loadPlan(irrigationStore.currentPlan.id);
-      }
-
-      // Charger les concessionnaires au montage du composant si l'utilisateur est admin
-      if (authStore.user?.user_type === 'admin') {
-        console.log('[onMounted] Loading dealers for admin...');
-        await loadDealers();
-      }
-
-      // Charger les clients si c'est un concessionnaire
-      if (authStore.user?.user_type === 'dealer') {
-        console.log('[onMounted] Loading clients for dealer...');
-        await loadDealerClients();
-      }
+      await drawingStore.loadPlanElements(irrigationStore.currentPlan.id);
+      await loadPlan(irrigationStore.currentPlan.id);
     }
+  }
+
+  // Charger les concessionnaires au montage du composant si l'utilisateur est admin
+  if (authStore.user?.user_type === 'admin') {
+    console.log('[onMounted] Loading dealers for admin...');
+    await loadDealers();
+  }
+
+  // Charger les clients si c'est un concessionnaire
+  if (authStore.user?.user_type === 'dealer') {
+    console.log('[onMounted] Loading clients for dealer...');
+    await loadDealerClients();
   }
 });
 
@@ -576,6 +613,40 @@ watch(map, async (newMap) => {
 watch(() => irrigationStore.currentPlan, async (newPlan) => {
   if (newPlan) {
     currentPlan.value = newPlan;
+    if (!map.value && mapContainer.value) {
+      // Initialiser la carte si elle n'existe pas encore
+      const savedPosition = getMapPosition();
+      const center: LatLngTuple = savedPosition 
+        ? [savedPosition.lat, savedPosition.lng]
+        : [46.603354, 1.888334];
+      const zoom = savedPosition?.zoom ?? 6;
+
+      // Initialiser les outils de dessin (qui crée aussi la carte)
+      const mapInstance = initDrawing(mapContainer.value, center, zoom) as L.Map;
+      
+      // Configurer la langue française pour Leaflet-Geoman
+      mapInstance.pm.setLang('fr');
+      
+      // Désactiver les contrôles de rotation par défaut
+      mapInstance.pm.addControls({
+        rotateMode: false
+      });
+      
+      // Ajouter la couche de carte satellite Esri World Imagery
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+        maxZoom: 19
+      }).addTo(mapInstance);
+      
+      // Initialiser l'état de la carte
+      initState(mapInstance);
+      
+      // Sauvegarder la position quand la carte bouge
+      mapInstance.on('moveend', () => {
+        saveMapPosition(mapInstance);
+      });
+    }
+    
     if (map.value) {
       clearMap();
       await drawingStore.loadPlanElements(newPlan.id);
