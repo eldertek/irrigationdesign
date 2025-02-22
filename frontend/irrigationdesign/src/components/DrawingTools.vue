@@ -1,13 +1,11 @@
 <!-- DrawingTools.vue -->
 <template>
   <div class="drawing-tools">
-    <div class="mb-6">
-      <h3 class="text-lg font-semibold mb-4">Outils de dessin</h3>
-      
-      <!-- Outils de dessin -->
+    <!-- Outils de dessin -->
+    <div class="mb-4">
       <div class="grid grid-cols-2 gap-2">
         <button
-          v-for="tool in drawingTools"
+          v-for="tool in drawingTools.filter(t => t.type !== 'delete')"
           :key="tool.type"
           class="flex items-center justify-center p-2 rounded border"
           :class="{
@@ -19,136 +17,165 @@
           <span class="text-sm">{{ tool.label }}</span>
         </button>
       </div>
+      
+      <!-- Bouton de suppression -->
+      <button
+        v-if="selectedShape"
+        class="w-full mt-2 flex items-center justify-center p-2 rounded border border-red-500 bg-red-50 hover:bg-red-100 text-red-700 transition-colors duration-200"
+        :class="{
+          'bg-red-100 border-red-600': currentTool === 'delete'
+        }"
+        @click="$emit('delete-shape')"
+      >
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+        <span class="text-sm font-medium">Supprimer la forme</span>
+      </button>
     </div>
 
-    <div v-if="selectedShape" class="mb-6">
-      <h3 class="text-lg font-semibold mb-4">Style</h3>
-      
-      <div class="space-y-4">
+    <!-- Sections collapsables pour les formes sélectionnées -->
+    <div v-if="selectedShape" class="space-y-2">
+      <!-- Informations rapides -->
+      <div class="bg-gray-50 p-2 rounded text-sm">
+        <div class="font-medium">
+          {{ typeTranslations[selectedShape.properties.type] || 'Non défini' }}
+        </div>
+        <div v-if="selectedShape.properties.area" class="text-gray-600">
+          {{ formatArea(selectedShape.properties.area) }}
+        </div>
+      </div>
+
+      <!-- Style - Section collapsable -->
+      <div class="border rounded overflow-hidden">
+        <button 
+          class="w-full px-3 py-2 flex justify-between items-center bg-gray-50 hover:bg-gray-100"
+          @click="toggleSection('style')"
+        >
+          <span class="font-medium">Style</span>
+          <svg 
+            class="w-5 h-5 transform transition-transform"
+            :class="{ 'rotate-180': !sectionsCollapsed.style }"
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <div v-show="!sectionsCollapsed.style" class="p-3 space-y-3">
         <!-- Couleurs prédéfinies -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Couleurs prédéfinies
-          </label>
           <div class="grid grid-cols-6 gap-2">
             <button
               v-for="color in predefinedColors"
               :key="color"
-              class="w-8 h-8 rounded-full border-2 border-gray-200"
+              class="w-6 h-6 rounded-full border hover:scale-110 transition-transform"
               :style="{ backgroundColor: color }"
               @click="selectPresetColor(color)"
             ></button>
           </div>
-        </div>
 
-        <!-- Couleur de bordure -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">
-            Couleur de bordure
-          </label>
-          <div class="flex items-center space-x-2">
-            <input
-              type="color"
-              v-model="strokeColor"
-              class="w-8 h-8 rounded border"
-              @change="updateStyle({ strokeColor })"
-            />
-            <input
-              type="range"
-              v-model="strokeOpacity"
-              min="0"
-              max="1"
-              step="0.1"
-              class="flex-1"
-              @change="updateStyle({ strokeOpacity })"
-            />
-            <span class="text-sm">{{ (strokeOpacity * 100).toFixed(0) }}%</span>
+          <!-- Contrôles de style compacts -->
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-500">Contour</span>
+              <input
+                type="color"
+                v-model="strokeColor"
+                class="w-6 h-6"
+                @change="updateStyle({ strokeColor })"
+                title="Couleur du contour"
+              />
+              <input
+                type="range"
+                v-model="strokeWidth"
+                min="1"
+                max="10"
+                class="flex-1"
+                @change="updateStyle({ strokeWidth })"
+                title="Épaisseur du contour"
+              />
+            </div>
+
+            <!-- Style de trait -->
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-500">Style</span>
+              <select
+                v-model="strokeStyle"
+                class="flex-1 text-sm border rounded px-1 py-0.5"
+                @change="updateStyle({ strokeStyle })"
+              >
+                <option v-for="style in strokeStyles" :key="style.value" :value="style.value">
+                  {{ style.label }}
+                </option>
+              </select>
+            </div>
+
+            <div v-if="showFillOptions" class="flex items-center gap-2">
+              <span class="text-xs text-gray-500">Remplissage</span>
+              <input
+                type="color"
+                v-model="fillColor"
+                class="w-6 h-6"
+                @change="updateStyle({ fillColor })"
+                title="Couleur de remplissage"
+              />
+              <input
+                type="range"
+                v-model="fillOpacity"
+                min="0"
+                max="1"
+                step="0.1"
+                class="flex-1"
+                @change="updateStyle({ fillOpacity })"
+                title="Opacité du remplissage"
+              />
+            </div>
           </div>
         </div>
-
-        <!-- Épaisseur de trait -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">
-            Épaisseur de trait
-          </label>
-          <input
-            type="range"
-            v-model="strokeWidth"
-            min="1"
-            max="10"
-            class="w-full"
-            @change="updateStyle({ strokeWidth })"
-          />
-          <span class="text-sm">{{ strokeWidth }}px</span>
         </div>
 
-        <!-- Type de trait -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">
-            Type de trait
-          </label>
-          <select
-            v-model="strokeStyle"
-            class="w-full px-2 py-1 rounded border"
-            @change="updateStyle({ dashArray: getDashArray(strokeStyle) })"
+      <!-- Propriétés - Section collapsable -->
+      <div class="border rounded overflow-hidden">
+        <button 
+          class="w-full px-3 py-2 flex justify-between items-center bg-gray-50 hover:bg-gray-100"
+          @click="toggleSection('properties')"
+        >
+          <span class="font-medium">Propriétés</span>
+          <svg 
+            class="w-5 h-5 transform transition-transform"
+            :class="{ 'rotate-180': !sectionsCollapsed.properties }"
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
           >
-            <option v-for="style in strokeStyles" :key="style.value" :value="style.value">
-              {{ style.label }}
-            </option>
-          </select>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <div v-show="!sectionsCollapsed.properties" class="p-3">
+          <div class="space-y-1 text-sm">
+            <div v-if="selectedShape.properties.surfaceInterieure">
+              Surface intérieure: {{ formatArea(selectedShape.properties.surfaceInterieure) }}
         </div>
-
-        <!-- Couleur de remplissage (seulement pour les formes fermées) -->
-        <div v-if="showFillOptions">
-          <label class="block text-sm font-medium text-gray-700 mb-1">
-            Couleur de remplissage
-          </label>
-          <div class="flex items-center space-x-2">
-            <input
-              type="color"
-              v-model="fillColor"
-              class="w-8 h-8 rounded border"
-              @change="updateStyle({ fillColor })"
-            />
-            <input
-              type="range"
-              v-model="fillOpacity"
-              min="0"
-              max="1"
-              step="0.1"
-              class="flex-1"
-              @change="updateStyle({ fillOpacity })"
-            />
-            <span class="text-sm">{{ (fillOpacity * 100).toFixed(0) }}%</span>
+            <div v-if="selectedShape.properties.surfaceExterieure">
+              Surface extérieure: {{ formatArea(selectedShape.properties.surfaceExterieure) }}
           </div>
+            <div v-if="selectedShape.properties.length">
+              Longueur: {{ formatLength(selectedShape.properties.length) }}
         </div>
-      </div>
-    </div>
-
-    <div v-if="selectedShape?.properties" class="mb-6">
-      <h3 class="text-lg font-semibold mb-4">Propriétés</h3>
-      
-      <div class="space-y-2 text-sm">
-        <div class="font-medium">
-          Type: {{ typeTranslations[selectedShape.properties.type as keyof typeof typeTranslations] || 'Non défini' }}
-        </div>
-        <div v-if="selectedShape.properties.area">
-          Surface: {{ formatArea(selectedShape.properties.area) }}
-        </div>
-        <div v-if="selectedShape.properties.length">
-          Longueur: {{ formatLengthInHa(selectedShape.properties.length) }}
-        </div>
-        <div v-if="selectedShape.properties.perimeter">
-          Périmètre: {{ formatLengthInHa(selectedShape.properties.perimeter) }}
-        </div>
-        <div v-if="selectedShape.properties.radius">
-          Rayon: {{ formatLengthInHa(selectedShape.properties.radius) }}
-        </div>
-        <div v-if="selectedShape.properties.width">
-          Largeur: {{ formatLengthInHa(selectedShape.properties.width) }}
-        </div>
-        <div v-if="selectedShape.properties.height">
-          Hauteur: {{ formatLengthInHa(selectedShape.properties.height) }}
+            <div v-if="selectedShape.properties.perimeter">
+              Périmètre: {{ formatLength(selectedShape.properties.perimeter) }}
+            </div>
+            <div v-if="selectedShape.properties.radius">
+              Rayon: {{ formatLength(selectedShape.properties.radius) }}
+            </div>
+            <div v-if="selectedShape.properties.width">
+              Largeur: {{ formatLength(selectedShape.properties.width) }}
+            </div>
+            <div v-if="selectedShape.properties.height">
+              Hauteur: {{ formatLength(selectedShape.properties.height) }}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -181,6 +208,8 @@ interface ShapeProperties {
   backgroundColor?: string;
   borderColor?: string;
   fontSize?: number;
+  surfaceInterieure?: number;
+  surfaceExterieure?: number;
 }
 
 interface CircleOptions extends L.CircleMarkerOptions {
@@ -196,6 +225,7 @@ const emit = defineEmits<{
   (e: 'tool-change', tool: string): void;
   (e: 'style-update', style: any): void;
   (e: 'properties-update', properties: any): void;
+  (e: 'delete-shape'): void;
 }>();
 
 const drawingTools = [
@@ -204,7 +234,8 @@ const drawingTools = [
   { type: 'Rectangle', label: 'Rectangle' },
   { type: 'Polygon', label: 'Polygone' },
   { type: 'Line', label: 'Ligne' },
-  { type: 'Text', label: 'Texte' }
+  { type: 'Text', label: 'Texte' },
+  { type: 'delete', label: 'Supprimer' }
 ];
 
 // Couleurs prédéfinies
@@ -248,6 +279,17 @@ const textBackgroundOpacity = ref(1);
 const textBorderColor = ref('#000000');
 const textBorderOpacity = ref(1);
 
+// Ajouter l'état pour les sections collapsables
+const sectionsCollapsed = ref({
+  style: false,
+  properties: false
+});
+
+// Fonction pour basculer l'état des sections
+const toggleSection = (section: 'style' | 'properties') => {
+  sectionsCollapsed.value[section] = !sectionsCollapsed.value[section];
+};
+
 // Initialiser les valeurs quand une forme est sélectionnée
 watch(() => props.selectedShape, (shape) => {
   console.log('=== DRAWING TOOLS SHAPE UPDATE START ===');
@@ -261,10 +303,10 @@ watch(() => props.selectedShape, (shape) => {
       
       // Détecter le type de forme
       const detectedType = 
-        shape instanceof L.Circle ? ((shape.options as CircleOptions)?.isSemicircle ? 'semicircle' : 'circle') :
-        shape instanceof L.Rectangle ? 'rectangle' :
-        shape instanceof L.Polygon ? 'polygon' :
-        shape instanceof L.Polyline && !(shape instanceof L.Polygon) ? 'line' : 'unknown';
+        shape instanceof L.Circle ? 'Circle' :
+        shape instanceof L.Rectangle ? 'Rectangle' :
+        shape instanceof L.Polygon && !(shape instanceof L.Polyline) ? 'Polygon' :
+        shape instanceof L.Polyline ? 'Line' : 'unknown';
       
       console.log('Detected shape type:', detectedType);
       
@@ -284,31 +326,72 @@ watch(() => props.selectedShape, (shape) => {
       // Ajouter les propriétés spécifiques au type
       if (shape instanceof L.Circle) {
         const radius = shape.getRadius();
+        const strokeWidth = shape.options?.weight || 3;
+        const strokeWidthMeters = strokeWidth * 0.5; // Convertir l'épaisseur du trait en mètres (approximatif)
+        
         baseProperties.radius = radius;
         
-        if (detectedType === 'circle') {
-          baseProperties.area = Math.PI * Math.pow(radius, 2);
+        if (detectedType === 'Circle') {
+          // Surface intérieure : surface du cercle sans l'épaisseur du trait
+          baseProperties.surfaceInterieure = Math.PI * Math.pow(radius - strokeWidthMeters, 2);
+          
+          // Surface extérieure : surface du cercle avec l'épaisseur du trait
+          baseProperties.surfaceExterieure = Math.PI * Math.pow(radius + strokeWidthMeters, 2);
+          
+          // Surface totale : moyenne des deux surfaces
+          baseProperties.area = (baseProperties.surfaceInterieure + baseProperties.surfaceExterieure) / 2;
+          
           baseProperties.perimeter = 2 * Math.PI * radius;
-        } else {
-          baseProperties.area = (Math.PI * Math.pow(radius, 2)) / 2;
+        } else if (detectedType === 'Semicircle' || shape.constructor.name === 'CircleArc') {
+          // Surface intérieure : surface du demi-cercle sans l'épaisseur du trait
+          baseProperties.surfaceInterieure = (Math.PI * Math.pow(radius - strokeWidthMeters, 2)) / 2;
+          
+          // Surface extérieure : surface du demi-cercle avec l'épaisseur du trait
+          baseProperties.surfaceExterieure = (Math.PI * Math.pow(radius + strokeWidthMeters, 2)) / 2;
+          
+          // Surface totale : moyenne des deux surfaces
+          baseProperties.area = (baseProperties.surfaceInterieure + baseProperties.surfaceExterieure) / 2;
+          
           baseProperties.perimeter = Math.PI * radius + 2 * radius;
         }
       } else if (shape instanceof L.Rectangle) {
         const bounds = shape.getBounds();
         const ne = bounds.getNorthEast();
         const sw = bounds.getSouthWest();
+        const strokeWidth = shape.options?.weight || 3;
+        const strokeWidthMeters = strokeWidth * 0.5;
+        
         const width = turf.distance([sw.lng, sw.lat], [ne.lng, sw.lat], { units: 'meters' });
         const height = turf.distance([sw.lng, sw.lat], [sw.lng, ne.lat], { units: 'meters' });
+        
         baseProperties.width = width;
         baseProperties.height = height;
-        baseProperties.area = width * height;
+        
+        // Surface intérieure : surface sans l'épaisseur du trait
+        baseProperties.surfaceInterieure = (width - strokeWidthMeters * 2) * (height - strokeWidthMeters * 2);
+        
+        // Surface extérieure : surface avec l'épaisseur du trait
+        baseProperties.surfaceExterieure = (width + strokeWidthMeters * 2) * (height + strokeWidthMeters * 2);
+        
+        // Surface totale : moyenne des deux surfaces
+        baseProperties.area = (baseProperties.surfaceInterieure + baseProperties.surfaceExterieure) / 2;
+        
         baseProperties.perimeter = 2 * (width + height);
       } else if (shape instanceof L.Polygon) {
         const latLngs = shape.getLatLngs()[0] as L.LatLng[];
         const coordinates = latLngs.map((ll: L.LatLng) => [ll.lng, ll.lat]);
         coordinates.push(coordinates[0]); // Fermer le polygone
         const polygon = turf.polygon([coordinates]);
-        baseProperties.area = turf.area(polygon);
+        const strokeWidth = shape.options?.weight || 3;
+        const strokeWidthMeters = strokeWidth * 0.5;
+        
+        // Calculer le buffer intérieur et extérieur
+        const innerPolygon = turf.buffer(polygon, -strokeWidthMeters, { units: 'meters' });
+        const outerPolygon = turf.buffer(polygon, strokeWidthMeters, { units: 'meters' });
+        
+        baseProperties.surfaceInterieure = turf.area(innerPolygon);
+        baseProperties.surfaceExterieure = turf.area(outerPolygon);
+        baseProperties.area = (baseProperties.surfaceInterieure + baseProperties.surfaceExterieure) / 2;
         baseProperties.perimeter = turf.length(turf.lineString([...coordinates]), { units: 'meters' });
       } else if (shape instanceof L.Polyline && !(shape instanceof L.Polygon)) {
         const latLngs = shape.getLatLngs() as L.LatLng[];
@@ -325,13 +408,13 @@ watch(() => props.selectedShape, (shape) => {
 
     console.log('Final shape properties:', toRaw(shape.properties));
     
-    // Mettre à jour les contrôles UI
-    fillColor.value = shape.properties.style?.fillColor || '#3B82F6';
-    fillOpacity.value = shape.properties.style?.fillOpacity || 0.2;
-    strokeColor.value = shape.properties.style?.color || '#2563EB';
-    strokeOpacity.value = shape.properties.style?.opacity || 1;
-    strokeWidth.value = shape.properties.style?.weight || 2;
-    strokeStyle.value = getStrokeStyleFromDashArray(shape.properties.style?.dashArray);
+    // Mettre à jour les contrôles UI avec les valeurs réelles
+    fillColor.value = shape.options?.fillColor || '#3B82F6';
+    fillOpacity.value = shape.options?.fillOpacity || 0.2;
+    strokeColor.value = shape.options?.color || '#2563EB';
+    strokeOpacity.value = shape.options?.opacity || 1;
+    strokeWidth.value = shape.options?.weight || 2;
+    strokeStyle.value = getStrokeStyleFromDashArray(shape.options?.dashArray);
     
     // Mettre à jour les propriétés spécifiques
     radius.value = shape.properties.radius || 0;
@@ -392,12 +475,32 @@ const selectPresetColor = (color: string) => {
 };
 
 const updateStyle = (style: any) => {
-  emit('style-update', {
-    ...style,
-    fillOpacity: style.fillOpacity !== undefined ? parseFloat(style.fillOpacity) : undefined,
-    strokeOpacity: style.strokeOpacity !== undefined ? parseFloat(style.strokeOpacity) : undefined,
-    strokeWidth: style.strokeWidth !== undefined ? parseInt(style.strokeWidth) : undefined
-  });
+  const updatedStyle: any = {
+    ...style
+  };
+
+  // Gérer le style de trait
+  if (style.strokeStyle) {
+    updatedStyle.dashArray = getDashArray(style.strokeStyle);
+  }
+
+  // Convertir les valeurs numériques
+  if (style.fillOpacity !== undefined) {
+    updatedStyle.fillOpacity = parseFloat(style.fillOpacity);
+  }
+  if (style.strokeOpacity !== undefined) {
+    updatedStyle.strokeOpacity = parseFloat(style.strokeOpacity);
+  }
+  if (style.strokeWidth !== undefined) {
+    updatedStyle.weight = parseInt(style.strokeWidth);
+  }
+
+  // Mapper les propriétés pour Leaflet
+  if (style.strokeColor) {
+    updatedStyle.color = style.strokeColor;
+  }
+
+  emit('style-update', updatedStyle);
 };
 
 const updateProperties = (properties: any) => {
@@ -462,12 +565,11 @@ const updateTextProperties = (properties: any) => {
 
 // Ajouter les traductions des types
 const typeTranslations = {
-  'circle': 'Cercle',
-  'semicircle': 'Demi-cercle',
-  'rectangle': 'Rectangle',
-  'polygon': 'Polygone',
-  'line': 'Ligne',
-  'text': 'Texte',
+  'Circle': 'Cercle',
+  'Rectangle': 'Rectangle',
+  'Polygon': 'Polygone',
+  'Line': 'Ligne',
+  'Semicircle': 'Demi-cercle',
   'unknown': 'Inconnu'
 };
 
@@ -478,12 +580,11 @@ const formatArea = (area: number): string => {
   return `${(area / 10000).toFixed(2)} ha`;
 };
 
-const formatLengthInHa = (length: number): string => {
-  return `${(length / 100).toFixed(2)} ha`;
-};
-
 const formatLength = (length: number): string => {
-  return `${length.toFixed(1)} m`;
+  if (length < 1000) {
+    return `${length.toFixed(1)} m`;
+  }
+  return `${(length / 1000).toFixed(2)} km`;
 };
 
 const formatSlope = (slope: number): string => {
@@ -498,31 +599,62 @@ const formatSlope = (slope: number): string => {
   padding-right: 8px;
 }
 
-/* Personnaliser la scrollbar pour une meilleure intégration */
+/* Personnaliser la scrollbar */
 .drawing-tools::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .drawing-tools::-webkit-scrollbar-track {
   background: #f1f1f1;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 .drawing-tools::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 .drawing-tools::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-/* Style pour les boutons de couleur prédéfinie */
-.color-preset {
-  transition: transform 0.1s ease-in-out;
+/* Animations */
+.transform {
+  transition: transform 0.2s ease-in-out;
 }
 
-.color-preset:hover {
-  transform: scale(1.1);
+/* Style pour les sections collapsables */
+.border {
+  border-color: #e5e7eb;
+}
+
+.rounded {
+  border-radius: 0.375rem;
+}
+
+/* Hover effects */
+button:not(:disabled):hover {
+  transition: all 0.2s ease-in-out;
+}
+
+input[type="range"] {
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #3b82f6;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
 }
 </style> 

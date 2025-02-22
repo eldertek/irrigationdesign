@@ -86,6 +86,7 @@
           @style-update="updateShapeStyle"
           @properties-update="updateShapeProperties"
           @toggle-edit-mode="toggleEditMode"
+          @delete-shape="deleteSelectedShape"
         />
       </div>
 
@@ -219,11 +220,8 @@ const {
   updateShapeStyle,
   updateShapeProperties: updateShapeProps,
   featureGroup,
-  isDrawing,
-  updateTextFixedSize,
   adjustView,
-  isEditMode,
-  toggleEditMode
+  clearActiveControlPoints,
 } = useMapDrawing();
 
 const {
@@ -1134,6 +1132,15 @@ function formatLastSaved(date: string): string {
 const handleAdjustView = () => {
   adjustView();
 };
+
+// Fonction pour supprimer la forme sélectionnée
+const deleteSelectedShape = () => {
+  if (selectedShape.value && featureGroup.value) {
+    setDrawingTool('');  // Ceci va nettoyer les points de contrôle
+    featureGroup.value.removeLayer(selectedShape.value);
+    selectedShape.value = null;
+  }
+};
 </script>
 
 <style>
@@ -1456,34 +1463,80 @@ const handleAdjustView = () => {
 .text-annotation {
   display: inline-block;
   cursor: text;
-  white-space: nowrap;
+  white-space: pre-wrap;
   outline: none;
   user-select: text;
   min-width: 100px;
   transition: all 0.2s ease;
   transform-origin: center;
   font-family: system-ui, -apple-system, sans-serif;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .text-annotation:focus {
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
 }
 
-/* Maintenir la lisibilité lors du zoom */
-.leaflet-container .text-annotation {
-  transform-origin: center;
-  transform: scale(1);
-  will-change: transform;
-}
-
-/* Styles pour le conteneur de texte en édition */
 .text-annotation.editing {
   z-index: 1000;
   position: relative;
+  min-height: 1em;
+  cursor: text;
+  background-color: rgba(255, 255, 255, 0.95) !important;
 }
 
-/* Styles pour le texte sélectionné */
-.text-annotation::selection {
+.text-annotation.editing::selection {
   background: rgba(59, 130, 246, 0.2);
+}
+
+/* Styles pour la rotation du texte */
+.text-rotation-handle {
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.text-container:hover + .text-rotation-handle,
+.text-rotation-handle:hover {
+  opacity: 1;
+}
+
+.text-rotation-handle .rotation-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid #3B82F6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+.text-rotation-handle .rotation-indicator::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3B82F6;
+  transform: translate(-50%, -50%);
+}
+
+.text-rotation-handle.rotating {
+  opacity: 1;
+  cursor: grabbing;
+}
+
+.text-rotation-handle.rotating .rotation-indicator {
+  background: #2563EB;
+  border-color: white;
+}
+
+/* Maintenir la lisibilité lors du zoom */
+.leaflet-container .text-annotation {
+  transform-origin: center;
+  will-change: transform;
+  backface-visibility: hidden;
 }
 </style> 

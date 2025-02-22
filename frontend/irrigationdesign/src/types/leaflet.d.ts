@@ -41,6 +41,20 @@ export interface TextStyle {
   padding: string;
   borderRadius: string;
   hasBorder: boolean;
+  rotation: number;
+  physicalSize: number;  // Taille physique en mètres
+  fontFamily?: string;
+  fontWeight?: string;
+  textAlign?: string;
+  textDecoration?: string;
+  textTransform?: string;
+  letterSpacing?: string;
+  lineHeight?: string;
+  maxWidth?: string;
+  minWidth?: string;
+  wordWrap?: string;
+  overflow?: string;
+  textShadow?: string;
 }
 
 export interface TextProperties {
