@@ -1517,13 +1517,20 @@ async function selectClient(client: UserDetails) {
     selectedClient.value = client;
     console.log('[MapView][selectClient] Updated selectedClient:', selectedClient.value);
 
-    // Charger les plans du client
+    // Charger les plans du client avec les paramètres de filtrage
     isLoadingPlans.value = true;
     try {
+      const params: any = {
+        client: client.id
+      };
+      
+      // Ajouter le concessionnaire si présent
+      if (selectedDealer.value) {
+        params.concessionnaire = selectedDealer.value.id;
+      }
+      
       const response = await api.get('/plans/', {
-        params: {
-          client: client.id
-        }
+        params: params
       });
       console.log('[MapView][selectClient] Loaded client plans:', response.data);
       clientPlans.value = response.data;

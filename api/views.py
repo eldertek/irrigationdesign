@@ -201,19 +201,31 @@ class PlanViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Filtre les plans selon le rôle de l'utilisateur:
-        - Admin : tous les plans
-        - Concessionnaire : uniquement les plans où il est assigné comme concessionnaire
-        - Client : uniquement les plans où il est assigné comme client
-        Note: Si un client/concessionnaire est retiré du plan, il perd l'accès au plan
+        Filtre les plans selon:
+        - Admin : tous les plans ou filtrés par concessionnaire/client
+        - Concessionnaire : uniquement ses plans ou ceux de ses clients
+        - Client : uniquement ses plans
         """
         user = self.request.user
         base_queryset = Plan.objects.all()
 
+        # Récupérer les paramètres de filtrage
+        concessionnaire_id = self.request.query_params.get('concessionnaire')
+        client_id = self.request.query_params.get('client')
+
         if user.role == ROLE_ADMIN:
+            if concessionnaire_id:
+                base_queryset = base_queryset.filter(concessionnaire_id=concessionnaire_id)
+            if client_id:
+                base_queryset = base_queryset.filter(client_id=client_id)
             return base_queryset
         elif user.role == ROLE_DEALER:
-            return base_queryset.filter(concessionnaire=user)
+            # Filtrer d'abord par le concessionnaire connecté
+            base_queryset = base_queryset.filter(concessionnaire=user)
+            # Si un client est spécifié, filtrer par ce client
+            if client_id:
+                base_queryset = base_queryset.filter(client_id=client_id)
+            return base_queryset
         else:  # client
             return base_queryset.filter(client=user)
 
