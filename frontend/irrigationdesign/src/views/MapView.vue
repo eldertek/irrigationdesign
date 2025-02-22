@@ -526,18 +526,18 @@ function getMapPosition(): { lat: number; lng: number; zoom: number } | null {
 onMounted(async () => {
   console.log('[onMounted] Starting initialization...');
   
-  // Charger les plans et le plan courant si nécessaire
+  // Charger les plans
   await irrigationStore.fetchPlans();
   
-  // Si un plan est déjà chargé, initialiser la carte
-  if (irrigationStore.currentPlan && mapContainer.value) {
-    // Récupérer la dernière position sauvegardée ou utiliser la position par défaut
-    const savedPosition = getMapPosition();
-    const center: LatLngTuple = savedPosition 
-      ? [savedPosition.lat, savedPosition.lng]
-      : [46.603354, 1.888334];
-    const zoom = savedPosition?.zoom ?? 6;
+  // Récupérer la dernière position sauvegardée ou utiliser la position par défaut
+  const savedPosition = getMapPosition();
+  const center: LatLngTuple = savedPosition 
+    ? [savedPosition.lat, savedPosition.lng]
+    : [46.603354, 1.888334];
+  const zoom = savedPosition?.zoom ?? 6;
 
+  // Initialiser la carte une seule fois
+  if (mapContainer.value && !map.value) {
     // Initialiser les outils de dessin (qui crée aussi la carte)
     const mapInstance = initDrawing(mapContainer.value, center, zoom) as L.Map;
     
@@ -556,27 +556,34 @@ onMounted(async () => {
     }).addTo(mapInstance);
     
     // Initialiser l'état de la carte avec l'instance existante
-    if (mapInstance) {
-      initState(mapInstance);
-      
-      // Sauvegarder la position quand la carte bouge
-      mapInstance.on('moveend', () => {
-        saveMapPosition(mapInstance);
-      });
-      
-      // Ajouter l'écouteur d'événement pour le changement de localisation
-      window.addEventListener('map-set-location', ((event: CustomEvent) => {
-        if (mapInstance && event.detail) {
-          const { lat, lng, zoom } = event.detail;
-          mapInstance.flyTo([lat, lng], zoom, {
-            duration: 1.5,
-            easeLinearity: 0.25
-          });
-        }
-      }) as EventListener);
+    initState(mapInstance);
+    
+    // Sauvegarder la position quand la carte bouge
+    mapInstance.on('moveend', () => {
+      saveMapPosition(mapInstance);
+    });
+    
+    // Ajouter l'écouteur d'événement pour le changement de localisation
+    window.addEventListener('map-set-location', ((event: CustomEvent) => {
+      if (mapInstance && event.detail) {
+        const { lat, lng, zoom } = event.detail;
+        mapInstance.flyTo([lat, lng], zoom, {
+          duration: 1.5,
+          easeLinearity: 0.25
+        });
+      }
+    }) as EventListener);
+  }
 
-      await drawingStore.loadPlanElements(irrigationStore.currentPlan.id);
-      await loadPlan(irrigationStore.currentPlan.id);
+  // Récupérer l'ID du dernier plan ouvert depuis le localStorage
+  const lastPlanId = localStorage.getItem('lastPlanId');
+  
+  // Si un plan était ouvert précédemment, le charger
+  if (lastPlanId) {
+    try {
+      await loadPlan(parseInt(lastPlanId));
+    } catch (error) {
+      console.error('Error loading last plan:', error);
     }
   }
 
@@ -948,6 +955,8 @@ function selectShape(shape: any) {
           map.value.removeLayer(previousLayer._rotationControl);
           delete previousLayer._rotationControl;
         }
+        // Retirer la classe shape-selected de l'ancienne forme
+        previousLayer.getElement()?.classList.remove('shape-selected');
       }
     }
 
@@ -977,6 +986,9 @@ function selectShape(shape: any) {
         removeLayerOnEmpty: false
       });
 
+      // Ajouter la classe shape-selected à la nouvelle forme
+      layer.getElement()?.classList.add('shape-selected');
+
       // Créer le contrôle de rotation si nécessaire
       if (typeof layer.setRotation !== 'function') {
         addRotationSupport(layer);
@@ -989,10 +1001,63 @@ function selectShape(shape: any) {
           map.value?.fitBounds(layer.getBounds(), { padding: [50, 50] });
         }
       }, 100);
+
+      // Ajouter les tooltips aux points de contrôle
+      addControlPointTooltips(layer);
     }
   } catch (error) {
     console.error('Error selecting shape:', error);
   }
+}
+
+// Fonction pour ajouter les tooltips aux points de contrôle
+function addControlPointTooltips(layer: any) {
+  // Attendre que les points de contrôle soient créés
+  setTimeout(() => {
+    const controlPoints = document.querySelectorAll('.leaflet-pm-draggable');
+    controlPoints.forEach((point: Element, index: number) => {
+      // Créer le tooltip s'il n'existe pas déjà
+      if (!point.querySelector('.control-point-tooltip')) {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'control-point-tooltip';
+        
+        // Déterminer le type d'information à afficher selon la forme
+        let info = '';
+        if (layer instanceof L.Circle) {
+          const radius = layer.getRadius();
+          if (index === 0) { // Point central
+            info = `Centre (${formatCoordinates(layer.getLatLng())})`;
+          } else { // Point de rayon
+            info = `Rayon: ${formatDistance(radius)}`;
+          }
+        } else if (layer instanceof L.Rectangle) {
+          const bounds = layer.getBounds();
+          const width = calculateDistance(bounds.getSouthWest(), bounds.getSouthEast());
+          const height = calculateDistance(bounds.getSouthWest(), bounds.getNorthWest());
+          info = `Point ${index + 1}<br>L: ${formatDistance(width)}<br>H: ${formatDistance(height)}`;
+        } else if (layer instanceof L.Polyline) {
+          const points = layer.getLatLngs();
+          if (points.length > 1) {
+            const distance = calculateDistance(points[index], points[index > 0 ? index - 1 : points.length - 1]);
+            info = `Point ${index + 1}<br>Distance: ${formatDistance(distance)}`;
+          }
+        }
+        
+        tooltip.innerHTML = info;
+        point.appendChild(tooltip);
+      }
+    });
+  }, 100);
+}
+
+// Fonction utilitaire pour formater les coordonnées
+function formatCoordinates(latLng: L.LatLng): string {
+  return `${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`;
+}
+
+// Fonction utilitaire pour calculer la distance entre deux points
+function calculateDistance(point1: L.LatLng, point2: L.LatLng): number {
+  return point1.distanceTo(point2);
 }
 
 // Ajouter la fonction setRotation à la couche Leaflet
@@ -1201,88 +1266,93 @@ async function loadPlan(planId: number) {
       currentPlan.value = plan;
       irrigationStore.setCurrentPlan(plan);
       drawingStore.setCurrentPlan(plan.id);
+      
+      // Sauvegarder l'ID du plan dans le localStorage
+      localStorage.setItem('lastPlanId', plan.id.toString());
 
-      // Ajouter les éléments à la carte
-      drawingStore.getCurrentElements.forEach(element => {
-        if (!featureGroup.value || !element.data) return;
+      // Ajouter les éléments à la carte si elle existe
+      if (map.value && featureGroup.value) {
+        drawingStore.getCurrentElements.forEach(element => {
+          if (!featureGroup.value || !element.data) return;
 
-        let layer;
-        const { style = {}, ...otherData } = element.data;
+          let layer;
+          const { style = {}, ...otherData } = element.data;
 
-        // Créer la couche appropriée selon le type de forme
-        switch (element.type_forme) {
-          case 'CERCLE':
-            layer = L.circle(
-              [otherData.center[1], otherData.center[0]],
-              {
-                ...style,
-                radius: otherData.radius
-              }
-            );
-            break;
+          // Créer la couche appropriée selon le type de forme
+          switch (element.type_forme) {
+            case 'CERCLE':
+              layer = L.circle(
+                [otherData.center[1], otherData.center[0]],
+                {
+                  ...style,
+                  radius: otherData.radius
+                }
+              );
+              break;
 
-          case 'RECTANGLE':
-            layer = L.rectangle([
-              [otherData.bounds.southWest[1], otherData.bounds.southWest[0]],
-              [otherData.bounds.northEast[1], otherData.bounds.northEast[0]]
-            ], style);
-            break;
+            case 'RECTANGLE':
+              layer = L.rectangle([
+                [otherData.bounds.southWest[1], otherData.bounds.southWest[0]],
+                [otherData.bounds.northEast[1], otherData.bounds.northEast[0]]
+              ], style);
+              break;
 
-          case 'DEMI_CERCLE':
-            // Utiliser CircleArc ou une autre implémentation de demi-cercle
-            layer = new CircleArc(
-              [otherData.center[1], otherData.center[0]],
-              otherData.radius,
-              otherData.startAngle,
-              otherData.endAngle,
-              style
-            );
-            break;
+            case 'DEMI_CERCLE':
+              // Utiliser CircleArc ou une autre implémentation de demi-cercle
+              layer = new CircleArc(
+                [otherData.center[1], otherData.center[0]],
+                otherData.radius,
+                otherData.startAngle,
+                otherData.endAngle,
+                style
+              );
+              break;
 
-          case 'LIGNE':
-            layer = L.polyline(
-              otherData.points.map((p: number[]) => [p[1], p[0]]),
-              style
-            );
-            break;
+            case 'LIGNE':
+              layer = L.polyline(
+                otherData.points.map((p: number[]) => [p[1], p[0]]),
+                style
+              );
+              break;
 
-          case 'TEXTE':
-            const textIcon = L.divIcon({
-              html: `<div class="text-annotation" style="font-size: ${style.fontSize || '14px'}">${otherData.content}</div>`,
-              className: 'text-container'
-            });
-            layer = L.marker([otherData.position[1], otherData.position[0]], {
-              icon: textIcon,
-              ...style
-            });
-            break;
-        }
-
-        if (layer) {
-          // Ajouter les propriétés à la couche
-          layer.properties = {
-            type: element.type_forme,
-            style: style,
-            ...otherData
-          };
-
-          // Ajouter la couche au groupe
-          featureGroup.value.addLayer(layer);
-
-          // Stocker la référence
-          shapes.value.push({
-            id: element.id,
-            type: element.type_forme,
-            layer: layer,
-            properties: layer.properties
-          });
-
-          // Appliquer la rotation si nécessaire
-          if (otherData.rotation && typeof layer.setRotation === 'function') {
-            layer.setRotation(otherData.rotation);
+            case 'TEXTE':
+              const textIcon = L.divIcon({
+                html: `<div class="text-annotation" style="font-size: ${style.fontSize || '14px'}">${otherData.content}</div>`,
+                className: 'text-container'
+              });
+              layer = L.marker([otherData.position[1], otherData.position[0]], {
+                icon: textIcon,
+                ...style
+              });
+              break;
           }
-        }
-      });
+
+          if (layer) {
+            // Ajouter les propriétés à la couche
+            layer.properties = {
+              type: element.type_forme,
+              style: style,
+              ...otherData
+            };
+
+            // Ajouter la couche au groupe
+            featureGroup.value.addLayer(layer);
+
+            // Stocker la référence
+            shapes.value.push({
+              id: element.id,
+              type: element.type_forme,
+              layer: layer,
+              properties: layer.properties
+            });
+
+            // Appliquer la rotation si nécessaire
+            if (otherData.rotation && typeof layer.setRotation === 'function') {
+              layer.setRotation(otherData.rotation);
+            }
+          }
+        });
+      }
     }
     showLoadPlanModal.value = false;
   } catch (error) {
@@ -1397,6 +1467,11 @@ function goToPlans() {
 
 // Nettoyer lors du démontage du composant
 onUnmounted(() => {
+  // Si on quitte volontairement la page (déconnexion par exemple)
+  // on peut nettoyer le localStorage
+  if (authStore.isLoggedOut) {
+    clearLastPlan();
+  }
   irrigationStore.clearCurrentPlan();
   drawingStore.clearCurrentPlan();
 });
@@ -1625,6 +1700,11 @@ watch(selectedDealer, async (newDealer) => {
     }
   }
 });
+
+// Ajouter une fonction pour nettoyer le localStorage lors de la déconnexion
+function clearLastPlan() {
+  localStorage.removeItem('lastPlanId');
+}
 </script>
 
 <style>
@@ -1786,10 +1866,94 @@ watch(selectedDealer, async (newDealer) => {
 /* Styles pour les points de contrôle */
 .leaflet-pm-draggable {
   transition: transform 0.2s ease;
+  position: relative;
 }
 
 .leaflet-pm-draggable:hover {
   transform: scale(1.2);
+}
+
+/* Style pour les infobulles des points de contrôle */
+.control-point-tooltip {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1000;
+  transform: translate(-50%, -130%);
+  top: 0;
+  left: 50%;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.control-point-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid rgba(0, 0, 0, 0.8);
+}
+
+/* Afficher les tooltips quand la forme est sélectionnée */
+.shape-selected .leaflet-pm-draggable .control-point-tooltip {
+  opacity: 1;
+}
+
+/* Ajuster le z-index pour que les tooltips restent au-dessus */
+.leaflet-pm-draggable {
+  z-index: 1000 !important;
+}
+
+/* Animation d'apparition des tooltips */
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translate(-50%, -120%); }
+  to { opacity: 1; transform: translate(-50%, -130%); }
+}
+
+.shape-selected .control-point-tooltip {
+  animation: tooltipFadeIn 0.2s ease forwards;
+}
+
+/* Style pour les points de contrôle actifs */
+.leaflet-pm-draggable.active {
+  background-color: #3B82F6 !important;
+  border-color: white !important;
+}
+
+/* Conteneur des informations de mesure */
+.measurement-info {
+  position: absolute;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  pointer-events: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-width: 200px;
+  white-space: normal;
+}
+
+.measurement-info.distance {
+  color: #2563EB;
+}
+
+.measurement-info.angle {
+  color: #7C3AED;
+}
+
+.measurement-info.area {
+  color: #059669;
 }
 
 /* Styles pour les messages d'aide contextuels */
