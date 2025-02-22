@@ -1,7 +1,16 @@
 <template>
-  <div class="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+  <!-- Fond en léger dégradé + centrage vertical -->
+  <div class="min-h-screen bg-white from-blue-50 to-white flex flex-col justify-center py-12 sm:px-6 lg:px-8">
     <div class="sm:mx-auto sm:w-full sm:max-w-md">
-      <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+      <!-- Logo avec animation au survol -->
+      <img 
+        src="@/assets/logo.svg" 
+        alt="IrrigationDesign Logo"
+        class="mx-auto h-40 w-auto transition-transform duration-300 hover:scale-110"
+      />
+      
+      <!-- Titre et sous-titre centrés -->
+      <h2 class="mt-2 text-center text-3xl font-bold text-gray-800">
         IrrigationDesign
       </h2>
       <p class="mt-2 text-center text-sm text-gray-600">
@@ -9,8 +18,9 @@
       </p>
     </div>
 
+    <!-- Carte de login avec ombre plus marquée et coins légèrement arrondis -->
     <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-      <div class="bg-white py-8 px-4 shadow-sm rounded-lg sm:px-10">
+      <div class="bg-white py-8 px-6 shadow-lg rounded-md sm:px-10">
         <form class="space-y-6" @submit.prevent="handleSubmit">
           <div v-if="error" class="rounded-md bg-red-50 p-4">
             <div class="flex">
@@ -50,7 +60,7 @@
                 type="text"
                 required
                 autocomplete="username"
-                class="appearance-none block w-full h-11 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                class="appearance-none block w-full h-11 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
                 aria-label="Nom d'utilisateur"
               />
             </div>
@@ -71,7 +81,7 @@
                 name="password"
                 required
                 autocomplete="current-password"
-                class="appearance-none block w-full h-11 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm pr-10"
+                class="appearance-none block w-full h-11 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm pr-10"
                 aria-label="Mot de passe"
               />
               <button
@@ -225,4 +235,4 @@ async function handleSubmit() {
     loading.value = false
   }
 }
-</script> 
+</script>
