@@ -12,7 +12,14 @@
     ],
     "css": [
       "assets/index.css"
+    ],
+    "assets": [
+      "assets/logo.svg"
     ]
+  },
+  "src/assets/logo.svg": {
+    "file": "assets/logo.svg",
+    "src": "src/assets/logo.svg"
   },
   "src/views/ForgotPasswordView.vue": {
     "file": "assets/ForgotPasswordView.js",
