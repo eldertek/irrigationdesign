@@ -35,22 +35,6 @@
     @apply bg-white shadow-sm rounded-lg p-6;
   }
 
-  .sidebar {
-    @apply w-80 bg-white shadow-lg flex flex-col;
-  }
-
-  .sidebar-header {
-    @apply p-4 border-b border-gray-200;
-  }
-
-  .sidebar-section {
-    @apply p-4 border-b border-gray-200;
-  }
-
-  .sidebar-title {
-    @apply text-lg font-medium text-gray-900 mb-4;
-  }
-
   .map-container {
     @apply flex-1 relative;
   }

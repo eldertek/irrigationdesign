@@ -39,10 +39,10 @@
       <!-- Informations rapides -->
       <div class="bg-gray-50 p-2 rounded text-sm">
         <div class="font-medium">
-          {{ typeTranslations[selectedShape.properties.type] || 'Non défini' }}
+          {{ shapeTitle }}
         </div>
-        <div v-if="selectedShape.properties.area" class="text-gray-600">
-          {{ formatArea(selectedShape.properties.area) }}
+        <div v-if="shapeProperties?.area" class="text-gray-600">
+          {{ formatArea(shapeProperties.area) }}
         </div>
       </div>
 
@@ -73,43 +73,43 @@
               :style="{ backgroundColor: color }"
               @click="selectPresetColor(color)"
             ></button>
-          </div>
+        </div>
 
           <!-- Contrôles de style compacts -->
           <div class="space-y-2">
             <div class="flex items-center gap-2">
               <span class="text-xs text-gray-500">Contour</span>
-              <input
-                type="color"
-                v-model="strokeColor"
+            <input
+              type="color"
+              v-model="strokeColor"
                 class="w-6 h-6"
-                @change="updateStyle({ strokeColor })"
+              @change="updateStyle({ strokeColor })"
                 title="Couleur du contour"
               />
-              <input
-                type="range"
-                v-model="strokeWidth"
-                min="1"
-                max="10"
+          <input
+            type="range"
+            v-model="strokeWidth"
+            min="1"
+            max="10"
                 class="flex-1"
-                @change="updateStyle({ strokeWidth })"
+            @change="updateStyle({ strokeWidth })"
                 title="Épaisseur du contour"
-              />
-            </div>
+          />
+        </div>
 
             <!-- Style de trait -->
             <div class="flex items-center gap-2">
               <span class="text-xs text-gray-500">Style</span>
-              <select
-                v-model="strokeStyle"
+          <select
+            v-model="strokeStyle"
                 class="flex-1 text-sm border rounded px-1 py-0.5"
                 @change="updateStyle({ strokeStyle })"
-              >
-                <option v-for="style in strokeStyles" :key="style.value" :value="style.value">
-                  {{ style.label }}
-                </option>
-              </select>
-            </div>
+          >
+            <option v-for="style in strokeStyles" :key="style.value" :value="style.value">
+              {{ style.label }}
+            </option>
+          </select>
+        </div>
 
             <div v-if="showFillOptions" class="flex items-center gap-2">
               <span class="text-xs text-gray-500">Remplissage</span>
@@ -123,17 +123,17 @@
               <input
                 type="range"
                 v-model="fillOpacity"
-                min="0"
-                max="1"
-                step="0.1"
-                class="flex-1"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  class="flex-1"
                 @change="updateStyle({ fillOpacity })"
                 title="Opacité du remplissage"
               />
             </div>
           </div>
         </div>
-        </div>
+      </div>
 
       <!-- Propriétés - Section collapsable -->
       <div class="border rounded overflow-hidden">
@@ -154,26 +154,26 @@
         </button>
         <div v-show="!sectionsCollapsed.properties" class="p-3">
           <div class="space-y-1 text-sm">
-            <div v-if="selectedShape.properties.surfaceInterieure">
-              Surface intérieure: {{ formatArea(selectedShape.properties.surfaceInterieure) }}
-        </div>
-            <div v-if="selectedShape.properties.surfaceExterieure">
-              Surface extérieure: {{ formatArea(selectedShape.properties.surfaceExterieure) }}
-          </div>
-            <div v-if="selectedShape.properties.length">
-              Longueur: {{ formatLength(selectedShape.properties.length) }}
-        </div>
-            <div v-if="selectedShape.properties.perimeter">
-              Périmètre: {{ formatLength(selectedShape.properties.perimeter) }}
+            <div v-if="shapeProperties?.surfaceInterieure">
+              Surface intérieure: {{ formatArea(shapeProperties.surfaceInterieure) }}
             </div>
-            <div v-if="selectedShape.properties.radius">
-              Rayon: {{ formatLength(selectedShape.properties.radius) }}
+            <div v-if="shapeProperties?.surfaceExterieure">
+              Surface extérieure: {{ formatArea(shapeProperties.surfaceExterieure) }}
             </div>
-            <div v-if="selectedShape.properties.width">
-              Largeur: {{ formatLength(selectedShape.properties.width) }}
+            <div v-if="shapeProperties?.length">
+              Longueur: {{ formatLength(shapeProperties.length) }}
             </div>
-            <div v-if="selectedShape.properties.height">
-              Hauteur: {{ formatLength(selectedShape.properties.height) }}
+            <div v-if="shapeProperties?.perimeter">
+              Périmètre: {{ formatLength(shapeProperties.perimeter) }}
+            </div>
+            <div v-if="shapeProperties?.radius">
+              Rayon: {{ formatLength(shapeProperties.radius) }}
+            </div>
+            <div v-if="shapeProperties?.width">
+              Largeur: {{ formatLength(shapeProperties.width) }}
+            </div>
+            <div v-if="shapeProperties?.height">
+              Hauteur: {{ formatLength(shapeProperties.height) }}
             </div>
           </div>
         </div>
@@ -183,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, toRaw } from 'vue';
+import { ref, computed, watch, toRaw, nextTick } from 'vue';
 import L from 'leaflet';
 import * as turf from '@turf/turf';
 
@@ -196,6 +196,11 @@ interface ShapeProperties {
     fillColor: string;
     fillOpacity: number;
     dashArray: string;
+    fontSize?: number;
+    backgroundColor?: string;
+    backgroundOpacity?: number;
+    borderColor?: string;
+    borderOpacity?: number;
   };
   radius?: number;
   area?: number;
@@ -216,9 +221,24 @@ interface CircleOptions extends L.CircleMarkerOptions {
   isSemicircle?: boolean;
 }
 
+interface ShapeType {
+  type: keyof typeof typeTranslations;
+  properties: ShapeProperties;
+  layer?: any;
+  options?: {
+    fillColor?: string;
+    fillOpacity?: number;
+    color?: string;
+    opacity?: number;
+    weight?: number;
+    dashArray?: string;
+  };
+  _lastProperties?: ShapeProperties;
+}
+
 const props = defineProps<{
   currentTool: string;
-  selectedShape: any | null;
+  selectedShape: ShapeType | null;
 }>();
 
 const emit = defineEmits<{
@@ -285,163 +305,102 @@ const sectionsCollapsed = ref({
   properties: false
 });
 
+// Ajouter le flag pour éviter les mises à jour récursives
+let isUpdating = false;
+
+// Fonction utilitaire pour comparer les valeurs numériques avec une tolérance
+const hasChanged = (a: number, b: number) => Math.abs((a || 0) - (b || 0)) > 0.0001;
+
+// Fonction pour comparer les propriétés
+const propertiesHaveChanged = (newProps: any, oldProps: any) => {
+  if (!oldProps) return true;
+  return hasChanged(newProps.radius, oldProps.radius) ||
+    hasChanged(newProps.area, oldProps.area) ||
+    hasChanged(newProps.perimeter, oldProps.perimeter) ||
+    hasChanged(newProps.width, oldProps.width) ||
+    hasChanged(newProps.height, oldProps.height) ||
+    hasChanged(newProps.length, oldProps.length);
+};
+
 // Fonction pour basculer l'état des sections
 const toggleSection = (section: 'style' | 'properties') => {
   sectionsCollapsed.value[section] = !sectionsCollapsed.value[section];
 };
 
-// Initialiser les valeurs quand une forme est sélectionnée
-watch(() => props.selectedShape, (shape) => {
-  console.log('=== DRAWING TOOLS SHAPE UPDATE START ===');
-  console.log('Raw shape object:', toRaw(shape));
-  console.log('Shape constructor:', shape?.constructor?.name);
+// Ajouter une ref pour les propriétés de la forme
+const shapeProperties = ref<ShapeProperties | null>(null);
+
+// Modifier le watcher pour utiliser la ref
+watch(() => [props.selectedShape, props.selectedShape?.properties], ([shape]) => {
+  if (isUpdating || !shape) return;
   
-  if (shape) {
+  try {
+    isUpdating = true;
+    
+    const shapeAsType = shape as ShapeType;
+    
     // Vérifier si la forme a des propriétés valides
-    if (!shape.properties || !shape.properties.type) {
-      console.warn('Invalid shape properties detected:', toRaw(shape.properties));
-      
-      // Détecter le type de forme
-      const detectedType = 
-        shape instanceof L.Circle ? 'Circle' :
-        shape instanceof L.Rectangle ? 'Rectangle' :
-        shape instanceof L.Polygon && !(shape instanceof L.Polyline) ? 'Polygon' :
-        shape instanceof L.Polyline ? 'Line' : 'unknown';
-      
-      console.log('Detected shape type:', detectedType);
-      
-      // Créer des propriétés de base
-      const baseProperties: ShapeProperties = {
-        type: detectedType,
-        style: {
-          color: shape.options?.color || '#3388ff',
-          weight: shape.options?.weight || 3,
-          opacity: shape.options?.opacity || 1,
-          fillColor: shape.options?.fillColor || '#3388ff',
-          fillOpacity: shape.options?.fillOpacity || 0.2,
-          dashArray: shape.options?.dashArray || ''
+    if (!shapeAsType.properties || !shapeAsType.properties.type) {
+      console.warn('Invalid shape properties detected:', toRaw(shapeAsType.properties));
+      return;
+    }
+
+    // Créer une copie des propriétés actuelles
+    const currentProps = toRaw(shapeAsType.properties);
+    const previousProps = shapeAsType._lastProperties;
+
+    // Vérifier si les propriétés ont réellement changé
+    if (previousProps && !propertiesHaveChanged(currentProps, previousProps)) {
+      console.log('No significant property changes detected');
+      return;
+    }
+
+    // Créer une nouvelle référence des propriétés
+    const newProperties = { ...currentProps };
+    
+    // Mettre à jour dans le prochain tick pour éviter les boucles
+    setTimeout(() => {
+      try {
+        // Sauvegarder l'état pour la prochaine comparaison
+        shapeAsType._lastProperties = { ...newProperties };
+        
+        // Mettre à jour les contrôles UI
+        fillColor.value = shapeAsType.options?.fillColor || '#3B82F6';
+        fillOpacity.value = shapeAsType.options?.fillOpacity || 0.2;
+        strokeColor.value = shapeAsType.options?.color || '#2563EB';
+        strokeOpacity.value = shapeAsType.options?.opacity || 1;
+        strokeWidth.value = shapeAsType.options?.weight || 2;
+        strokeStyle.value = getStrokeStyleFromDashArray(shapeAsType.options?.dashArray || '');
+        
+        // Mettre à jour les propriétés spécifiques
+        radius.value = newProperties.radius || 0;
+        startAngle.value = newProperties.orientation || 0;
+
+        if (shapeAsType.properties.type === 'text') {
+          textContent.value = newProperties.text || '';
+          fontSize.value = newProperties.style?.fontSize || 14;
+          textBackgroundColor.value = newProperties.style?.backgroundColor || '#FFFFFF';
+          textBackgroundOpacity.value = newProperties.style?.backgroundOpacity || 1;
+          textBorderColor.value = newProperties.style?.borderColor || '#000000';
+          textBorderOpacity.value = newProperties.style?.borderOpacity || 1;
         }
-      };
-      
-      // Ajouter les propriétés spécifiques au type
-      if (shape instanceof L.Circle) {
-        const radius = shape.getRadius();
-        const strokeWidth = shape.options?.weight || 3;
-        const strokeWidthMeters = strokeWidth * 0.5; // Convertir l'épaisseur du trait en mètres (approximatif)
+
+        // Mettre à jour la ref des propriétés pour forcer la réactivité
+        shapeProperties.value = { ...newProperties };
         
-        baseProperties.radius = radius;
-        
-        if (detectedType === 'Circle') {
-          // Surface intérieure : surface du cercle sans l'épaisseur du trait
-          baseProperties.surfaceInterieure = Math.PI * Math.pow(radius - strokeWidthMeters, 2);
-          
-          // Surface extérieure : surface du cercle avec l'épaisseur du trait
-          baseProperties.surfaceExterieure = Math.PI * Math.pow(radius + strokeWidthMeters, 2);
-          
-          // Surface totale : moyenne des deux surfaces
-          baseProperties.area = (baseProperties.surfaceInterieure + baseProperties.surfaceExterieure) / 2;
-          
-          baseProperties.perimeter = 2 * Math.PI * radius;
-        } else if (detectedType === 'Semicircle' || shape.constructor.name === 'CircleArc') {
-          // Surface intérieure : surface du demi-cercle sans l'épaisseur du trait
-          baseProperties.surfaceInterieure = (Math.PI * Math.pow(radius - strokeWidthMeters, 2)) / 2;
-          
-          // Surface extérieure : surface du demi-cercle avec l'épaisseur du trait
-          baseProperties.surfaceExterieure = (Math.PI * Math.pow(radius + strokeWidthMeters, 2)) / 2;
-          
-          // Surface totale : moyenne des deux surfaces
-          baseProperties.area = (baseProperties.surfaceInterieure + baseProperties.surfaceExterieure) / 2;
-          
-          baseProperties.perimeter = Math.PI * radius + 2 * radius;
-        }
-      } else if (shape instanceof L.Rectangle) {
-        const bounds = shape.getBounds();
-        const ne = bounds.getNorthEast();
-        const sw = bounds.getSouthWest();
-        const strokeWidth = shape.options?.weight || 3;
-        const strokeWidthMeters = strokeWidth * 0.5;
-        
-        const width = turf.distance([sw.lng, sw.lat], [ne.lng, sw.lat], { units: 'meters' });
-        const height = turf.distance([sw.lng, sw.lat], [sw.lng, ne.lat], { units: 'meters' });
-        
-        baseProperties.width = width;
-        baseProperties.height = height;
-        
-        // Surface intérieure : surface sans l'épaisseur du trait
-        baseProperties.surfaceInterieure = (width - strokeWidthMeters * 2) * (height - strokeWidthMeters * 2);
-        
-        // Surface extérieure : surface avec l'épaisseur du trait
-        baseProperties.surfaceExterieure = (width + strokeWidthMeters * 2) * (height + strokeWidthMeters * 2);
-        
-        // Surface totale : moyenne des deux surfaces
-        baseProperties.area = (baseProperties.surfaceInterieure + baseProperties.surfaceExterieure) / 2;
-        
-        baseProperties.perimeter = 2 * (width + height);
-      } else if (shape instanceof L.Polygon) {
-        const latLngs = shape.getLatLngs()[0] as L.LatLng[];
-        const coordinates = latLngs.map((ll: L.LatLng) => [ll.lng, ll.lat]);
-        coordinates.push(coordinates[0]); // Fermer le polygone
-        const polygon = turf.polygon([coordinates]);
-        const strokeWidth = shape.options?.weight || 3;
-        const strokeWidthMeters = strokeWidth * 0.5;
-        
-        // Calculer le buffer intérieur et extérieur
-        const innerPolygon = turf.buffer(polygon, -strokeWidthMeters, { units: 'meters' });
-        const outerPolygon = turf.buffer(polygon, strokeWidthMeters, { units: 'meters' });
-        
-        baseProperties.surfaceInterieure = turf.area(innerPolygon);
-        baseProperties.surfaceExterieure = turf.area(outerPolygon);
-        baseProperties.area = (baseProperties.surfaceInterieure + baseProperties.surfaceExterieure) / 2;
-        baseProperties.perimeter = turf.length(turf.lineString([...coordinates]), { units: 'meters' });
-      } else if (shape instanceof L.Polyline && !(shape instanceof L.Polygon)) {
-        const latLngs = shape.getLatLngs() as L.LatLng[];
-        const coordinates = latLngs.map((ll: L.LatLng) => [ll.lng, ll.lat]);
-        const line = turf.lineString(coordinates);
-        baseProperties.length = turf.length(line, { units: 'meters' });
+        // Mettre à jour les propriétés de la forme
+        shapeAsType.properties = { ...newProperties };
+
+        // Émettre l'événement avec les nouvelles propriétés
+        emit('properties-update', newProperties);
+      } finally {
+        isUpdating = false;
       }
-      
-      console.log('Created base properties:', baseProperties);
-      
-      // Mettre à jour les propriétés de la forme
-      shape.properties = baseProperties;
-    }
-
-    console.log('Final shape properties:', toRaw(shape.properties));
-    
-    // Mettre à jour les contrôles UI avec les valeurs réelles
-    fillColor.value = shape.options?.fillColor || '#3B82F6';
-    fillOpacity.value = shape.options?.fillOpacity || 0.2;
-    strokeColor.value = shape.options?.color || '#2563EB';
-    strokeOpacity.value = shape.options?.opacity || 1;
-    strokeWidth.value = shape.options?.weight || 2;
-    strokeStyle.value = getStrokeStyleFromDashArray(shape.options?.dashArray);
-    
-    // Mettre à jour les propriétés spécifiques
-    radius.value = shape.properties.radius || 0;
-    startAngle.value = shape.properties.orientation || 0;
-    
-    console.log('Updated UI controls:', {
-      fillColor: fillColor.value,
-      fillOpacity: fillOpacity.value,
-      strokeColor: strokeColor.value,
-      strokeOpacity: strokeOpacity.value,
-      strokeWidth: strokeWidth.value,
-      strokeStyle: strokeStyle.value,
-      radius: radius.value,
-      startAngle: startAngle.value
-    });
-
-    if (shape && shape.properties?.type === 'text') {
-      textContent.value = shape.properties.text || '';
-      fontSize.value = shape.properties.style?.fontSize || 14;
-      textBackgroundColor.value = shape.properties.style?.backgroundColor || '#FFFFFF';
-      textBackgroundOpacity.value = shape.properties.style?.backgroundOpacity || 1;
-      textBorderColor.value = shape.properties.style?.borderColor || '#000000';
-      textBorderOpacity.value = shape.properties.style?.borderOpacity || 1;
-    }
+    }, 0);
+  } catch (error) {
+    console.error('Error in shape update:', error);
+    isUpdating = false;
   }
-  
-  console.log('=== DRAWING TOOLS SHAPE UPDATE END ===');
 }, { immediate: true, deep: true });
 
 const getDashArray = (style: string): string => {
@@ -504,63 +463,108 @@ const updateStyle = (style: any) => {
 };
 
 const updateProperties = (properties: any) => {
-  if (props.selectedShape?.type === 'Semicircle') {
-    // Pour les demi-cercles, mettre à jour l'orientation et les angles
-    const orientation = properties.startAngle || startAngle.value;
-    emit('properties-update', {
-      ...properties,
-      orientation,
-      style: {
-        startAngle: orientation,
-        stopAngle: orientation + 180
-      }
-    });
-  } else {
-    emit('properties-update', properties);
+  if (isUpdating) return;
+  
+  try {
+    isUpdating = true;
+    
+    if (props.selectedShape?.type === 'Semicircle') {
+      // Pour les demi-cercles, mettre à jour l'orientation et les angles
+      const orientation = properties.startAngle || startAngle.value;
+      const updatedProperties = {
+        ...toRaw(properties),
+        orientation,
+        style: {
+          ...properties.style,
+          startAngle: orientation,
+          stopAngle: orientation + 180
+        }
+      };
+      
+      nextTick(() => {
+        try {
+          // Émettre l'événement avec les nouvelles propriétés
+          emit('properties-update', updatedProperties);
+        } finally {
+          isUpdating = false;
+        }
+      });
+    } else {
+      // Pour les autres formes, créer une nouvelle référence
+      const updatedProperties = { ...toRaw(properties) };
+      
+      nextTick(() => {
+        try {
+          // Émettre l'événement avec les nouvelles propriétés
+          emit('properties-update', updatedProperties);
+        } finally {
+          isUpdating = false;
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error in updateProperties:', error);
+    isUpdating = false;
   }
 };
 
-// Ajouter la fonction de mise à jour des propriétés du texte
 const updateTextProperties = (properties: any) => {
-  const updatedProperties = {
-    ...properties,
-    type: 'text',
-    style: {
-      backgroundColor: textBackgroundColor.value,
-      backgroundOpacity: textBackgroundOpacity.value,
-      borderColor: textBorderColor.value,
-      borderOpacity: textBorderOpacity.value,
-      fontSize: `${fontSize.value}px`,
-      text: textContent.value,
-      padding: '5px 10px',
-      borderRadius: '3px',
-      fontWeight: 'normal',
-      color: '#000000'
-    }
-  };
+  if (isUpdating) return;
+  
+  try {
+    isUpdating = true;
+    
+    const updatedProperties = {
+      ...toRaw(properties),
+      type: 'text',
+      style: {
+        ...properties.style,
+        backgroundColor: textBackgroundColor.value,
+        backgroundOpacity: textBackgroundOpacity.value,
+        borderColor: textBorderColor.value,
+        borderOpacity: textBorderOpacity.value,
+        fontSize: `${fontSize.value}px`,
+        text: textContent.value,
+        padding: '5px 10px',
+        borderRadius: '3px',
+        fontWeight: 'normal',
+        color: '#000000'
+      }
+    };
 
-  // Créer le HTML pour l'icône
-  const html = `<div style="
-    background-color: ${updatedProperties.style.backgroundColor};
-    border: 1px solid ${updatedProperties.style.borderColor};
-    padding: ${updatedProperties.style.padding};
-    border-radius: ${updatedProperties.style.borderRadius};
-    font-size: ${updatedProperties.style.fontSize};
-    font-weight: ${updatedProperties.style.fontWeight};
-    color: ${updatedProperties.style.color};
-    opacity: ${updatedProperties.style.backgroundOpacity};"
-  >${updatedProperties.style.text}</div>`;
+    nextTick(() => {
+      try {
+        // Créer le HTML pour l'icône
+        const html = `<div style="
+          background-color: ${updatedProperties.style.backgroundColor};
+          border: 1px solid ${updatedProperties.style.borderColor};
+          padding: ${updatedProperties.style.padding};
+          border-radius: ${updatedProperties.style.borderRadius};
+          font-size: ${updatedProperties.style.fontSize};
+          font-weight: ${updatedProperties.style.fontWeight};
+          color: ${updatedProperties.style.color};
+          opacity: ${updatedProperties.style.backgroundOpacity};"
+        >${updatedProperties.style.text}</div>`;
 
-  // Mettre à jour l'icône du marker
-  if (props.selectedShape && props.selectedShape.layer) {
-    const newIcon = L.divIcon({
-      html: html,
-      className: ''
+        // Mettre à jour l'icône du marker
+        if (props.selectedShape && props.selectedShape.layer) {
+          const newIcon = L.divIcon({
+            html: html,
+            className: ''
+          });
+          props.selectedShape.layer.setIcon(newIcon);
+        }
+
+        // Émettre l'événement avec les nouvelles propriétés
+        emit('properties-update', updatedProperties);
+      } finally {
+        isUpdating = false;
+      }
     });
-    props.selectedShape.layer.setIcon(newIcon);
+  } catch (error) {
+    console.error('Error in updateTextProperties:', error);
+    isUpdating = false;
   }
-
-  emit('properties-update', updatedProperties);
 };
 
 // Ajouter les traductions des types
@@ -571,7 +575,18 @@ const typeTranslations = {
   'Line': 'Ligne',
   'Semicircle': 'Demi-cercle',
   'unknown': 'Inconnu'
-};
+} as const;
+
+// Ajouter un computed pour le type de forme
+const shapeType = computed(() => {
+  if (!props.selectedShape?.properties?.type) return 'unknown';
+  return props.selectedShape.properties.type as keyof typeof typeTranslations;
+});
+
+// Ajouter un computed pour le titre de la forme
+const shapeTitle = computed(() => {
+  return typeTranslations[shapeType.value] || 'Non défini';
+});
 
 const formatArea = (area: number): string => {
   if (area < 10000) {

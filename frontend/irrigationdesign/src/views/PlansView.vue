@@ -70,20 +70,21 @@
                   <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 lg:pr-8">
                     <button
                       @click="editPlan(plan)"
-                      class="text-primary-600 hover:text-primary-900 mr-4 inline-flex items-center"
+                      class="text-primary-600 hover:text-primary-900 mr-4"
                     >
-                      <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
+                      Ouvrir
+                    </button>
+                    <button
+                      @click="openEditPlanModal(plan)"
+                      class="text-primary-600 hover:text-primary-900 mr-4"
+                    >
                       Modifier
                     </button>
                     <button
+                      v-if="plan.createur.id === authStore.user?.id"
                       @click="deletePlan(plan)"
-                      class="text-red-600 hover:text-red-900 inline-flex items-center"
+                      class="text-red-600 hover:text-red-900"
                     >
-                      <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
                       Supprimer
                     </button>
                   </td>
@@ -172,21 +173,21 @@
                   <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 lg:pr-8">
                     <button
                       @click="editPlan(plan)"
-                      class="text-primary-600 hover:text-primary-900 mr-4 inline-flex items-center"
+                      class="text-primary-600 hover:text-primary-900 mr-4"
                     >
-                      <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
+                      Ouvrir
+                    </button>
+                    <button
+                      @click="openEditPlanModal(plan)"
+                      class="text-primary-600 hover:text-primary-900 mr-4"
+                    >
                       Modifier
                     </button>
                     <button
-                      v-if="authStore.isAdmin"
+                      v-if="plan.createur.id === authStore.user?.id"
                       @click="deletePlan(plan)"
-                      class="text-red-600 hover:text-red-900 inline-flex items-center"
+                      class="text-red-600 hover:text-red-900"
                     >
-                      <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
                       Supprimer
                     </button>
                   </td>
@@ -249,6 +250,63 @@
         </form>
       </div>
     </div>
+
+    <!-- Modal Modification Plan -->
+    <div v-if="showEditPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
+      <div class="bg-white rounded-lg p-6 max-w-md w-full">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-semibold text-gray-900">Modifier le plan</h2>
+          <button
+            @click="showEditPlanModal = false"
+            class="text-gray-400 hover:text-gray-500 focus:outline-none"
+          >
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <form @submit.prevent="updatePlan" class="space-y-4">
+          <div>
+            <label for="edit-nom" class="block text-sm font-medium text-gray-700">
+              Nom
+            </label>
+            <input
+              type="text"
+              id="edit-nom"
+              v-model="editPlanData.nom"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label for="edit-description" class="block text-sm font-medium text-gray-700">
+              Description
+            </label>
+            <textarea
+              id="edit-description"
+              v-model="editPlanData.description"
+              rows="3"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+            ></textarea>
+          </div>
+          <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
+            <button
+              type="button"
+              class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:mt-0 sm:text-sm"
+              @click="showEditPlanModal = false"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              class="inline-flex w-full justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:text-sm"
+            >
+              Enregistrer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -259,6 +317,7 @@ import { useIrrigationStore } from '@/stores/irrigation'
 import { useAuthStore } from '@/stores/auth'
 import { useDrawingStore } from '@/stores/drawing'
 import type { Plan, UserDetails } from '@/stores/irrigation'
+import api from '@/services/api'
 
 const router = useRouter()
 const irrigationStore = useIrrigationStore()
@@ -267,7 +326,13 @@ const drawingStore = useDrawingStore()
 
 const plans = ref<Plan[]>([])
 const showNewPlanModal = ref(false)
+const showEditPlanModal = ref(false)
 const newPlan = ref({
+  nom: '',
+  description: ''
+})
+const editPlanData = ref({
+  id: 0,
   nom: '',
   description: ''
 })
@@ -386,5 +451,33 @@ function getInitials(user: UserDetails): string {
   if (!user) return ''
   const initials = user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()
   return initials.length > 2 ? initials.slice(0, 2) : initials
+}
+
+function openEditPlanModal(plan: Plan) {
+  editPlanData.value = {
+    id: plan.id,
+    nom: plan.nom,
+    description: plan.description
+  }
+  showEditPlanModal.value = true
+}
+
+async function updatePlan() {
+  try {
+    if (!editPlanData.value.nom.trim()) {
+      throw new Error('Le nom du plan est requis');
+    }
+
+    await irrigationStore.updatePlanDetails(editPlanData.value.id, {
+      nom: editPlanData.value.nom.trim(),
+      description: editPlanData.value.description.trim()
+    });
+
+    showEditPlanModal.value = false;
+    await loadPlans();
+  } catch (error: any) {
+    console.error('Erreur lors de la mise à jour du plan:', error);
+    alert(error.message || 'Une erreur est survenue lors de la mise à jour du plan');
+  }
 }
 </script> 

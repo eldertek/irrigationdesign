@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from 'vue';
+import { ref, onUnmounted, nextTick } from 'vue';
 import L from 'leaflet';
 import '@geoman-io/leaflet-geoman-free';
 import { useShapeProperties } from './useShapeProperties';
@@ -18,6 +18,9 @@ interface PMMap {
   enableGlobalRemovalMode: () => void;
   disableGlobalRemovalMode: () => void;
   setGlobalOptions: (options: any) => void;
+  globalEditModeEnabled: () => boolean;
+  globalDragModeEnabled: () => boolean;
+  globalRemovalModeEnabled: () => boolean;
 }
 
 interface PMLayer {
@@ -28,8 +31,8 @@ interface PMLayer {
   _markerGroup?: L.LayerGroup;
 }
 
-// Interface pour les options de style
-interface StyleOptions extends L.PathOptions {
+// Interface pour les options de style étendues
+interface ExtendedLayerOptions extends L.LayerOptions {
   color?: string;
   weight?: number;
   opacity?: number;
@@ -40,16 +43,18 @@ interface StyleOptions extends L.PathOptions {
 
 // Extension des types Leaflet
 declare module 'leaflet' {
+  interface CustomIconOptions extends Omit<L.IconOptions, 'iconUrl'> {
+    html?: string;
+    iconAnchor?: [number, number];
+    iconUrl?: string;
+  }
+  
   interface Layer {
     properties?: any;
     pm?: PMLayer;
-    _map?: L.Map;
+    _map: L.Map;
     _textLayer?: L.Marker;
-    options?: StyleOptions;
-  }
-  
-  interface Map {
-    pm: PMMap;
+    options: L.LayerOptions;
   }
 }
 
@@ -62,20 +67,6 @@ const hexToRgba = (hex: string | undefined, opacity: number): string => {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-};
-
-// Style par défaut pour le texte
-const defaultTextStyle: TextStyle = {
-  fontSize: '14px',
-  color: '#000000',
-  backgroundColor: '#FFFFFF',
-  backgroundOpacity: 1,
-  borderColor: '#000000',
-  borderWidth: '1px',
-  borderOpacity: 1,
-  padding: '5px 10px',
-  borderRadius: '3px',
-  hasBorder: true
 };
 
 // Fonction pour mettre à jour le style d'un élément de texte
@@ -173,6 +164,24 @@ const formatSlope = (slope: number): string => {
   return `${(slope * 100).toFixed(1)}%`;
 };
 
+// Fonction pour faire pivoter un point autour d'un centre
+const rotatePoint = (point: L.Point, center: L.Point, angle: number): L.Point => {
+  const rad = angle * Math.PI / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return new L.Point(
+    center.x + dx * cos - dy * sin,
+    center.y + dx * sin + dy * cos
+  );
+};
+
+// Interface pour les points de contrôle avec mesure
+interface ControlPoint extends L.CircleMarker {
+  measureDiv?: HTMLElement;
+}
+
 export function useMapDrawing() {
   const map = ref<L.Map | null>(null);
   const featureGroup = ref<L.FeatureGroup | null>(null);
@@ -215,10 +224,11 @@ export function useMapDrawing() {
       
       // Mettre à jour l'icône avec la nouvelle taille
       const icon = marker.getIcon();
-      icon.options.iconSize = [boxSizePx, boxSizePx];
-      icon.options.iconAnchor = [boxSizePx/2, boxSizePx/2];
-      icon.options.html = createHtml(marker.properties.text, marker.properties.style);
-      marker.setIcon(icon);
+      const newOptions: L.CustomIconOptions = {
+        html: createHtml(marker.properties.text, marker.properties.style),
+        className: icon.options.className
+      };
+      marker.setIcon(L.divIcon(newOptions));
     };
 
     const textIcon = L.divIcon({
@@ -281,7 +291,7 @@ export function useMapDrawing() {
     };
 
     const onMouseMove = (e: MouseEvent) => {
-      if (!map.value || (!isRotating && !isDragging)) return;
+      if (!isDragging || !map.value) return;
 
       if (isRotating) {
         const markerPos = marker.getLatLng();
@@ -294,11 +304,15 @@ export function useMapDrawing() {
         const rotation = (startRotation + (currentAngle - startAngle)) % 360;
         marker.properties.style.rotation = rotation;
         
-        const icon = marker.getIcon();
-        icon.options.html = createHtml(marker.properties.text, marker.properties.style);
-        marker.setIcon(icon);
+        const icon = marker.getIcon() as L.DivIcon;
+        const newOptions: L.CustomIconOptions = {
+          html: createHtml(marker.properties.text, marker.properties.style),
+          className: icon.options.className
+        };
+        marker.setIcon(L.divIcon(newOptions));
       } else if (isDragging) {
-        const newPos = map.value.mouseEventToLatLng(e as any);
+        const mouseEvent = e as unknown as L.LeafletMouseEvent;
+        const newPos = map.value.mouseEventToLatLng(mouseEvent);
         marker.setLatLng(newPos);
       }
     };
@@ -315,8 +329,8 @@ export function useMapDrawing() {
       const element = marker.getElement();
       if (element) {
         const controls = element.querySelectorAll('.control-button');
-        controls.forEach(control => {
-          control.addEventListener('mousedown', onMouseDown);
+        controls.forEach((control: Element) => {
+          control.addEventListener('mousedown', onMouseDown as EventListener);
         });
       }
     });
@@ -325,8 +339,8 @@ export function useMapDrawing() {
       const element = marker.getElement();
       if (element) {
         const controls = element.querySelectorAll('.control-button');
-        controls.forEach(control => {
-          control.removeEventListener('mousedown', onMouseDown);
+        controls.forEach((control: Element) => {
+          control.removeEventListener('mousedown', onMouseDown as EventListener);
         });
       }
     });
@@ -354,9 +368,12 @@ export function useMapDrawing() {
         const newText = element.innerText.trim();
         if (newText) {
           marker.properties.text = newText;
-          const icon = marker.getIcon();
-          icon.options.html = createHtml(newText, marker.properties.style);
-          marker.setIcon(icon);
+          const icon = marker.getIcon() as L.DivIcon;
+          const newOptions: L.CustomIconOptions = {
+            html: createHtml(newText, marker.properties.style),
+            className: icon.options.className
+          };
+          marker.setIcon(L.divIcon(newOptions));
         }
         element.removeEventListener('blur', finishEditing);
         element.removeEventListener('keydown', onKeyDown);
@@ -404,7 +421,7 @@ export function useMapDrawing() {
   };
 
   // Fonction pour ajouter les événements de mesure aux points de contrôle
-  const addMeasureEvents = (point: L.CircleMarker & { measureDiv?: HTMLElement }, layer: L.Layer, getMeasureText: () => string) => {
+  const addMeasureEvents = (point: ControlPoint, layer: L.Layer, getMeasureText: () => string) => {
     point.on('mouseover', () => {
       const measureDiv = showMeasure(point.getLatLng(), getMeasureText());
       point.measureDiv = measureDiv;
@@ -421,7 +438,7 @@ export function useMapDrawing() {
     point.on('mouseout', () => {
       if (point.measureDiv) {
         point.measureDiv.remove();
-        point.measureDiv = null;
+        point.measureDiv = undefined;
       }
     });
   };
@@ -429,7 +446,7 @@ export function useMapDrawing() {
   const { calculateProperties } = useShapeProperties();
 
   // Ajouter ces variables au niveau du composable
-  let activeControlPoints: L.CircleMarker[] = [];
+  let activeControlPoints: ControlPoint[] = [];
 
   // Fonction pour nettoyer les points de contrôle actifs
   const clearActiveControlPoints = () => {
@@ -476,6 +493,19 @@ export function useMapDrawing() {
 
   // Fonction pour calculer les propriétés d'une forme
   const calculateShapeProperties = (layer: L.Layer, type: string): any => {
+    console.log('=== CALCULATING SHAPE PROPERTIES START ===');
+    console.log('Input layer:', {
+      type,
+      instanceof: {
+        Circle: layer instanceof L.Circle,
+        Rectangle: layer instanceof L.Rectangle,
+        Polygon: layer instanceof L.Polygon,
+        Polyline: layer instanceof L.Polyline,
+        CircleArc: layer instanceof CircleArc
+      },
+      options: layer.options
+    });
+
     const properties: any = {
       type,
       style: layer.options || {}
@@ -492,6 +522,7 @@ export function useMapDrawing() {
         properties.center = center;
         properties.surfaceInterieure = properties.area;
         properties.surfaceExterieure = properties.area;
+        console.log('Circle properties calculated:', properties);
       } 
       else if (layer instanceof CircleArc) {
         const radius = layer.getRadius();
@@ -500,23 +531,18 @@ export function useMapDrawing() {
         const stopAngle = layer.getStopAngle();
         const openingAngle = layer.getOpeningAngle();
         
-        // Calculer l'aire du demi-cercle (proportionnelle à l'angle d'ouverture)
-        const area = (Math.PI * Math.pow(radius, 2) * openingAngle) / 360;
-        
-        // Calculer le périmètre (arc + segments radiaux)
-        const arcLength = (2 * Math.PI * radius * openingAngle) / 360;
-        const perimeter = arcLength + 2 * radius;
-
         properties.radius = radius;
         properties.diameter = radius * 2;
-        properties.area = area;
-        properties.perimeter = perimeter;
+        properties.area = (Math.PI * Math.pow(radius, 2) * openingAngle) / 360;
+        properties.arcLength = (2 * Math.PI * radius * openingAngle) / 360;
+        properties.perimeter = properties.arcLength + 2 * radius;
         properties.center = center;
         properties.startAngle = startAngle;
         properties.stopAngle = stopAngle;
         properties.openingAngle = openingAngle;
-        properties.surfaceInterieure = area;
-        properties.surfaceExterieure = area;
+        properties.surfaceInterieure = properties.area;
+        properties.surfaceExterieure = properties.area;
+        console.log('CircleArc properties calculated:', properties);
       }
       else if (layer instanceof L.Rectangle) {
         const bounds = layer.getBounds();
@@ -534,6 +560,7 @@ export function useMapDrawing() {
           width,
           height
         };
+        console.log('Rectangle properties calculated:', properties);
       }
       else if (layer instanceof L.Polygon) {
         const latLngs = layer.getLatLngs()[0] as L.LatLng[];
@@ -544,6 +571,7 @@ export function useMapDrawing() {
         properties.perimeter = turf.length(turf.lineString([...coordinates]), { units: 'meters' });
         properties.surfaceInterieure = properties.area;
         properties.surfaceExterieure = properties.area;
+        console.log('Polygon properties calculated:', properties);
       }
       else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
         const latLngs = layer.getLatLngs() as L.LatLng[];
@@ -556,23 +584,26 @@ export function useMapDrawing() {
         properties.dimensions = {
           width
         };
+        console.log('Polyline properties calculated:', properties);
       }
 
       // Ajouter les propriétés de style
       properties.style = {
         ...properties.style,
-        color: layer.options?.color || '#3388ff',
-        weight: layer.options?.weight || 3,
-        opacity: layer.options?.opacity || 1,
-        fillColor: layer.options?.fillColor || '#3388ff',
-        fillOpacity: layer.options?.fillOpacity || 0.2,
-        dashArray: layer.options?.dashArray || ''
+        color: (layer.options as L.PathOptions)?.color || '#3388ff',
+        weight: (layer.options as L.PathOptions)?.weight || 3,
+        opacity: (layer.options as L.PathOptions)?.opacity || 1,
+        fillColor: (layer.options as L.PathOptions)?.fillColor || '#3388ff',
+        fillOpacity: (layer.options as L.PathOptions)?.fillOpacity || 0.2,
+        dashArray: (layer.options as any)?.dashArray || ''
       };
 
     } catch (error) {
       console.error('Error calculating shape properties:', error);
     }
 
+    console.log('=== CALCULATING SHAPE PROPERTIES END ===');
+    console.log('Final properties:', properties);
     return properties;
   };
 
@@ -760,12 +791,25 @@ export function useMapDrawing() {
 
     // Événements d'édition
     mapInstance.on('pm:edit', (e: any) => {
+      console.log('=== PM:EDIT EVENT START ===');
+      console.log('Event details:', e);
+      
       const layer = e.layer;
       if (layer) {
+        console.log('Layer before update:', {
+          type: layer.properties?.type,
+          properties: layer.properties,
+          options: layer.options,
+          _mRadius: layer._mRadius,
+          _latlng: layer._latlng,
+          constructor: layer.constructor.name
+        });
+
         // Déterminer le type de forme
         let shapeType = 'unknown';
         if (layer instanceof L.Circle) {
           shapeType = layer.properties?.type === 'Semicircle' ? 'Semicircle' : 'Circle';
+          console.log('Circle detected with radius:', layer.getRadius());
         } else if (layer instanceof L.Rectangle) {
           shapeType = 'Rectangle';
         } else if (layer instanceof L.Polygon) {
@@ -773,34 +817,72 @@ export function useMapDrawing() {
         } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
           shapeType = 'Line';
         }
+        console.log('Detected shape type:', shapeType);
 
         // Recalculer les propriétés
         const newProperties = calculateShapeProperties(layer, shapeType);
-        layer.properties = { 
-          ...layer.properties, 
-          ...newProperties,
-          type: shapeType // Conserver le type explicitement
-        };
+        console.log('Newly calculated properties:', newProperties);
+        
+        // Mettre à jour la forme sélectionnée
+        if (selectedShape.value && selectedShape.value === layer) {
+          console.log('Updating selected shape...', {
+            currentRadius: layer._mRadius,
+            newRadius: newProperties.radius
+          });
+          
+          // Créer une nouvelle référence pour les propriétés
+          const updatedProperties = { ...newProperties };
+          
+          // Mettre à jour les propriétés de la forme avec une nouvelle référence
+          layer.properties = updatedProperties;
+          
+          // Forcer la mise à jour de la forme sélectionnée
+          selectedShape.value = null;
+          nextTick(() => {
+            selectedShape.value = layer;
+          });
+          
+          // Émettre un événement pour notifier les changements
+          console.log('Emitting properties:updated event with:', {
+            shape: {
+              _mRadius: layer._mRadius,
+              _latlng: layer._latlng,
+              properties: updatedProperties,
+              constructor: layer.constructor.name
+            }
+          });
+          
+          // Émettre l'événement avec la nouvelle référence des propriétés
+          layer.fire('properties:updated', {
+            shape: layer,
+            properties: updatedProperties
+          });
 
-        // Mettre à jour l'affichage si c'est la forme sélectionnée
-        if (layer === selectedShape.value) {
-          selectedShape.value = layer;
-          // Mettre à jour les points de contrôle
-          if (shapeType === 'Semicircle') {
-            updateSemicircleControlPoints(layer as CircleArc);
-          } else if (layer instanceof L.Circle) {
-            updateCircleControlPoints(layer);
-          } else if (layer instanceof L.Rectangle) {
-            updateRectangleControlPoints(layer);
-          } else if (layer instanceof L.Polygon) {
-            updatePolygonControlPoints(layer);
-          } else if (layer instanceof L.Polyline) {
-            updateLineControlPoints(layer);
-          }
-          // Afficher le message d'aide pour l'édition
-          showHelpMessage('Utilisez les points de contrôle pour modifier la forme');
+          // Vérifier que les propriétés ont été mises à jour
+          console.log('Shape properties after update:', {
+            layerRadius: layer._mRadius,
+            propertiesRadius: layer.properties.radius,
+            fullProperties: layer.properties
+          });
         }
+
+        // Mettre à jour les points de contrôle
+        if (shapeType === 'Semicircle') {
+          updateSemicircleControlPoints(layer as CircleArc);
+        } else if (layer instanceof L.Circle) {
+          updateCircleControlPoints(layer);
+        } else if (layer instanceof L.Rectangle) {
+          updateRectangleControlPoints(layer);
+        } else if (layer instanceof L.Polygon) {
+          updatePolygonControlPoints(layer);
+        } else if (layer instanceof L.Polyline) {
+          updateLineControlPoints(layer);
+        }
+
+        // Afficher le message d'aide pour l'édition
+        showHelpMessage('Utilisez les points de contrôle pour modifier la forme');
       }
+      console.log('=== PM:EDIT EVENT END ===');
     });
 
     // Événements de glisser-déposer
@@ -810,7 +892,29 @@ export function useMapDrawing() {
       showHelpMessage('Déplacez la forme à l\'endroit souhaité');
     });
 
-    mapInstance.on('pm:dragend', () => {
+    mapInstance.on('pm:dragend', (e: any) => {
+      // Recalculer les propriétés après le déplacement
+      if (e.layer && selectedShape.value === e.layer) {
+        const layer = e.layer;
+        const shapeType = layer.properties?.type || 'unknown';
+        const newProperties = calculateShapeProperties(layer, shapeType);
+        
+        // Mettre à jour les propriétés
+        layer.properties = { ...newProperties };
+        
+        // Forcer la mise à jour de la forme sélectionnée
+        selectedShape.value = null;
+        nextTick(() => {
+          selectedShape.value = layer;
+        });
+        
+        // Émettre l'événement de mise à jour
+        layer.fire('properties:updated', {
+          shape: layer,
+          properties: layer.properties
+        });
+      }
+
       // Attendre un court instant avant d'afficher le message suivant
       setTimeout(() => {
         showHelpMessage('Cliquez sur la forme pour afficher les points de contrôle');
@@ -858,93 +962,124 @@ export function useMapDrawing() {
   const setDrawingTool = (tool: string) => {
     if (!map.value) return;
 
+    console.log('=== SETTING DRAWING TOOL START ===');
+    console.log('Current tool:', currentTool.value);
+    console.log('New tool:', tool);
+
     // Nettoyer les messages d'aide existants
     document.querySelectorAll('.drawing-help-message').forEach(msg => msg.remove());
 
     // Désactiver tous les modes et nettoyer les points de contrôle
-    map.value.pm.disableDraw();
-    map.value.pm.disableGlobalEditMode();
-    map.value.pm.disableGlobalDragMode();
-    map.value.pm.disableGlobalRemovalMode();
-    clearActiveControlPoints();
+    try {
+      console.log('Disabling all modes...');
+      
+      // Désactiver les modes de manière sécurisée
+      const pm = map.value.pm;
+      // Désactiver les modes globaux de manière sécurisée
+      if (pm.globalEditModeEnabled()) {
+        pm.disableGlobalEditMode();
+      }
+      if (pm.globalDragModeEnabled()) {
+        pm.disableGlobalDragMode();
+      }
+      if (pm.globalRemovalModeEnabled()) {
+        pm.disableGlobalRemovalMode();
+      }
+      
+      // Désactiver le mode dessin en cours
+      pm.disableDraw();
+      
+      clearActiveControlPoints();
+    } catch (error) {
+      console.error('Error disabling modes:', error);
+    }
 
     currentTool.value = tool;
+    console.log('Tool set to:', currentTool.value);
 
     // Si aucun outil n'est sélectionné
     if (!tool) {
+      console.log('No tool selected, clearing control points');
       clearActiveControlPoints();
       return;
     }
 
     // Attendre un court instant avant d'afficher le nouveau message
     setTimeout(() => {
-    switch (tool) {
-      case 'Circle':
-          showHelpMessage('Cliquez et maintenez pour dessiner un cercle, relâchez pour terminer');
-          map.value?.pm.enableDraw('Circle', {
-            finishOn: 'mouseup' as any,
-            continueDrawing: false
-          });
-        break;
-      case 'Semicircle':
-          showHelpMessage('Cliquez et maintenez pour dessiner un demi-cercle, relâchez pour terminer');
-          map.value?.pm.enableDraw('Circle', {
-            finishOn: 'mouseup' as any,
-            continueDrawing: false
-          });
-        break;
-      case 'Rectangle':
-          showHelpMessage('Cliquez et maintenez pour dessiner un rectangle, relâchez pour terminer');
-          map.value?.pm.enableDraw('Rectangle', {
-            finishOn: 'mouseup'
-          });
-        break;
-      case 'Polygon':
-          showHelpMessage('Cliquez pour ajouter des points, double-cliquez pour terminer le polygone');
-          map.value?.pm.enableDraw('Polygon', {
-            finishOn: 'dblclick',
-            continueDrawing: false,
-            snapMiddle: true,
-            snapDistance: 20
-          });
-        break;
-      case 'Line':
-          showHelpMessage('Cliquez pour ajouter des points, double-cliquez pour terminer la ligne');
-          map.value?.pm.enableDraw('Line', {
-            finishOn: 'dblclick',
-            continueDrawing: false,
-            snapMiddle: true,
-            snapDistance: 20
-          });
-        break;
-      case 'Text':
-          showHelpMessage('Cliquez pour ajouter du texte, double-cliquez pour éditer');
-          if (map.value) {
-            const onClick = (e: L.LeafletMouseEvent) => {
-              if (!map.value || !featureGroup.value) return;
+      try {
+        console.log('Enabling tool:', tool);
+        switch (tool) {
+          case 'Circle':
+            showHelpMessage('Cliquez et maintenez pour dessiner un cercle, relâchez pour terminer');
+            map.value?.pm.enableDraw('Circle', {
+              finishOn: 'mouseup' as any,
+              continueDrawing: false
+            });
+            break;
+          case 'Semicircle':
+            showHelpMessage('Cliquez et maintenez pour dessiner un demi-cercle, relâchez pour terminer');
+            map.value?.pm.enableDraw('Circle', {
+              finishOn: 'mouseup' as any,
+              continueDrawing: false
+            });
+            break;
+          case 'Rectangle':
+            showHelpMessage('Cliquez et maintenez pour dessiner un rectangle, relâchez pour terminer');
+            map.value?.pm.enableDraw('Rectangle', {
+              finishOn: 'mouseup' as any
+            });
+            break;
+          case 'Polygon':
+            showHelpMessage('Cliquez pour ajouter des points, double-cliquez pour terminer le polygone');
+            map.value?.pm.enableDraw('Polygon', {
+              finishOn: 'dblclick',
+              continueDrawing: false,
+              snapMiddle: true,
+              snapDistance: 20
+            });
+            break;
+          case 'Line':
+            showHelpMessage('Cliquez pour ajouter des points, double-cliquez pour terminer la ligne');
+            map.value?.pm.enableDraw('Line', {
+              finishOn: 'dblclick',
+              continueDrawing: false,
+              snapMiddle: true,
+              snapDistance: 20
+            });
+            break;
+          case 'Text':
+            showHelpMessage('Cliquez pour ajouter du texte, double-cliquez pour éditer');
+            if (map.value) {
+              const onClick = (e: L.LeafletMouseEvent) => {
+                if (!map.value || !featureGroup.value) return;
+
+                const marker = createTextMarker(e.latlng);
+                featureGroup.value.addLayer(marker);
+                selectedShape.value = marker;
+                
+                // Désactiver le mode texte après l'ajout
+                map.value.off('click', onClick);
+                setDrawingTool('');
+              };
               
-              const marker = createTextMarker(e.latlng);
-              featureGroup.value.addLayer(marker);
-              selectedShape.value = marker;
-              
-              // Désactiver le mode texte après l'ajout
-              map.value.off('click', onClick);
-              setDrawingTool('');
-            };
-            
-            map.value.on('click', onClick);
-          }
-        break;
-      case 'drag':
-          showHelpMessage('Cliquez et maintenez une forme pour la déplacer');
-          map.value?.pm.enableGlobalDragMode();
-        break;
-      case 'delete':
-          showHelpMessage('Cliquez sur une forme pour la supprimer');
-          map.value?.pm.enableGlobalRemovalMode();
-        break;
-    }
+              map.value.on('click', onClick);
+            }
+            break;
+          case 'drag':
+            showHelpMessage('Cliquez et maintenez une forme pour la déplacer');
+            map.value?.pm.enableGlobalDragMode();
+            break;
+          case 'delete':
+            showHelpMessage('Cliquez sur une forme pour la supprimer');
+            map.value?.pm.enableGlobalRemovalMode();
+            break;
+        }
+        console.log('Tool enabled successfully');
+      } catch (error) {
+        console.error('Error enabling tool:', error);
+      }
     }, 100);
+    console.log('=== SETTING DRAWING TOOL END ===');
   };
 
   const updateShapeStyle = (style: any) => {
@@ -1054,6 +1189,14 @@ export function useMapDrawing() {
         if (!isDragging) return;
         layer.setLatLng(e.latlng);
         centerPoint.setLatLng(e.latlng);
+
+        // Recalculer et émettre les nouvelles propriétés
+        const newProperties = calculateShapeProperties(layer, 'Circle');
+        layer.properties = { ...newProperties };
+        layer.fire('properties:updated', {
+          shape: layer,
+          properties: layer.properties
+        });
       };
       
       const onMouseUp = () => {
@@ -1102,6 +1245,14 @@ export function useMapDrawing() {
           const newRadius = center.distanceTo(e.latlng);
           layer.setRadius(newRadius);
           controlPoint.setLatLng(e.latlng);
+
+          // Recalculer et émettre les nouvelles propriétés
+          const newProperties = calculateShapeProperties(layer, 'Circle');
+          layer.properties = { ...newProperties };
+          layer.fire('properties:updated', {
+            shape: layer,
+            properties: layer.properties
+          });
         };
         
         const onMouseUp = () => {
@@ -1117,9 +1268,9 @@ export function useMapDrawing() {
         map.value.on('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
       });
-    });
-  };
-
+                });
+              };
+              
   // Fonction pour mettre à jour les points de contrôle d'un rectangle
   const updateRectangleControlPoints = (layer: L.Rectangle) => {
     if (!map.value || !featureGroup.value) return;
@@ -1180,9 +1331,6 @@ export function useMapDrawing() {
           
           layer.setBounds(newBounds);
           cornerPoint.setLatLng(e.latlng);
-          
-          // Mettre à jour les points milieux
-          updateMidPoints();
         };
         
         const onMouseUp = () => {
@@ -1191,139 +1339,98 @@ export function useMapDrawing() {
           map.value.off('mousemove', onMouseMove);
           document.removeEventListener('mouseup', onMouseUp);
           map.value.dragging.enable();
+          // Recréer tous les points de contrôle
           updateRectangleControlPoints(layer);
-        };
-        
-        map.value.on('mousemove', onMouseMove);
+          };
+          
+          map.value.on('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
       });
     });
 
-    // Points milieux (bleu)
-    const updateMidPoints = () => {
-      const bounds = layer.getBounds();
-      const corners = [
-        bounds.getNorthWest(),
-        bounds.getNorthEast(),
-        bounds.getSouthEast(),
-        bounds.getSouthWest()
-      ];
+    // Ajouter le point de rotation (bleu)
+    const center = bounds.getCenter();
+    const rotationPoint = createControlPoint(
+      L.latLng(center.lat, center.lng + 0.0002), // Légèrement décalé vers le haut
+      '#2563EB'
+    );
+    activeControlPoints.push(rotationPoint);
 
-      // Supprimer les anciens points milieux
-      activeControlPoints.slice(4).forEach(point => {
-        if (featureGroup.value) {
-          featureGroup.value.removeLayer(point);
-        }
-      });
-      activeControlPoints = activeControlPoints.slice(0, 4);
+    // Ajouter les événements de rotation
+    rotationPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
+      if (!map.value) return;
+      L.DomEvent.stopPropagation(e);
+        map.value.dragging.disable();
 
-      // Créer les nouveaux points milieux
-      const sides = [
-        [corners[0], corners[1]], // Nord
-        [corners[1], corners[2]], // Est
-        [corners[2], corners[3]], // Sud
-        [corners[3], corners[0]]  // Ouest
-      ];
+      const center = bounds.getCenter();
+      let startAngle = Math.atan2(
+        e.latlng.lat - center.lat,
+        e.latlng.lng - center.lng
+      ) * 180 / Math.PI;
 
-      sides.forEach((side, index) => {
-        const midPoint = getMidPoint(side[0], side[1]);
-        const midControlPoint = createControlPoint(midPoint, '#2563EB');
-        activeControlPoints.push(midControlPoint);
+      let isDragging = true;
 
-        // Ajouter les mesures aux points milieux
-        addMeasureEvents(midControlPoint, layer, () => {
-          const bounds = layer.getBounds();
-          const isVertical = index === 1 || index === 3;
-          let totalDistance;
-          
-          if (isVertical) {
-            totalDistance = bounds.getNorth() - bounds.getSouth();
-            return [
-              formatMeasure(totalDistance, 'm', 'Hauteur totale'),
-              formatMeasure(totalDistance/2, 'm', 'Demi-hauteur')
-            ].join('<br>');
-          } else {
-            totalDistance = bounds.getEast() - bounds.getWest();
-            return [
-              formatMeasure(totalDistance, 'm', 'Largeur totale'),
-              formatMeasure(totalDistance/2, 'm', 'Demi-largeur')
-            ].join('<br>');
-          }
+      const onMouseMove = (e: L.LeafletMouseEvent) => {
+        if (!isDragging || !map.value) return;
+
+        const currentAngle = Math.atan2(
+          e.latlng.lat - center.lat,
+          e.latlng.lng - center.lng
+        ) * 180 / Math.PI;
+
+        const rotation = currentAngle - startAngle;
+
+        // Convertir les coins en points sur l'écran
+        const centerPoint = map.value.latLngToLayerPoint(center);
+        const cornerPoints = corners.map(corner => 
+          map.value!.latLngToLayerPoint(corner)
+        );
+
+        // Faire pivoter chaque coin
+        const rotatedCorners = cornerPoints.map(point => 
+          map.value!.layerPointToLatLng(
+            rotatePoint(point, centerPoint, rotation)
+          )
+        );
+
+        // Mettre à jour le rectangle
+        layer.setBounds(L.latLngBounds(rotatedCorners));
+
+        // Mettre à jour le point de rotation
+        const rotatedPoint = map.value.layerPointToLatLng(
+          rotatePoint(
+            map.value.latLngToLayerPoint(rotationPoint.getLatLng()),
+            centerPoint,
+            rotation
+          )
+        );
+        rotationPoint.setLatLng(rotatedPoint);
+
+        // Mettre à jour l'angle de départ pour la prochaine rotation
+        startAngle = currentAngle;
+
+        // Mettre à jour les coins pour la prochaine rotation
+        corners.forEach((_, i) => {
+          corners[i] = rotatedCorners[i];
         });
+      };
 
-        midControlPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
-          if (!map.value) return;
-          L.DomEvent.stopPropagation(e);
-          map.value.dragging.disable();
-
-          let isDragging = true;
-
-          const onMouseMove = (e: L.LeafletMouseEvent) => {
-            if (!isDragging) return;
-
-            const isVertical = index === 1 || index === 3;
-            const newBounds = layer.getBounds();
-            const cornerPoints = [
-              newBounds.getNorthWest(),
-              newBounds.getNorthEast(),
-              newBounds.getSouthEast(),
-              newBounds.getSouthWest()
-            ];
-
-            if (isVertical) {
-              // Déplacement horizontal des côtés verticaux
-              const newLng = e.latlng.lng;
-              if (index === 1) { // Côté Est
-                cornerPoints[1].lng = newLng;
-                cornerPoints[2].lng = newLng;
-              } else { // Côté Ouest
-                cornerPoints[0].lng = newLng;
-                cornerPoints[3].lng = newLng;
-              }
-            } else {
-              // Déplacement vertical des côtés horizontaux
-              const newLat = e.latlng.lat;
-              if (index === 0) { // Côté Nord
-                cornerPoints[0].lat = newLat;
-                cornerPoints[1].lat = newLat;
-              } else { // Côté Sud
-                cornerPoints[2].lat = newLat;
-                cornerPoints[3].lat = newLat;
-              }
-            }
-
-            const newLatLngBounds = L.latLngBounds([
-              [
-                Math.min(cornerPoints[0].lat, cornerPoints[2].lat),
-                Math.min(cornerPoints[0].lng, cornerPoints[2].lng)
-              ],
-              [
-                Math.max(cornerPoints[0].lat, cornerPoints[2].lat),
-                Math.max(cornerPoints[0].lng, cornerPoints[2].lng)
-              ]
-            ]);
-
-            layer.setBounds(newLatLngBounds);
-            midControlPoint.setLatLng(e.latlng);
-            updateMidPoints();
-          };
-
-          const onMouseUp = () => {
-            isDragging = false;
+      const onMouseUp = () => {
+        isDragging = false;
             if (!map.value) return;
-            map.value.off('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-            map.value.dragging.enable();
-            updateRectangleControlPoints(layer);
-          };
-          
-          map.value.on('mousemove', onMouseMove);
-          document.addEventListener('mouseup', onMouseUp);
-        });
-                });
-              };
-              
-    updateMidPoints();
+        map.value.off('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        map.value.dragging.enable();
+        // Recréer tous les points de contrôle
+        updateRectangleControlPoints(layer);
+      };
+
+      map.value.on('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+
+    // Ajouter un message d'aide pour la rotation
+    showHelpMessage('Utilisez le point bleu pour faire pivoter le rectangle');
   };
 
   // Fonction pour mettre à jour les points de contrôle d'une ligne

@@ -8,10 +8,12 @@
       <div class="absolute bottom-6 left-6 z-[1000]">
         <!-- Boutons de gestion des plans -->
         <div class="bg-white rounded-lg shadow-lg p-3 space-y-2">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-medium text-gray-600">Plans</span>
-            <span v-if="currentPlan" class="text-sm text-gray-500">
-              {{ currentPlan.nom }}
+          <div class="flex flex-col mb-2">
+            <h1 class="text-xl font-bold text-gray-800 mb-1">
+              {{ currentPlan?.nom || 'Aucun plan chargé' }}
+            </h1>
+            <span v-if="currentPlan?.description" class="text-sm text-gray-500">
+              {{ currentPlan.description }}
             </span>
           </div>
           <div class="grid grid-cols-1 gap-2">
@@ -81,11 +83,9 @@
         <DrawingTools
           :current-tool="currentTool"
           :selected-shape="selectedShape"
-          :is-edit-mode="isEditMode"
           @tool-change="setDrawingTool"
           @style-update="updateShapeStyle"
           @properties-update="updateShapeProperties"
-          @toggle-edit-mode="toggleEditMode"
           @delete-shape="deleteSelectedShape"
         />
       </div>
@@ -653,19 +653,19 @@ function selectShape(shape: any) {
     // Sélectionner la nouvelle forme
     const layer = shape.layer;
     if (layer) {
-      selectedShape.value = layer;
-      
       // S'assurer que les propriétés sont calculées et mises à jour
-      const properties = calculateShapeProperties(layer);
-      console.log('Calculated properties for selected shape:', properties);
+      const properties = calculateShapeProperties(layer, shape.type);
+      layer.properties = {
+        ...layer.properties,
+        ...properties,
+        type: shape.type
+      };
       
+      selectedShape.value = layer;
       selectedShapeInfo.value = {
         id: shape.id,
         type: shape.type,
-        properties: {
-          ...properties,
-          style: layer.options || {}
-        },
+        properties: layer.properties,
         layer: layer
       };
 
@@ -690,7 +690,7 @@ function selectShape(shape: any) {
       }, 100);
     }
   } catch (error) {
-    console.error('Error in selectShape:', error);
+    console.error('Error selecting shape:', error);
   }
 }
 
@@ -795,7 +795,7 @@ function updateDrawingStyle() {
 }
 
 // Fonction pour calculer les propriétés d'une forme
-function calculateShapeProperties(layer: L.Layer): {
+function calculateShapeProperties(layer: L.Layer, type: string): {
   area: number;
   length: number;
   radius: number;
@@ -1065,13 +1065,11 @@ async function savePlan() {
         });
       }
     });
-
     // Mettre à jour le store avec les éléments nettoyés
-    drawingStore.elements = elements;
+    drawingStore.elements = elements as DrawingElement[];
     
     // Sauvegarder les éléments de dessin
     await drawingStore.saveToPlan(currentPlan.value.id);
-    
     // Afficher la notification de succès
     showSaveSuccess.value = true;
     setTimeout(() => {
@@ -1137,7 +1135,7 @@ const handleAdjustView = () => {
 const deleteSelectedShape = () => {
   if (selectedShape.value && featureGroup.value) {
     setDrawingTool('');  // Ceci va nettoyer les points de contrôle
-    featureGroup.value.removeLayer(selectedShape.value);
+    featureGroup.value.removeLayer(selectedShape.value as L.Layer);
     selectedShape.value = null;
   }
 };

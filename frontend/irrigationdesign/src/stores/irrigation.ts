@@ -182,6 +182,36 @@ export const useIrrigationStore = defineStore('irrigation', {
       }
     },
 
+    async updatePlanDetails(planId: number, { nom, description }: { nom: string; description: string }) {
+      try {
+        this.loading = true;
+        this.error = null;
+        
+        const response = await api.patch(`/plans/${planId}/`, {
+          nom,
+          description
+        });
+
+        // Mettre à jour le plan dans la liste
+        const index = this.plans.findIndex(p => p.id === planId);
+        if (index !== -1) {
+          this.plans[index] = { ...this.plans[index], ...response.data };
+        }
+
+        // Mettre à jour le plan courant si c'est celui qui est modifié
+        if (this.currentPlan?.id === planId) {
+          this.currentPlan = { ...this.currentPlan, ...response.data };
+        }
+
+        return response.data;
+      } catch (error: any) {
+        this.error = error.message;
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+
     async fetchPlanHistory(planId: number) {
       this.loading = true;
       try {
