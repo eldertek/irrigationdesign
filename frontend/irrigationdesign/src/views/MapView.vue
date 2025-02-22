@@ -689,8 +689,8 @@ async function loadExistingShapes() {
 
   try {
     irrigationStore.currentPlan.elements.forEach((shape: any) => {
-      if (!map.value) return;
-      
+    if (!map.value) return;
+
       const layer = L.geoJSON(shape.geometrie, {
         style: shape.proprietes?.style
       });
@@ -708,7 +708,7 @@ async function loadExistingShapes() {
         });
       }
     });
-  } catch (error) {
+    } catch (error) {
     console.error('Erreur lors du chargement des formes:', error);
   }
 }
@@ -739,7 +739,7 @@ async function loadPlan(planId: number) {
             case 'CERCLE': {
               const circleData = otherData as CircleData;
               if (circleData.center && circleData.radius) {
-                layer = L.circle(
+              layer = L.circle(
                   [circleData.center[1], circleData.center[0]],
                   { ...style, radius: circleData.radius }
                 );
@@ -750,10 +750,10 @@ async function loadPlan(planId: number) {
             case 'RECTANGLE': {
               const rectData = otherData as RectangleData;
               if (rectData.bounds) {
-                layer = L.rectangle([
+              layer = L.rectangle([
                   [rectData.bounds.southWest[1], rectData.bounds.southWest[0]],
                   [rectData.bounds.northEast[1], rectData.bounds.northEast[0]]
-                ], style);
+              ], style);
               }
               break;
             }
@@ -761,13 +761,13 @@ async function loadPlan(planId: number) {
             case 'DEMI_CERCLE': {
               const semiData = otherData as SemicircleData;
               if (semiData.center && semiData.radius) {
-                layer = new CircleArc(
+              layer = new CircleArc(
                   L.latLng(semiData.center[1], semiData.center[0]),
                   semiData.radius,
                   semiData.startAngle,
                   semiData.endAngle,
-                  style
-                );
+                style
+              );
               }
               break;
             }
@@ -784,14 +784,14 @@ async function loadPlan(planId: number) {
             case 'TEXTE': {
               const textData = otherData as TextData;
               if (textData.position && textData.content) {
-                const textIcon = L.divIcon({
+              const textIcon = L.divIcon({
                   html: `<div class="text-annotation" style="font-size: ${style.fontSize || '14px'}">${textData.content}</div>`,
-                  className: 'text-container'
-                });
+                className: 'text-container'
+              });
                 layer = L.marker([textData.position[1], textData.position[0]], {
-                  icon: textIcon,
-                  ...style
-                });
+                icon: textIcon,
+                ...style
+              });
               }
               break;
             }
@@ -908,7 +908,7 @@ async function savePlan() {
         });
       }
     });
-
+    
     drawingStore.elements = elements;
     await drawingStore.saveToPlan(currentPlan.value.id);
     
