@@ -2,6 +2,7 @@ import { ref, onUnmounted, nextTick, type Ref } from 'vue';
 import L from 'leaflet';
 import '@geoman-io/leaflet-geoman-free';
 import { CircleArc } from '../utils/CircleArc';
+import { TextRectangle } from '../utils/TextRectangle';
 import type { TextStyle, TextMarker } from '../types/leaflet';
 import * as turf from '@turf/turf';
 
@@ -480,7 +481,8 @@ export function useMapDrawing(): MapDrawingReturn {
         Rectangle: layer instanceof L.Rectangle,
         Polygon: layer instanceof L.Polygon,
         Polyline: layer instanceof L.Polyline,
-        CircleArc: layer instanceof CircleArc
+        CircleArc: layer instanceof CircleArc,
+        TextRectangle: layer instanceof TextRectangle
       },
       options: layer.options
     });
@@ -491,7 +493,9 @@ export function useMapDrawing(): MapDrawingReturn {
     };
 
     try {
-      if (layer instanceof L.Circle) {
+      if (layer instanceof TextRectangle) {
+        return layer.properties;
+      } else if (layer instanceof L.Circle) {
         const radius = layer.getRadius();
         const center = layer.getLatLng();
         properties.radius = radius;
@@ -981,6 +985,35 @@ export function useMapDrawing(): MapDrawingReturn {
           case 'delete':
             showHelpMessage('Cliquez sur une forme pour la supprimer');
             map.value?.pm.enableGlobalRemovalMode();
+            break;
+          case 'TextRectangle':
+            showHelpMessage('Cliquez et maintenez pour dessiner un rectangle avec texte, relâchez pour terminer');
+            map.value?.pm.enableDraw('Rectangle', {
+              finishOn: 'mouseup' as any,
+              continueDrawing: false
+            });
+
+            // Intercepter l'événement de création du rectangle
+            map.value.once('pm:create', (e: any) => {
+              const layer = e.layer;
+              // Supprimer le rectangle standard
+              featureGroup.value?.removeLayer(layer);
+              
+              // Créer un TextRectangle à la place
+              const textRect = new TextRectangle(
+                layer.getBounds(),
+                'Double-cliquez pour éditer',
+                {
+                  color: '#3388ff',
+                  weight: 2,
+                  fillColor: '#3388ff',
+                  fillOpacity: 0.2
+                }
+              );
+              
+              featureGroup.value?.addLayer(textRect);
+              selectedShape.value = textRect;
+            });
             break;
         }
         console.log('Tool enabled successfully');

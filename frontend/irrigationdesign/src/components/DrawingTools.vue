@@ -239,6 +239,26 @@
                 <span class="font-medium">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
               </div>
             </div>
+
+            <!-- Rectangle avec texte -->
+            <div v-else-if="localProperties.type === 'TextRectangle'" class="space-y-1">
+              <div class="flex justify-between">
+                <span class="text-gray-600">Largeur :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.width || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Hauteur :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.height || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Surface :</span>
+                <span class="font-medium">{{ formatArea(localProperties.area || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Rotation :</span>
+                <span class="font-medium">{{ formatAngle(localProperties.rotation || 0) }}</span>
+              </div>
+            </div>
           </div>
           <div v-else class="text-gray-500 text-center">
             Aucune propriété disponible
@@ -282,6 +302,7 @@ interface ShapeProperties {
   };
   surfaceInfluence?: number;
   style?: any;
+  rotation?: number;
 }
 
 const props = defineProps<{
@@ -334,7 +355,7 @@ const drawingTools = [
   { type: 'Rectangle', label: 'Rectangle' },
   { type: 'Polygon', label: 'Polygone' },
   { type: 'Line', label: 'Ligne' },
-  { type: 'Text', label: 'Texte' },
+  { type: 'TextRectangle', label: 'Texte' },
   { type: 'delete', label: 'Supprimer' }
 ];
 

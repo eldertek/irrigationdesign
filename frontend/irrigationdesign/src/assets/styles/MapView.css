@@ -1,0 +1,41 @@
+.text-container {
+  padding: 4px 8px;
+  min-width: 20px;
+  min-height: 20px;
+  text-align: center;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.text-container.editing {
+  cursor: text;
+  user-select: text;
+  outline: 2px solid #3B82F6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+  background-color: white;
+  z-index: 1000;
+}
+
+.text-container[contenteditable="true"] {
+  cursor: text;
+  user-select: text;
+}
+
+/* Style pour le rectangle de texte */
+.leaflet-text-rectangle {
+  pointer-events: auto;
+}
+
+/* Style pour le marqueur de texte */
+.text-icon {
+  background: none;
+  border: none;
+}
+
+/* Masquer les points de contrôle pendant l'édition */
+.leaflet-text-rectangle.editing .leaflet-path-transform-handles {
+  display: none !important;
+} 

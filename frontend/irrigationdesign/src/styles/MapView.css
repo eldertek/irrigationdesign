@@ -544,3 +544,68 @@
   white-space: pre-line;
   pointer-events: none;
 }
+
+/* Styles pour le texte dans les rectangles */
+.text-icon {
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center;
+  pointer-events: auto;
+}
+
+.text-container {
+  background: white;
+  padding: 5px 10px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  min-width: 100px;
+  text-align: center;
+  user-select: none;
+  cursor: default;
+  transition: all 0.2s ease;
+}
+
+.text-container[contenteditable="true"] {
+  cursor: text;
+  user-select: text;
+  outline: 2px solid #3B82F6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+/* Style pour le rectangle transformable */
+.leaflet-text-rectangle {
+  cursor: move;
+}
+
+.leaflet-text-rectangle .leaflet-path-transform-handle {
+  background-color: white;
+  border: 2px solid #3B82F6;
+  width: 10px;
+  height: 10px;
+  cursor: pointer;
+}
+
+.leaflet-text-rectangle .leaflet-path-transform-rotation {
+  background-color: #3B82F6;
+  border: 2px solid white;
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+}
+
+/* Animation de rotation */
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.leaflet-text-rectangle.rotating .leaflet-path-transform-rotation {
+  animation: rotate 2s linear infinite;
+}
