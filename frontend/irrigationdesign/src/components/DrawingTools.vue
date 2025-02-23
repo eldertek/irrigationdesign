@@ -35,7 +35,7 @@
     </div>
 
     <!-- Sections collapsables pour les formes sélectionnées -->
-    <div v-if="selectedShape" class="space-y-2">
+    <div v-if="selectedShape && localProperties" class="space-y-2">
       <!-- Style - Section collapsable -->
       <div class="border rounded overflow-hidden">
         <button 
@@ -124,12 +124,133 @@
           </div>
         </div>
       </div>
+      
+      <!-- Propriétés - Section collapsable -->
+      <div class="border rounded overflow-hidden mt-4">
+        <button 
+          class="w-full px-3 py-2 flex justify-between items-center bg-gray-50 hover:bg-gray-100"
+          @click="toggleSection('properties')"
+        >
+          <span class="font-medium">Propriétés</span>
+          <svg 
+            class="w-5 h-5 transform transition-transform"
+            :class="{ 'rotate-180': !sectionsCollapsed.properties }"
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <div v-show="!sectionsCollapsed.properties" class="p-3 space-y-2 text-sm">
+          <div v-if="localProperties">
+            <!-- Cercle -->
+            <div v-if="localProperties.type === 'Circle'" class="space-y-1">
+              <div class="flex justify-between">
+                <span class="text-gray-600">Rayon :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.radius || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Diamètre :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.diameter || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Surface :</span>
+                <span class="font-medium">{{ formatArea(localProperties.area || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Périmètre :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
+              </div>
+            </div>
+
+            <!-- Rectangle -->
+            <div v-else-if="localProperties.type === 'Rectangle'" class="space-y-1">
+              <div class="flex justify-between">
+                <span class="text-gray-600">Largeur :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.width || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Hauteur :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.height || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Surface :</span>
+                <span class="font-medium">{{ formatArea(localProperties.area || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Périmètre :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
+              </div>
+            </div>
+
+            <!-- Demi-cercle -->
+            <div v-else-if="localProperties.type === 'Semicircle'" class="space-y-1">
+              <div class="flex justify-between">
+                <span class="text-gray-600">Rayon :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.radius || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Surface :</span>
+                <span class="font-medium">{{ formatArea(localProperties.area || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Périmètre :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Longueur d'arc :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.arcLength || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Angle d'ouverture :</span>
+                <span class="font-medium">{{ formatAngle(localProperties.openingAngle || 0) }}</span>
+              </div>
+            </div>
+
+            <!-- Ligne -->
+            <div v-else-if="localProperties.type === 'Line'" class="space-y-1">
+              <div class="flex justify-between">
+                <span class="text-gray-600">Longueur :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.length || 0) }}</span>
+              </div>
+              <template v-if="localProperties.dimensions?.width">
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Largeur d'influence :</span>
+                  <span class="font-medium">{{ formatMeasure(localProperties.dimensions.width) }}</span>
+                </div>
+              </template>
+              <template v-if="localProperties.surfaceInfluence">
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Surface d'influence :</span>
+                  <span class="font-medium">{{ formatArea(localProperties.surfaceInfluence) }}</span>
+                </div>
+              </template>
+            </div>
+
+            <!-- Polygone -->
+            <div v-else-if="localProperties.type === 'Polygon'" class="space-y-1">
+              <div class="flex justify-between">
+                <span class="text-gray-600">Surface :</span>
+                <span class="font-medium">{{ formatArea(localProperties.area || 0) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Périmètre :</span>
+                <span class="font-medium">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-else class="text-gray-500 text-center">
+            Aucune propriété disponible
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 
 interface ShapeType {
   type: keyof typeof typeTranslations;
@@ -145,6 +266,24 @@ interface ShapeType {
   };
 }
 
+interface ShapeProperties {
+  type: string;
+  radius?: number;
+  diameter?: number;
+  area?: number;
+  perimeter?: number;
+  width?: number;
+  height?: number;
+  arcLength?: number;
+  openingAngle?: number;
+  length?: number;
+  dimensions?: {
+    width: number;
+  };
+  surfaceInfluence?: number;
+  style?: any;
+}
+
 const props = defineProps<{
   currentTool: string;
   selectedShape: ShapeType | null;
@@ -155,6 +294,39 @@ const emit = defineEmits<{
   (e: 'style-update', style: any): void;
   (e: 'delete-shape'): void;
 }>();
+
+// Variable locale réactive pour les propriétés
+const localProperties = ref<ShapeProperties | null>(null);
+
+// Watcher pour synchroniser les propriétés locales
+watch(
+  () => props.selectedShape,
+  (newShape) => {
+    console.log('[DrawingTools] Changement de forme sélectionnée', {
+      newShape,
+      properties: newShape?.properties
+    });
+    if (newShape) {
+      localProperties.value = { ...newShape.properties };
+    } else {
+      localProperties.value = null;
+    }
+  },
+  { deep: true, immediate: true }
+);
+
+// Watcher pour détecter les changements dans les propriétés locales
+watch(
+  () => localProperties.value,
+  (newProperties, oldProperties) => {
+    console.log('[DrawingTools] Changement détecté dans localProperties', {
+      newProperties,
+      oldProperties,
+      selectedShape: props.selectedShape
+    });
+  },
+  { deep: true }
+);
 
 const drawingTools = [
   { type: 'Circle', label: 'Cercle' },
@@ -193,16 +365,22 @@ const strokeStyle = ref('solid');
 
 // Ajouter l'état pour les sections collapsables
 const sectionsCollapsed = ref({
-  style: false
+  style: false,
+  properties: false
 });
 
 const showFillOptions = computed(() => {
-  if (!props.selectedShape?.properties?.type) return false;
-  return ['Circle', 'Rectangle', 'Polygon'].includes(props.selectedShape.properties.type);
+  const shapeType = props.selectedShape?.properties?.type;
+  console.log('[DrawingTools] Calcul de showFillOptions', {
+    shapeType,
+    selectedShape: props.selectedShape
+  });
+  if (!shapeType) return false;
+  return ['Circle', 'Rectangle', 'Polygon'].includes(shapeType);
 });
 
 // Fonction pour basculer l'état des sections
-const toggleSection = (section: 'style') => {
+const toggleSection = (section: 'style' | 'properties') => {
   sectionsCollapsed.value[section] = !sectionsCollapsed.value[section];
 };
 
@@ -264,6 +442,27 @@ const typeTranslations = {
   'Semicircle': 'Demi-cercle',
   'unknown': 'Inconnu'
 } as const;
+
+// Fonction pour formater les mesures
+const formatMeasure = (value: number): string => {
+  if (!value) return '0 m';
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(2)} km`;
+  }
+  return `${value.toFixed(2)} m`;
+};
+
+// Fonction pour formater les surfaces en hectares
+const formatArea = (value: number): string => {
+  if (!value) return '0 ha';
+  return `${(value / 10000).toFixed(2)} ha`;
+};
+
+// Fonction pour formater les angles
+const formatAngle = (angle: number): string => {
+  if (!angle) return '0°';
+  return `${((angle % 360 + 360) % 360).toFixed(1)}°`;
+};
 </script>
 
 <style scoped>
