@@ -1,45 +1,10 @@
-import { ref, onUnmounted, nextTick } from 'vue';
+import { ref, onUnmounted, nextTick, type Ref } from 'vue';
 import L from 'leaflet';
 import '@geoman-io/leaflet-geoman-free';
-import { useShapeProperties } from './useShapeProperties';
 import { CircleArc } from '../utils/CircleArc';
-import type { TextStyle, TextProperties, TextMarker, TextRectangle } from '../types/leaflet';
+import type { TextStyle, TextMarker } from '../types/leaflet';
 import * as turf from '@turf/turf';
 
-// Interface pour Leaflet-Geoman
-interface PMMap {
-  addControls: (options: any) => void;
-  enableDraw: (shape: string, options?: any) => void;
-  disableDraw: () => void;
-  enableGlobalEditMode: () => void;
-  disableGlobalEditMode: () => void;
-  enableGlobalDragMode: () => void;
-  disableGlobalDragMode: () => void;
-  enableGlobalRemovalMode: () => void;
-  disableGlobalRemovalMode: () => void;
-  setGlobalOptions: (options: any) => void;
-  globalEditModeEnabled: () => boolean;
-  globalDragModeEnabled: () => boolean;
-  globalRemovalModeEnabled: () => boolean;
-}
-
-interface PMLayer {
-  enable: () => void;
-  disable: () => void;
-  _layers?: any[];
-  _markers?: any[];
-  _markerGroup?: L.LayerGroup;
-}
-
-// Interface pour les options de style étendues
-interface ExtendedLayerOptions extends L.LayerOptions {
-  color?: string;
-  weight?: number;
-  opacity?: number;
-  fillColor?: string;
-  fillOpacity?: number;
-  dashArray?: string;
-}
 
 // Ajouter cette interface avant la déclaration du module 'leaflet'
 interface CustomIconOptions extends L.DivIconOptions {
@@ -109,14 +74,6 @@ const showHelpMessage = (message: string): HTMLElement => {
   return helpMsg;
 };
 
-// Fonction pour calculer la taille du texte en fonction du zoom
-const calculateTextSize = (baseSize: number, zoom: number): number => {
-  const minZoom = 1;
-  const maxZoom = 19;
-  const scaleFactor = Math.max(1, 2 - (zoom - minZoom) / (maxZoom - minZoom));
-  return baseSize * scaleFactor;
-};
-
 // Fonction pour convertir les mètres en pixels selon la latitude et le zoom
 function metersToPixels(meters: number, latitude: number, zoom: number): number {
   const resolution = 156543.03392 * Math.cos(latitude * Math.PI / 180) / Math.pow(2, zoom);
@@ -158,24 +115,6 @@ const formatAngle = (angle: number): string => {
   return `${((angle % 360 + 360) % 360).toFixed(1)}°`;
 };
 
-// Fonction pour formater la pente
-const formatSlope = (slope: number): string => {
-  return `${(slope * 100).toFixed(1)}%`;
-};
-
-// Fonction pour faire pivoter un point autour d'un centre
-const rotatePoint = (point: L.Point, center: L.Point, angle: number): L.Point => {
-  const rad = angle * Math.PI / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  const dx = point.x - center.x;
-  const dy = point.y - center.y;
-  return new L.Point(
-    center.x + dx * cos - dy * sin,
-    center.y + dx * sin + dy * cos
-  );
-};
-
 // Interface pour les points de contrôle avec mesure
 interface ControlPoint extends L.CircleMarker {
   measureDiv?: HTMLElement;
@@ -193,11 +132,26 @@ const convertMouseEvent = (e: MouseEvent): MouseEvent => {
   } as MouseEvent;
 };
 
-export function useMapDrawing() {
-  const map = ref<L.Map | null>(null);
-  const featureGroup = ref<L.FeatureGroup | null>(null);
+interface MapDrawingReturn {
+  map: Ref<any>;
+  featureGroup: Ref<any>;
+  currentTool: Ref<string>;
+  selectedShape: Ref<any>;
+  isDrawing: Ref<boolean>;
+  initMap: (element: HTMLElement, center: L.LatLngExpression, zoom: number) => L.Map;
+  setDrawingTool: (tool: string) => void;
+  updateShapeStyle: (style: any) => void;
+  updateShapeProperties: (properties: any) => void;
+  updateTextFixedSize: (textMarker: TextMarker, physicalSizeInMeters: number) => void;
+  adjustView: () => void;
+  clearActiveControlPoints: () => void;
+}
+
+export function useMapDrawing(): MapDrawingReturn {
+  const map = ref<any>(null);
+  const featureGroup = ref<any>(null);
   const currentTool = ref<string>('');
-  const selectedShape = ref<L.Layer | null>(null);
+  const selectedShape = ref<any>(null);
   const isDrawing = ref<boolean>(false);
 
   const createTextMarker = (latlng: L.LatLng, text: string = 'Double-cliquez pour éditer'): L.Marker => {
@@ -229,9 +183,6 @@ export function useMapDrawing() {
 
     const updateMarkerSize = () => {
       if (!map.value) return;
-      const zoom = map.value.getZoom();
-      const centerLat = marker.getLatLng().lat;
-      const boxSizePx = metersToPixels(marker.properties.style.physicalSize, centerLat, zoom);
       
       // Mettre à jour l'icône avec la nouvelle taille
       const icon = marker.getIcon();
@@ -277,7 +228,6 @@ export function useMapDrawing() {
     let isDragging = false;
     let startAngle = 0;
     let startRotation = 0;
-    let startPos = null;
 
     const onMouseDown = (e: MouseEvent) => {
       if (!map.value) return;
@@ -294,7 +244,6 @@ export function useMapDrawing() {
         startRotation = marker.properties.style.rotation || 0;
       } else if (target.classList.contains('move')) {
         isDragging = true;
-        startPos = map.value.latLngToLayerPoint(marker.getLatLng());
       }
 
       document.addEventListener('mousemove', onMouseMove);
@@ -331,7 +280,6 @@ export function useMapDrawing() {
     const onMouseUp = () => {
       isRotating = false;
       isDragging = false;
-      startPos = null;
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
@@ -432,7 +380,7 @@ export function useMapDrawing() {
   };
 
   // Fonction pour ajouter les événements de mesure aux points de contrôle
-  const addMeasureEvents = (point: ControlPoint, layer: L.Layer, getMeasureText: () => string) => {
+  const addMeasureEvents = (point: ControlPoint, _layer: L.Layer, getMeasureText: () => string) => {
     point.on('mouseover', () => {
       const measureDiv = showMeasure(point.getLatLng(), getMeasureText());
       point.measureDiv = measureDiv;
@@ -453,9 +401,6 @@ export function useMapDrawing() {
       }
     });
   };
-
-  const { calculateProperties } = useShapeProperties();
-
   // Ajouter ces variables au niveau du composable
   let activeControlPoints: ControlPoint[] = [];
 
@@ -1143,17 +1088,6 @@ export function useMapDrawing() {
     // Ajouter d'autres mises à jour spécifiques aux formes si nécessaire
   };
 
-  const getLayerPoints = (layer: L.Layer): L.LatLng[] => {
-    if (layer instanceof L.Circle) {
-      return [layer.getLatLng()];
-    } else if (layer instanceof L.Polygon) {
-      return layer.getLatLngs()[0] as L.LatLng[];
-    } else if (layer instanceof L.Polyline) {
-      return layer.getLatLngs() as L.LatLng[];
-    }
-    return [];
-  };
-
   // Fonction pour calculer le point milieu entre deux points
   const getMidPoint = (p1: L.LatLng, p2: L.LatLng): L.LatLng => {
     return L.latLng(
@@ -1273,7 +1207,7 @@ export function useMapDrawing() {
         const onMouseUp = () => {
           isDragging = false;
               if (!map.value) return;
-            map.value.off('mousemove', onMouseMove);
+          map.value.off('mousemove', onMouseMove);
           document.removeEventListener('mouseup', onMouseUp);
           map.value.dragging.enable();
         };
@@ -1316,7 +1250,7 @@ export function useMapDrawing() {
 
     // Points de coin (rouge)
     const cornerPoints: L.CircleMarker[] = [];
-    corners.forEach((corner, index) => {
+    corners.forEach((corner) => {
       const cornerPoint = createControlPoint(corner, '#DC2626');
       cornerPoints.push(cornerPoint);
       activeControlPoints.push(cornerPoint);
@@ -1399,8 +1333,8 @@ export function useMapDrawing() {
           const corner = newCorners[i];
           const nextCorner = newCorners[(i + 1) % 4];
           point.setLatLng(getMidPoint(corner, nextCorner));
-          });
-        };
+        });
+      };
         
         const onMouseUp = () => {
           isDragging = false;

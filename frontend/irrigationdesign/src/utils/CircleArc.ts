@@ -1,13 +1,5 @@
 import L from 'leaflet';
 
-interface PMLayer {
-  enable: (options?: any) => void;
-  disable: () => void;
-  _markerGroup?: L.LayerGroup;
-  _layers?: any[];
-  _markers?: any[];
-}
-
 interface CircleArcProperties {
   type: string;
   radius: number;
@@ -66,7 +58,7 @@ export class CircleArc extends L.Polygon {
       }
     };
 
-    this.on('pm:enable', (e: any) => {
+    this.on('pm:enable', () => {
       if (this.pm) {
         this.pm._layers = [];
         this.pm._markers = [];
@@ -74,7 +66,7 @@ export class CircleArc extends L.Polygon {
       }
     });
 
-    this.on('pm:vertexadded', (e: any) => {
+    this.on('pm:vertexadded', () => {
       if (this.pm) {
         this.pm._markerGroup?.clearLayers();
       }

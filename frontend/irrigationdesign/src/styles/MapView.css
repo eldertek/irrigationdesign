@@ -98,10 +98,12 @@
     transform: scale(1);
     opacity: 1;
   }
+
   50% {
     transform: scale(1.2);
     opacity: 0.8;
   }
+
   100% {
     transform: scale(1);
     opacity: 1;
@@ -123,9 +125,17 @@
 
 /* Animation de création de forme */
 @keyframes shapeCreated {
-  0% { opacity: 0.7; }
-  50% { opacity: 1; }
-  100% { opacity: 0.7; }
+  0% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.7;
+  }
 }
 
 .shape-created {
@@ -190,8 +200,15 @@
 
 /* Animation d'apparition des tooltips */
 @keyframes tooltipFadeIn {
-  from { opacity: 0; transform: translate(-50%, -120%); }
-  to { opacity: 1; transform: translate(-50%, -130%); }
+  from {
+    opacity: 0;
+    transform: translate(-50%, -120%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -130%);
+  }
 }
 
 .shape-selected .control-point-tooltip {
@@ -219,9 +236,17 @@
   white-space: normal;
 }
 
-.measurement-info.distance { color: #2563EB; }
-.measurement-info.angle { color: #7C3AED; }
-.measurement-info.area { color: #059669; }
+.measurement-info.distance {
+  color: #2563EB;
+}
+
+.measurement-info.angle {
+  color: #7C3AED;
+}
+
+.measurement-info.area {
+  color: #059669;
+}
 
 /* Styles pour les messages d'aide contextuels */
 .context-help {
@@ -245,7 +270,7 @@
   font-size: 11px;
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 /* Styles pour le mode dessin actif */
@@ -339,8 +364,13 @@
 }
 
 @keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* S'assurer que le contrôle de rotation est toujours visible */
@@ -414,7 +444,7 @@
   transition: opacity 0.2s ease;
 }
 
-.text-container:hover + .text-rotation-handle,
+.text-container:hover+.text-rotation-handle,
 .text-rotation-handle:hover {
   opacity: 1;
 }
@@ -456,4 +486,37 @@
   transform-origin: center;
   will-change: transform;
   backface-visibility: hidden;
-} 
+}
+
+
+/* Masquer les contrôles de la carte pendant la génération */
+.generating-synthesis .leaflet-control-container {
+  display: none !important;
+}
+
+/* Masquer le quadrillage de la carte lors de la capture */
+.leaflet-grid-layer,
+.leaflet-grid-label,
+.leaflet-tile-container img {
+  border: none !important;
+  outline: none !important;
+}
+
+.leaflet-container {
+  background: transparent !important;
+}
+
+.leaflet-tile {
+  border: none !important;
+  outline: none !important;
+}
+
+.measure-tooltip {
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: pre-line;
+  pointer-events: none;
+}

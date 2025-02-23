@@ -3,11 +3,37 @@
     <!-- Carte -->
     <div class="flex-1 relative">
         <!-- Overlay de génération -->
-        <div v-if="isGeneratingSynthesis" class="absolute inset-0 bg-black bg-opacity-50 z-[2000] flex items-center justify-center">
-          <div class="bg-white rounded-lg p-6 max-w-md text-center">
-            <div class="animate-spin h-12 w-12 border-4 border-primary-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Génération de la synthèse en cours</h3>
-            <p class="text-gray-600">Veuillez patienter pendant la capture des formes...</p>
+        <div v-if="isGeneratingSynthesis" class="absolute inset-0 bg-black/30 backdrop-blur-sm z-[2000] flex items-center justify-center">
+          <div class="bg-white/90 rounded-2xl p-8 max-w-md shadow-2xl border border-gray-100">
+            <div class="flex flex-col items-center">
+              <!-- Animation de chargement améliorée -->
+              <div class="relative w-24 h-24 mb-6">
+                <!-- Cercle principal rotatif -->
+                <div class="absolute inset-0 border-4 border-primary-200 rounded-full"></div>
+                <div class="absolute inset-0 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
+                <!-- Effet de progression -->
+                <div class="absolute inset-2 border-2 border-primary-400/30 rounded-full animate-pulse"></div>
+                <!-- Icône au centre -->
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <svg class="w-8 h-8 text-primary-600 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                </div>
+              </div>
+              
+              <!-- Textes explicatifs -->
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">
+                Génération de la synthèse
+              </h3>
+              <div class="space-y-2 text-center">
+                <p class="text-primary-600 font-medium">
+                  Capture des formes en cours...
+                </p>
+                <p class="text-sm text-gray-500">
+                  Nous optimisons la qualité de vos captures pour un rendu parfait
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -56,7 +82,7 @@
           <h2 class="text-sm font-semibold text-gray-700 mb-2">Type de carte</h2>
           <div class="grid grid-cols-3 gap-2">
             <button
-              v-for="(layer, name) in baseMaps"
+              v-for="name in Object.keys(baseMaps) as Array<keyof typeof baseMaps>"
               :key="name"
               @click="changeBaseMap(name)"
               class="px-3 py-2 text-sm rounded-md transition-colors duration-200"
@@ -415,19 +441,17 @@
 </template>
 
 <script setup lang="ts">
-  import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed, nextTick } from 'vue';
-import type { LatLngTuple, LatLng } from 'leaflet';
+  import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed } from 'vue';
+import type { LatLngTuple } from 'leaflet';
 import * as L from 'leaflet';
-import * as turf from '@turf/turf';
 import 'leaflet-simple-map-screenshoter';
 import DrawingTools from '../components/DrawingTools.vue';
 import { useMapDrawing } from '../composables/useMapDrawing';
 import { useMapState } from '../composables/useMapState';
 import { useIrrigationStore } from '@/stores/irrigation';
 import { useDrawingStore } from '@/stores/drawing';
-import { useRouter } from 'vue-router';
 import type { Plan } from '@/stores/irrigation';
-  import type { DrawingElement, ShapeData, ShapeType, CircleData, RectangleData, SemicircleData, LineData, TextData } from '@/types/drawing';
+  import type { DrawingElement, ShapeType, CircleData, RectangleData, SemicircleData, LineData, TextData } from '@/types/drawing';
 import { CircleArc } from '@/utils/CircleArc';
 import { useAuthStore } from '@/stores/auth';
   import type { UserDetails } from '@/types/user';
@@ -440,13 +464,6 @@ const mapContainer = ref<HTMLElement | null>(null);
 const irrigationStore = useIrrigationStore();
 const drawingStore = useDrawingStore();
 const shapes = ref<any[]>([]);
-const selectedShapeInfo = ref<any>(null);
-const shapeOptions = ref<any>({});
-const semicircleEvents = ref<any>({
-  mousedown: null,
-  mousemove: null,
-  mouseup: null
-});
 
 const {
   currentTool,
@@ -468,16 +485,10 @@ const {
   changeBaseMap
 } = useMapState();
 
-const router = useRouter();
-
 // Ajout des refs pour les modals
 const showNewPlanModal = ref(false);
 const showLoadPlanModal = ref(false);
 const currentPlan = ref<Plan | null>(null);
-const newPlanData = ref({
-  nom: '',
-  description: ''
-});
 
 // État pour la sauvegarde
 const saving = ref(false);
@@ -665,99 +676,6 @@ onBeforeUnmount(() => {
     map.value.off('moveend');
   }
 });
-
-  // Ajouter les interfaces pour les types
-  interface ShapeProperties {
-    type: string;
-    style?: any;
-    dimensions?: {
-      width?: number;
-      height?: number;
-      radius?: number;
-      orientation?: number;
-    };
-    area?: number;
-    perimeter?: number;
-    length?: number;
-    rotation?: number;
-  }
-
-  interface Shape {
-    id: number;
-    type: string;
-    layer: L.Layer;
-    properties: ShapeProperties;
-  }
-
-  interface OtherData {
-    center?: [number, number];
-    radius?: number;
-    bounds?: {
-      southWest: [number, number];
-      northEast: [number, number];
-    };
-    points?: number[][];
-    position?: [number, number];
-    content?: string;
-    startAngle?: number;
-    endAngle?: number;
-    rotation?: number;
-  }
-
-  // Types pour les objets concessionnaire et client
-  interface CompanyUser {
-    id: number;
-    username: string;
-    email: string;
-    first_name: string;
-    last_name: string;
-    role: string;
-    company_name?: string;
-    phone?: string;
-    concessionnaire?: number;
-  }
-
-  interface PlanData {
-    id: number;
-    nom: string;
-    description: string;
-    date_creation: string;
-    date_modification: string;
-    createur: CompanyUser;
-    concessionnaire: CompanyUser | null;
-    client: CompanyUser | null;
-    elements: any[];
-  }
-
-  // Modifier la fonction loadExistingShapes
-  async function loadExistingShapes() {
-    if (!map.value || !irrigationStore.currentPlan?.elements) return;
-
-    try {
-      irrigationStore.currentPlan.elements.forEach((shape: any) => {
-    if (!map.value) return;
-
-        const layer = L.geoJSON(shape.geometrie, {
-          style: shape.proprietes?.style
-        });
-        
-        if (layer instanceof L.Layer) {
-          map.value.addLayer(layer);
-          shapes.value.push({
-            id: shape.id,
-            type: shape.type_forme,
-            layer,
-            properties: {
-              type: shape.type_forme,
-              ...shape.proprietes
-            }
-          });
-        }
-      });
-    } catch (error) {
-      console.error('Erreur lors du chargement des formes:', error);
-    }
-  }
 
   // Modifier la fonction loadPlan
 async function loadPlan(planId: number) {
@@ -968,11 +886,6 @@ async function savePlan() {
   } finally {
     saving.value = false;
   }
-}
-
-// Fonction pour aller à la liste des plans
-function goToPlans() {
-  router.push('/plans');
 }
 
 // Nettoyer lors du démontage du composant
@@ -1197,60 +1110,6 @@ function clearLastPlan() {
   localStorage.removeItem('lastPlanId');
 }
 
-  // Modifier la fonction addControlPointTooltips pour gérer les types LatLng
-  function addControlPointTooltips(layer: L.Layer) {
-    setTimeout(() => {
-      const controlPoints = document.querySelectorAll('.leaflet-pm-draggable');
-      controlPoints.forEach((point: Element, index: number) => {
-        if (!point.querySelector('.control-point-tooltip')) {
-          const tooltip = document.createElement('div');
-          tooltip.className = 'control-point-tooltip';
-          
-          let info = '';
-          if (layer instanceof L.Circle) {
-            const radius = layer.getRadius();
-            if (index === 0) {
-              info = `Centre (${formatCoordinates(layer.getLatLng())})`;
-            } else {
-              info = `Rayon: ${formatDistance(radius)}`;
-            }
-          } else if (layer instanceof L.Rectangle) {
-            const bounds = layer.getBounds();
-            const width = calculateDistance(bounds.getSouthWest(), bounds.getSouthEast());
-            const height = calculateDistance(bounds.getSouthWest(), bounds.getNorthWest());
-            info = `Point ${index + 1}<br>L: ${formatDistance(width)}<br>H: ${formatDistance(height)}`;
-          } else if (layer instanceof L.Polyline) {
-            const latLngs = layer.getLatLngs() as L.LatLng[];
-            if (latLngs.length > 1) {
-              const distance = calculateDistance(
-                latLngs[index],
-                latLngs[index > 0 ? index - 1 : latLngs.length - 1]
-              );
-              info = `Point ${index + 1}<br>Distance: ${formatDistance(distance)}`;
-            }
-          }
-          
-          tooltip.innerHTML = info;
-          point.appendChild(tooltip);
-        }
-      });
-    }, 100);
-  }
-
-  // Fonctions utilitaires pour les calculs et le formatage
-  function calculateDistance(point1: L.LatLng, point2: L.LatLng): number {
-    return point1.distanceTo(point2);
-  }
-
-  function formatDistance(value: number): string {
-    if (!value && value !== 0) return '0 m';
-    return `${value.toFixed(2)} m`;
-  }
-
-  function formatCoordinates(latLng: L.LatLng): string {
-    return `${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`;
-  }
-
   // Fonction pour nettoyer la carte
   function clearMap() {
     if (featureGroup.value) {
@@ -1275,14 +1134,6 @@ function clearLastPlan() {
   // Fonction pour générer la synthèse
   const isGeneratingSynthesis = ref(false);
 
-  // Fonction pour formater le nom complet
-  function formatFullName(user: CompanyUser | null): string {
-    if (!user || !user.first_name || !user.last_name) {
-      return 'N/A';
-    }
-    return `${user.first_name} ${user.last_name.toUpperCase()}${user.company_name ? ` (${user.company_name})` : ''}`;
-  }
-
   // Fonction pour traduire le type de forme en français
   function getShapeTypeFr(type: string): string {
     const types: { [key: string]: string } = {
@@ -1294,17 +1145,6 @@ function clearLastPlan() {
       'Text': 'Texte'
     };
     return types[type] || type;
-  }
-
-  // Fonction pour récupérer les détails d'un utilisateur
-  async function getUserDetails(userId: number): Promise<CompanyUser | null> {
-    try {
-      const response = await api.get(`/users/${userId}/`);
-      return response.data;
-    } catch (error) {
-      console.error(`Erreur lors de la récupération des détails de l'utilisateur ${userId}:`, error);
-      return null;
-    }
   }
 
   async function generateSynthesis() {
@@ -1354,26 +1194,26 @@ function clearLastPlan() {
       // Informations du concessionnaire et client
       pdf.setFontSize(14);
       if (concessionnaireDetails) {
-        pdf.setFont(undefined, 'bold');
+        pdf.setFont('helvetica', 'bold');
         pdf.text('Concessionnaire:', 20, yPos);
-        pdf.setFont(undefined, 'normal');
+        pdf.setFont('helvetica', 'normal');
         pdf.text(`${concessionnaireDetails.first_name} ${concessionnaireDetails.last_name}${concessionnaireDetails.company_name ? ` (${concessionnaireDetails.company_name})` : ''}`, 20, yPos + 8);
         yPos += 25;
       }
       
       if (clientDetails) {
-        pdf.setFont(undefined, 'bold');
+        pdf.setFont('helvetica', 'bold');
         pdf.text('Client:', 20, yPos);
-        pdf.setFont(undefined, 'normal');
+        pdf.setFont('helvetica', 'normal');
         pdf.text(`${clientDetails.first_name} ${clientDetails.last_name}${clientDetails.company_name ? ` (${clientDetails.company_name})` : ''}`, 20, yPos + 8);
         yPos += 25;
       }
       
       // Description
       if (currentPlan.value.description) {
-        pdf.setFont(undefined, 'bold');
+        pdf.setFont('helvetica', 'bold');
         pdf.text('Description:', 20, yPos);
-        pdf.setFont(undefined, 'normal');
+        pdf.setFont('helvetica', 'normal');
         const splitDescription = pdf.splitTextToSize(currentPlan.value.description, 150);
         pdf.text(splitDescription, 20, yPos + 8);
         yPos += 10 * splitDescription.length + 15;
@@ -1390,11 +1230,19 @@ function clearLastPlan() {
       featureGroup.value.eachLayer((layer: L.Layer) => layers.push(layer));
       console.log(`[generateSynthesis] Nombre de formes à traiter: ${layers.length}`);
 
-      // Initialiser le screenshoter
+      // Initialiser le screenshoter avec des options améliorées
       const screenshoter = L.simpleMapScreenshoter({
-        hideElementsWithSelectors: ['.leaflet-control-container', '.leaflet-pm-toolbar'],
+        hideElementsWithSelectors: [
+          '.leaflet-control-container', 
+          '.leaflet-pm-toolbar',
+          '.leaflet-grid-layer',
+          '.leaflet-grid-label'
+        ],
         preventDownload: true
-      }).addTo(map.value);
+      }).addTo(map.value as L.Map);
+
+      // Attendre que la carte soit chargée avant la capture
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Pour chaque forme, créer une nouvelle page
       for (let i = 0; i < layers.length; i++) {
@@ -1429,7 +1277,7 @@ function clearLastPlan() {
         if (properties) {
           pdf.setTextColor(0);
           pdf.setFontSize(16);
-          pdf.setFont(undefined, 'bold');
+          pdf.setFont('helvetica', 'bold');
           pdf.text(getShapeTypeFr(properties.type), 20, 60);
         }
 
@@ -1441,8 +1289,32 @@ function clearLastPlan() {
           });
         }
 
-        await nextTick();
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Attendre que la carte soit complètement chargée
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Forcer un rafraîchissement de la carte
+        map.value.invalidateSize();
+
+        // Attendre que toutes les tuiles soient chargées
+        await new Promise<void>((resolve) => {
+          const checkTiles = () => {
+            const container = map.value?.getContainer();
+            if (!container) {
+              resolve();
+              return;
+            }
+
+            const tiles = container.querySelectorAll('.leaflet-tile-loaded');
+            const loading = container.querySelectorAll('.leaflet-tile-loading');
+
+            if (loading.length === 0 && tiles.length > 0) {
+              resolve();
+            } else {
+              setTimeout(checkTiles, 100);
+            }
+          };
+          checkTiles();
+        });
 
         try {
           // Capturer la carte
@@ -1450,8 +1322,8 @@ function clearLastPlan() {
           const mapImage = await new Promise<HTMLImageElement>((resolve, reject) => {
             const img = new Image();
             img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = dataUrl;
+            img.onerror = (error) => reject(error);
+            img.src = dataUrl as unknown as string;
           });
 
           // Calculer les dimensions pour 60% de la largeur
@@ -1461,9 +1333,9 @@ function clearLastPlan() {
           if (imgHeight > pageHeight * 0.9) {
             imgHeight = pageHeight * 0.9;
           }
-
-          const yOffset = (pageHeight - imgHeight) / 2;
-          pdf.addImage(dataUrl, 'PNG', 20, yOffset, imgWidth, imgHeight);
+          // Ajuster le yOffset pour commencer après le titre de la forme (60 + marge)
+          const yOffset = Math.max(80, (pageHeight - imgHeight) / 2);
+          pdf.addImage(mapImage, 'PNG', 20, yOffset, imgWidth, imgHeight);
 
           // Section des propriétés (40% de la largeur)
           if (properties) {
@@ -1472,7 +1344,7 @@ function clearLastPlan() {
 
             // Propriétés principales
             pdf.setFontSize(12);
-            pdf.setFont(undefined, 'normal');
+            pdf.setFont('helvetica', 'normal');
 
             // Cercle
             if (properties.type === 'Circle') {
@@ -1589,26 +1461,4 @@ function clearLastPlan() {
 
 <style>
 @import '../styles/MapView.css';
-
-  /* Masquer les contrôles de la carte pendant la génération */
-  .generating-synthesis .leaflet-control-container {
-    display: none !important;
-  }
-
-  /* Masquer le quadrillage de la carte lors de la capture */
-  .leaflet-grid-layer,
-  .leaflet-grid-label,
-  .leaflet-tile-container img {
-    border: none !important;
-    outline: none !important;
-  }
-  
-  .leaflet-container {
-    background: transparent !important;
-  }
-
-  .leaflet-tile {
-    border: none !important;
-    outline: none !important;
-  }
 </style> 

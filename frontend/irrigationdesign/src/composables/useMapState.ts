@@ -45,13 +45,6 @@ export function useMapState() {
     currentBaseMap.value = baseMapName;
   };
 
-  const handleMapSetLocation = ((event: CustomEvent) => {
-    if (map.value && event.detail) {
-      const { lat, lng, zoom } = event.detail;
-      map.value.setView([lat, lng], zoom);
-    }
-  }) as EventListener;
-
   const searchLocation = async () => {
     if (!map.value || !searchQuery.value) return;
 
