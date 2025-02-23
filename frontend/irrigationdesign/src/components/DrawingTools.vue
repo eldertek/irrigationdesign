@@ -130,7 +130,6 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import L from 'leaflet';
 
 interface ShapeType {
   type: keyof typeof typeTranslations;
@@ -189,7 +188,6 @@ const strokeStyles = [
 const fillColor = ref('#3B82F6');
 const fillOpacity = ref(0.2);
 const strokeColor = ref('#2563EB');
-const strokeOpacity = ref(1);
 const strokeWidth = ref(2);
 const strokeStyle = ref('solid');
 
@@ -197,9 +195,6 @@ const strokeStyle = ref('solid');
 const sectionsCollapsed = ref({
   style: false
 });
-
-// Ajouter le flag pour éviter les mises à jour récursives
-let isUpdating = false;
 
 const showFillOptions = computed(() => {
   if (!props.selectedShape?.properties?.type) return false;
