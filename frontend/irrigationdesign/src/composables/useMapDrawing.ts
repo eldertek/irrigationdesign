@@ -159,6 +159,15 @@ interface MapDrawingReturn {
   clearActiveControlPoints: () => void;
 }
 
+// Ajouter cette fonction en haut du fichier, après les imports
+const debounce = (fn: Function, delay: number) => {
+  let timeoutId: number;
+  return function (this: any, ...args: any[]) {
+    window.clearTimeout(timeoutId);
+    timeoutId = window.setTimeout(() => fn.apply(this, args), delay);
+  };
+};
+
 export function useMapDrawing(): MapDrawingReturn {
   const map = ref<any>(null);
   const featureGroup = ref<any>(null);
@@ -1056,27 +1065,32 @@ export function useMapDrawing(): MapDrawingReturn {
       currentProperties: layer.properties
     });
 
-    const newProperties = calculateShapeProperties(layer, shapeType);
-    console.log('[updateLayerProperties] Nouvelles propriétés calculées', {
-      newProperties
-    });
+    // Utiliser debouncedCalculateProperties au lieu de calculateShapeProperties directement
+    const debouncedCalculateProperties = debounce((layer: L.Layer, shapeType: string) => {
+      const newProperties = calculateShapeProperties(layer, shapeType);
+      console.log('[updateLayerProperties] Nouvelles propriétés calculées', {
+        newProperties
+      });
 
-    // Créer une nouvelle référence pour les propriétés
-    layer.properties = { ...newProperties };
-    
-    // Forcer la mise à jour de la forme sélectionnée
-    forceShapeUpdate(layer);
-    
-    // Émettre l'événement avec les nouvelles propriétés
-    layer.fire('properties:updated', {
-      shape: layer,
-      properties: layer.properties
-    });
+      // Créer une nouvelle référence pour les propriétés
+      layer.properties = { ...newProperties };
+      
+      // Forcer la mise à jour de la forme sélectionnée
+      forceShapeUpdate(layer);
+      
+      // Émettre l'événement avec les nouvelles propriétés
+      layer.fire('properties:updated', {
+        shape: layer,
+        properties: layer.properties
+      });
 
-    console.log('[updateLayerProperties] Fin', {
-      finalProperties: layer.properties,
-      selectedShape: selectedShape.value
-    });
+      console.log('[updateLayerProperties] Fin', {
+        finalProperties: layer.properties,
+        selectedShape: selectedShape.value
+      });
+    }, 100); // Délai de 100ms
+
+    debouncedCalculateProperties(layer, shapeType);
   };
 
   // Fonction pour calculer le point milieu entre deux points
