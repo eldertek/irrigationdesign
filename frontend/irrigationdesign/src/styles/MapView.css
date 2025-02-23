@@ -5,6 +5,20 @@
   display: none !important;
 }
 
+/* Masquer tous les boutons Leaflet-Geoman */
+.leaflet-pm-toolbar {
+  display: none !important;
+}
+
+.leaflet-pm-draw,
+.leaflet-pm-edit {
+  display: none !important;
+}
+
+.leaflet-pm-actions {
+  display: none !important;
+}
+
 /* Masquer les contrôles de rotation */
 .leaflet-pm-toolbar .leaflet-pm-icon-rotate,
 .button-container[title="Tourner des calques"],
@@ -14,6 +28,16 @@
 
 /* Masquer le bouton de rotation des calques */
 .button-container[title="Tourner des calques"] {
+  display: none !important;
+}
+
+/* Masquer les contrôles de zoom par défaut */
+.leaflet-control-zoom {
+  display: none !important;
+}
+
+/* Masquer l'attribution Leaflet */
+.leaflet-control-attribution {
   display: none !important;
 }
 

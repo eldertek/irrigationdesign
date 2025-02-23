@@ -185,17 +185,17 @@ export class CircleArc extends L.Polygon {
     return this.center;
   }
 
-  getRadius(): number {
+  getRadius: () => number = () => {
     return this.radius;
-  }
+  };
 
-  getStartAngle(): number {
+  getStartAngle: () => number = () => {
     return this.startAngle;
-  }
+  };
 
-  getStopAngle(): number {
+  getStopAngle: () => number = () => {
     return this.stopAngle;
-  }
+  };
 
   getOpeningAngle(): number {
     return (this.stopAngle - this.startAngle + 360) % 360;

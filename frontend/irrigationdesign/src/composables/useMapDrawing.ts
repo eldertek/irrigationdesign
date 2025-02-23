@@ -12,6 +12,11 @@ interface CustomIconOptions extends L.DivIconOptions {
   className?: string;
 }
 
+// Extend GlobalOptions to include snapLayers
+interface ExtendedGlobalOptions extends L.PM.GlobalOptions {
+  snapLayers?: L.LayerGroup[];
+}
+
 // Modifier l'interface Layer pour éviter les conflits de type
 declare module 'leaflet' {
   interface Layer {
@@ -19,6 +24,11 @@ declare module 'leaflet' {
     pm?: any;
     _textLayer?: L.Marker;
     options: L.LayerOptions;
+    getCenter?: () => L.LatLng;
+    getLatLng?: () => L.LatLng;
+    getRadius?: () => number;
+    getStartAngle?: () => number;
+    getStopAngle?: () => number;
   }
 }
 
@@ -136,6 +146,7 @@ interface MapDrawingReturn {
   map: Ref<any>;
   featureGroup: Ref<any>;
   controlPointsGroup: Ref<any>;
+  tempControlPointsGroup: Ref<any>;
   currentTool: Ref<string>;
   selectedShape: Ref<any>;
   isDrawing: Ref<boolean>;
@@ -152,6 +163,7 @@ export function useMapDrawing(): MapDrawingReturn {
   const map = ref<any>(null);
   const featureGroup = ref<any>(null);
   const controlPointsGroup = ref<any>(null);
+  const tempControlPointsGroup = ref<any>(null);
   const currentTool = ref<string>('');
   const selectedShape = ref<any>(null);
   const isDrawing = ref<boolean>(false);
@@ -597,26 +609,11 @@ export function useMapDrawing(): MapDrawingReturn {
     fg.addTo(mapInstance);
     featureGroup.value = fg;
 
-    // Initialiser le groupe des points de contrôle
+    // Initialiser les groupes de points de contrôle
     controlPointsGroup.value = L.featureGroup().addTo(mapInstance);
+    tempControlPointsGroup.value = L.featureGroup().addTo(mapInstance);
 
-    // Désactiver tous les contrôles par défaut de Leaflet-Geoman
-    mapInstance.pm.addControls({
-      position: 'topleft',
-      drawMarker: false,
-      drawPolyline: false,
-      drawRectangle: false,
-      drawPolygon: false,
-      drawCircle: false,
-      drawCircleMarker: false,
-      drawText: false,
-      editMode: false,
-      dragMode: false,
-      cutPolygon: false,
-      removalMode: false
-    });
-
-    // Configuration globale de Leaflet-Geoman
+    // Configuration de Leaflet-Geoman
     mapInstance.pm.setGlobalOptions({
       snappable: true,
       snapDistance: 20,
@@ -624,6 +621,7 @@ export function useMapDrawing(): MapDrawingReturn {
       preventMarkerRemoval: true,
       syncLayersOnDrag: true,
       layerGroup: fg,
+      snapLayers: [fg, tempControlPointsGroup.value],
       templineStyle: {
         color: '#3388ff',
         weight: 2,
@@ -638,7 +636,7 @@ export function useMapDrawing(): MapDrawingReturn {
         dashArray: '6,6',
         radius: 6
       } as L.CircleMarkerOptions
-    });
+    } as ExtendedGlobalOptions);
 
     // Événements de dessin
     mapInstance.on('pm:drawstart', (e: any) => {
@@ -679,6 +677,27 @@ export function useMapDrawing(): MapDrawingReturn {
       layer.properties = calculateShapeProperties(layer, shapeType);
       selectedShape.value = layer;
 
+      // Ajouter les événements de survol
+      layer.on('mouseover', () => {
+        console.log('[mouseover] Survol de la forme', {
+          type: shapeType,
+          isSelected: selectedShape.value === layer
+        });
+        if (!selectedShape.value || selectedShape.value !== layer) {
+          generateTempControlPoints(layer);
+        }
+      });
+
+      layer.on('mouseout', () => {
+        console.log('[mouseout] Sortie de la forme', {
+          type: shapeType,
+          isSelected: selectedShape.value === layer
+        });
+        if (!selectedShape.value || selectedShape.value !== layer) {
+          tempControlPointsGroup.value?.clearLayers();
+        }
+      });
+
       // Ajouter les points de contrôle selon le type
       if (shapeType === 'Semicircle') {
         const center = layer.getLatLng();
@@ -714,7 +733,15 @@ export function useMapDrawing(): MapDrawingReturn {
       L.DomEvent.stopPropagation(e);
       const layer = e.layer;
       
-      // Toujours nettoyer les points de contrôle existants
+      console.log('[featureGroup click] Sélection de forme', {
+        type: layer.properties?.type,
+        previouslySelected: selectedShape.value === layer
+      });
+
+      // Nettoyer les points temporaires
+      tempControlPointsGroup.value?.clearLayers();
+      
+      // Nettoyer les points de contrôle existants
       clearActiveControlPoints();
       document.querySelector('.drawing-help-message')?.remove();
       
@@ -1568,10 +1595,11 @@ export function useMapDrawing(): MapDrawingReturn {
     if (!map.value || !featureGroup.value) return;
 
     clearActiveControlPoints();
-    const center = layer.getCenter();
-    const radius = layer.getRadius();
-    const startAngle = layer.getStartAngle();
-    const stopAngle = layer.getStopAngle();
+    const defaultCenter = L.latLng(0, 0);
+    const center = (layer.getCenter?.() || layer.getLatLng?.()) ?? defaultCenter;
+    const radius = layer.getRadius?.() ?? 0;
+    const startAngle = layer.getStartAngle?.() ?? 0;
+    const stopAngle = layer.getStopAngle?.() ?? 180;
 
     // Points de contrôle des angles (rouges)
     const angles = [startAngle, stopAngle];
@@ -1777,6 +1805,117 @@ export function useMapDrawing(): MapDrawingReturn {
     });
   };
 
+  // Fonction pour générer les points de contrôle temporaires
+  const generateTempControlPoints = (layer: L.Layer) => {
+    if (!map.value || !tempControlPointsGroup.value) return;
+
+    console.log('[generateTempControlPoints] Génération des points temporaires pour', {
+      layerType: layer.constructor.name,
+      properties: layer.properties
+    });
+
+    // Supprimer les points temporaires existants
+    tempControlPointsGroup.value.clearLayers();
+
+    if (layer instanceof L.Circle) {
+      const center = layer.getLatLng();
+      const radius = layer.getRadius();
+
+      // Point central temporaire (vert)
+      const tempCenterPoint = createControlPoint(center, '#059669');
+      tempControlPointsGroup.value.addLayer(tempCenterPoint);
+
+      // Points cardinaux temporaires (bleu)
+      [0, 45, 90, 135, 180, 225, 270, 315].forEach(angle => {
+        const rad = (angle * Math.PI) / 180;
+        const point = L.latLng(
+          center.lat + (radius / 111319.9) * Math.sin(rad),
+          center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(rad)
+        );
+        const tempControlPoint = createControlPoint(point, '#2563EB');
+        tempControlPointsGroup.value.addLayer(tempControlPoint);
+      });
+    } else if (layer instanceof L.Rectangle) {
+      const bounds = layer.getBounds();
+      const center = bounds.getCenter();
+      const corners = [
+        bounds.getNorthWest(),
+        bounds.getNorthEast(),
+        bounds.getSouthEast(),
+        bounds.getSouthWest()
+      ];
+
+      // Point central temporaire
+      const tempCenterPoint = createControlPoint(center, '#059669');
+      tempControlPointsGroup.value.addLayer(tempCenterPoint);
+
+      // Points de coin temporaires
+      corners.forEach(corner => {
+        const tempCornerPoint = createControlPoint(corner, '#DC2626');
+        tempControlPointsGroup.value.addLayer(tempCornerPoint);
+      });
+
+      // Points milieux temporaires
+      corners.forEach((corner, index) => {
+        const nextCorner = corners[(index + 1) % 4];
+        const midPoint = getMidPoint(corner, nextCorner);
+        const tempMidPoint = createControlPoint(midPoint, '#2563EB');
+        tempControlPointsGroup.value.addLayer(tempMidPoint);
+      });
+    } else if (layer instanceof CircleArc || layer.properties?.type === 'Semicircle') {
+      // Récupérer les valeurs avec des valeurs par défaut
+      const defaultCenter = L.latLng(0, 0);
+      const center = (layer.getCenter?.() || layer.getLatLng?.()) ?? defaultCenter;
+      const radius = layer.getRadius?.() ?? 0;
+      const startAngle = layer.getStartAngle?.() ?? 0;
+      const stopAngle = layer.getStopAngle?.() ?? 180;
+
+      // Point central temporaire
+      const tempCenterPoint = createControlPoint(center, '#059669');
+      tempControlPointsGroup.value.addLayer(tempCenterPoint);
+
+      // Points des angles temporaires
+      [startAngle, stopAngle].forEach(angle => {
+        const rad = (angle * Math.PI) / 180;
+        const point = L.latLng(
+          center.lat + (radius / 111319.9) * Math.sin(rad),
+          center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(rad)
+        );
+        const tempAnglePoint = createControlPoint(point, '#DC2626');
+        tempControlPointsGroup.value.addLayer(tempAnglePoint);
+      });
+
+      // Point de contrôle du rayon au milieu de l'arc
+      const midAngle = ((startAngle + stopAngle) / 2 + 360) % 360;
+      const midRad = (midAngle * Math.PI) / 180;
+      const midPoint = L.latLng(
+        center.lat + (radius / 111319.9) * Math.sin(midRad),
+        center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(midRad)
+      );
+      const tempRadiusPoint = createControlPoint(midPoint, '#2563EB');
+      tempControlPointsGroup.value.addLayer(tempRadiusPoint);
+    } else if (layer instanceof L.Polyline) {
+      const points = layer.getLatLngs() as L.LatLng[];
+
+      // Points d'extrémité temporaires
+      points.forEach(point => {
+        const tempPoint = createControlPoint(point, '#059669');
+        tempControlPointsGroup.value.addLayer(tempPoint);
+      });
+
+      // Points milieux temporaires pour les segments
+      for (let i = 0; i < points.length - 1; i++) {
+        const midPoint = getMidPoint(points[i], points[i + 1]);
+        const tempMidPoint = createControlPoint(midPoint, '#2563EB');
+        tempControlPointsGroup.value.addLayer(tempMidPoint);
+      }
+    }
+
+    console.log('[generateTempControlPoints] Points temporaires générés', {
+      count: tempControlPointsGroup.value.getLayers().length
+    });
+  };
+
   onUnmounted(() => {
     if (map.value) {
       map.value.remove();
@@ -1788,6 +1927,7 @@ export function useMapDrawing(): MapDrawingReturn {
     map,
     featureGroup,
     controlPointsGroup,
+    tempControlPointsGroup,
     currentTool,
     selectedShape,
     isDrawing,
