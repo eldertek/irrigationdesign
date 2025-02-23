@@ -31,6 +31,8 @@ export interface Plan {
   createur: UserDetails;
   concessionnaire: number | null;
   client: number | null;
+  concessionnaire_details?: UserDetails | null;
+  client_details?: UserDetails | null;
   preferences?: any;
   elements?: any[];
   historique?: PlanHistory[];

@@ -2,12 +2,21 @@
   <div class="h-full flex">
     <!-- Carte -->
     <div class="flex-1 relative">
+        <!-- Overlay de génération -->
+        <div v-if="isGeneratingSynthesis" class="absolute inset-0 bg-black bg-opacity-50 z-[2000] flex items-center justify-center">
+          <div class="bg-white rounded-lg p-6 max-w-md text-center">
+            <div class="animate-spin h-12 w-12 border-4 border-primary-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Génération de la synthèse en cours</h3>
+            <p class="text-gray-600">Veuillez patienter pendant la capture des formes...</p>
+          </div>
+        </div>
+
       <!-- Vue d'accueil quand aucun plan n'est chargé -->
       <div v-if="!currentPlan" class="absolute inset-0 flex items-center justify-center bg-gray-50 z-[1000]">
         <div class="text-center max-w-lg mx-auto p-8">
           <div class="relative w-48 h-48 mx-auto mb-12 rounded-full bg-gradient-to-br from-primary-100 to-primary-50 p-8 shadow-lg ring-4 ring-white">
             <img 
-              src="@/assets/logo.svg" 
+                src="@/assets/logo.jpeg" 
               alt="IrrigationDesign Logo" 
               class="w-full h-full object-contain filter drop-shadow-md"
             />
@@ -41,7 +50,7 @@
       <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
       
       <!-- Barre d'outils principale -->
-      <div v-if="currentPlan" class="absolute bottom-6 left-6 z-[1000]">
+        <div v-if="currentPlan && !isGeneratingSynthesis" class="absolute bottom-6 left-6 z-[1000]">
         <!-- Sélecteur de type de carte -->
         <div class="bg-white rounded-lg shadow-lg p-3 mb-3">
           <h2 class="text-sm font-semibold text-gray-700 mb-2">Type de carte</h2>
@@ -115,6 +124,15 @@
               </svg>
               Ajuster la vue
             </button>
+              <button
+                @click="generateSynthesis"
+                class="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200"
+              >
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                Générer synthèse
+            </button>
           </div>
           <!-- Indicateur de dernière sauvegarde -->
           <div v-if="currentPlan?.date_modification" class="text-xs text-gray-500 mt-2">
@@ -134,7 +152,7 @@
       </div>
 
       <!-- Outils de dessin -->
-      <div v-if="currentPlan" class="drawing-tools-container absolute top-4 right-4 z-[1000]">
+        <div v-if="currentPlan && !isGeneratingSynthesis" class="drawing-tools-container absolute top-4 right-4 z-[1000]">
         <DrawingTools
           :current-tool="currentTool"
           :selected-shape="selectedShape"
@@ -397,10 +415,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed } from 'vue';
+  import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed, nextTick } from 'vue';
 import type { LatLngTuple, LatLng } from 'leaflet';
 import * as L from 'leaflet';
 import * as turf from '@turf/turf';
+import 'leaflet-simple-map-screenshoter';
 import DrawingTools from '../components/DrawingTools.vue';
 import { useMapDrawing } from '../composables/useMapDrawing';
 import { useMapState } from '../composables/useMapState';
@@ -408,12 +427,14 @@ import { useIrrigationStore } from '@/stores/irrigation';
 import { useDrawingStore } from '@/stores/drawing';
 import { useRouter } from 'vue-router';
 import type { Plan } from '@/stores/irrigation';
-import type { DrawingElement, ShapeData, ShapeType, CircleData, RectangleData, SemicircleData, LineData, TextData } from '@/types/drawing';
+  import type { DrawingElement, ShapeData, ShapeType, CircleData, RectangleData, SemicircleData, LineData, TextData } from '@/types/drawing';
 import { CircleArc } from '@/utils/CircleArc';
 import { useAuthStore } from '@/stores/auth';
-import type { UserDetails } from '@/types/user';
+  import type { UserDetails } from '@/types/user';
 import api from '@/services/api';
 import NewPlanModal from '@/components/NewPlanModal.vue';
+  import jsPDF from 'jspdf';
+  import logo from '@/assets/logo.jpeg';
 
 const mapContainer = ref<HTMLElement | null>(null);
 const irrigationStore = useIrrigationStore();
@@ -429,7 +450,7 @@ const semicircleEvents = ref<any>({
 
 const {
   currentTool,
-  selectedShape: selectedLeafletShape,
+    selectedShape: selectedLeafletShape,
   map,
   initMap: initDrawing,
   setDrawingTool,
@@ -496,14 +517,14 @@ const filteredClients = computed(() => {
   return [];
 });
 
-// Add computed property to transform Leaflet Layer to ShapeType
-const selectedShape = computed((): ShapeType | null => {
-  if (!selectedLeafletShape.value) return null;
-  return {
-    type: selectedLeafletShape.value.properties?.type || 'unknown',
-    properties: selectedLeafletShape.value.properties || {},
-    layer: selectedLeafletShape.value
-  };
+  // Add computed property to transform Leaflet Layer to ShapeType
+  const selectedShape = computed((): ShapeType | null => {
+    if (!selectedLeafletShape.value) return null;
+    return {
+      type: selectedLeafletShape.value.properties?.type || 'unknown',
+      properties: selectedLeafletShape.value.properties || {},
+      layer: selectedLeafletShape.value
+    };
 });
 
 // Fonction pour sauvegarder la position dans les cookies
@@ -645,75 +666,100 @@ onBeforeUnmount(() => {
   }
 });
 
-// Ajouter les interfaces pour les types
-interface ShapeProperties {
-  type: string;
-  style?: any;
-  dimensions?: {
-    width?: number;
-    height?: number;
+  // Ajouter les interfaces pour les types
+  interface ShapeProperties {
+    type: string;
+    style?: any;
+    dimensions?: {
+      width?: number;
+      height?: number;
+      radius?: number;
+      orientation?: number;
+    };
+    area?: number;
+    perimeter?: number;
+    length?: number;
+    rotation?: number;
+  }
+
+  interface Shape {
+    id: number;
+    type: string;
+    layer: L.Layer;
+    properties: ShapeProperties;
+  }
+
+  interface OtherData {
+    center?: [number, number];
     radius?: number;
-    orientation?: number;
-  };
-  area?: number;
-  perimeter?: number;
-  length?: number;
-  rotation?: number;
-}
+    bounds?: {
+      southWest: [number, number];
+      northEast: [number, number];
+    };
+    points?: number[][];
+    position?: [number, number];
+    content?: string;
+    startAngle?: number;
+    endAngle?: number;
+    rotation?: number;
+  }
 
-interface Shape {
-  id: number;
-  type: string;
-  layer: L.Layer;
-  properties: ShapeProperties;
-}
+  // Types pour les objets concessionnaire et client
+  interface CompanyUser {
+    id: number;
+    username: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    role: string;
+    company_name?: string;
+    phone?: string;
+    concessionnaire?: number;
+  }
 
-interface OtherData {
-  center?: [number, number];
-  radius?: number;
-  bounds?: {
-    southWest: [number, number];
-    northEast: [number, number];
-  };
-  points?: number[][];
-  position?: [number, number];
-  content?: string;
-  startAngle?: number;
-  endAngle?: number;
-  rotation?: number;
-}
+  interface PlanData {
+    id: number;
+    nom: string;
+    description: string;
+    date_creation: string;
+    date_modification: string;
+    createur: CompanyUser;
+    concessionnaire: CompanyUser | null;
+    client: CompanyUser | null;
+    elements: any[];
+  }
 
-// Modifier la fonction loadExistingShapes
-async function loadExistingShapes() {
-  if (!map.value || !irrigationStore.currentPlan?.elements) return;
+  // Modifier la fonction loadExistingShapes
+  async function loadExistingShapes() {
+    if (!map.value || !irrigationStore.currentPlan?.elements) return;
 
-  try {
-    irrigationStore.currentPlan.elements.forEach((shape: any) => {
+    try {
+      irrigationStore.currentPlan.elements.forEach((shape: any) => {
     if (!map.value) return;
 
-      const layer = L.geoJSON(shape.geometrie, {
-        style: shape.proprietes?.style
-      });
-      
-      if (layer instanceof L.Layer) {
-        map.value.addLayer(layer);
-        shapes.value.push({
-          id: shape.id,
-          type: shape.type_forme,
-          layer,
-          properties: {
-            type: shape.type_forme,
-            ...shape.proprietes
-          }
+        const layer = L.geoJSON(shape.geometrie, {
+          style: shape.proprietes?.style
         });
-      }
-    });
+        
+        if (layer instanceof L.Layer) {
+          map.value.addLayer(layer);
+          shapes.value.push({
+            id: shape.id,
+            type: shape.type_forme,
+            layer,
+            properties: {
+              type: shape.type_forme,
+              ...shape.proprietes
+            }
+          });
+        }
+      });
     } catch (error) {
-    console.error('Erreur lors du chargement des formes:', error);
+      console.error('Erreur lors du chargement des formes:', error);
+    }
   }
-}
 
-// Modifier la fonction loadPlan
+  // Modifier la fonction loadPlan
 async function loadPlan(planId: number) {
   try {
     clearMap();
@@ -732,69 +778,69 @@ async function loadPlan(planId: number) {
         drawingStore.getCurrentElements.forEach(element => {
           if (!featureGroup.value || !element.data) return;
 
-          let layer: L.Layer | null = null;
+            let layer: L.Layer | null = null;
           const { style = {}, ...otherData } = element.data;
 
           switch (element.type_forme) {
-            case 'CERCLE': {
-              const circleData = otherData as CircleData;
-              if (circleData.center && circleData.radius) {
+              case 'CERCLE': {
+                const circleData = otherData as CircleData;
+                if (circleData.center && circleData.radius) {
               layer = L.circle(
-                  [circleData.center[1], circleData.center[0]],
-                  { ...style, radius: circleData.radius }
-                );
-              }
+                    [circleData.center[1], circleData.center[0]],
+                    { ...style, radius: circleData.radius }
+                  );
+                }
               break;
-            }
+              }
 
-            case 'RECTANGLE': {
-              const rectData = otherData as RectangleData;
-              if (rectData.bounds) {
+              case 'RECTANGLE': {
+                const rectData = otherData as RectangleData;
+                if (rectData.bounds) {
               layer = L.rectangle([
-                  [rectData.bounds.southWest[1], rectData.bounds.southWest[0]],
-                  [rectData.bounds.northEast[1], rectData.bounds.northEast[0]]
+                    [rectData.bounds.southWest[1], rectData.bounds.southWest[0]],
+                    [rectData.bounds.northEast[1], rectData.bounds.northEast[0]]
               ], style);
-              }
+                }
               break;
-            }
+              }
 
-            case 'DEMI_CERCLE': {
-              const semiData = otherData as SemicircleData;
-              if (semiData.center && semiData.radius) {
+              case 'DEMI_CERCLE': {
+                const semiData = otherData as SemicircleData;
+                if (semiData.center && semiData.radius) {
               layer = new CircleArc(
-                  L.latLng(semiData.center[1], semiData.center[0]),
-                  semiData.radius,
-                  semiData.startAngle,
-                  semiData.endAngle,
+                    L.latLng(semiData.center[1], semiData.center[0]),
+                    semiData.radius,
+                    semiData.startAngle,
+                    semiData.endAngle,
                 style
               );
-              }
+                }
               break;
-            }
-
-            case 'LIGNE': {
-              const lineData = otherData as LineData;
-              if (lineData.points) {
-                const points = lineData.points.map(p => L.latLng(p[1], p[0]));
-                layer = L.polyline(points, style);
               }
-              break;
-            }
 
-            case 'TEXTE': {
-              const textData = otherData as TextData;
-              if (textData.position && textData.content) {
+              case 'LIGNE': {
+                const lineData = otherData as LineData;
+                if (lineData.points) {
+                  const points = lineData.points.map(p => L.latLng(p[1], p[0]));
+                  layer = L.polyline(points, style);
+                }
+              break;
+              }
+
+              case 'TEXTE': {
+                const textData = otherData as TextData;
+                if (textData.position && textData.content) {
               const textIcon = L.divIcon({
-                  html: `<div class="text-annotation" style="font-size: ${style.fontSize || '14px'}">${textData.content}</div>`,
+                    html: `<div class="text-annotation" style="font-size: ${style.fontSize || '14px'}">${textData.content}</div>`,
                 className: 'text-container'
               });
-                layer = L.marker([textData.position[1], textData.position[0]], {
+                  layer = L.marker([textData.position[1], textData.position[0]], {
                 icon: textIcon,
                 ...style
               });
-              }
+                }
               break;
-            }
+              }
           }
 
           if (layer) {
@@ -804,7 +850,7 @@ async function loadPlan(planId: number) {
               ...otherData
             };
 
-            featureGroup.value?.addLayer(layer);
+              featureGroup.value?.addLayer(layer);
 
             shapes.value.push({
               id: element.id,
@@ -813,8 +859,8 @@ async function loadPlan(planId: number) {
               properties: layer.properties
             });
 
-            if (otherData.rotation && typeof (layer as any).setRotation === 'function') {
-              (layer as any).setRotation(otherData.rotation);
+              if (otherData.rotation && typeof (layer as any).setRotation === 'function') {
+                (layer as any).setRotation(otherData.rotation);
             }
           }
         });
@@ -826,7 +872,7 @@ async function loadPlan(planId: number) {
   }
 }
 
-// Modifier la fonction savePlan
+  // Modifier la fonction savePlan
 async function savePlan() {
   if (!currentPlan.value || !featureGroup.value) {
     console.warn('Aucun plan actif ou groupe de formes à sauvegarder');
@@ -835,27 +881,27 @@ async function savePlan() {
 
   saving.value = true;
   try {
-    const elements: DrawingElement[] = [];
+      const elements: DrawingElement[] = [];
     
-    featureGroup.value.eachLayer((layer: L.Layer) => {
+      featureGroup.value.eachLayer((layer: L.Layer) => {
       const baseData = {
         style: {
-          color: (layer as any).options?.color || '#3388ff',
-          fillColor: (layer as any).options?.fillColor || '#3388ff',
-          fillOpacity: (layer as any).options?.fillOpacity || 0.2,
-          weight: (layer as any).options?.weight || 3,
-          opacity: (layer as any).options?.opacity || 1
-        }
-      };
+            color: (layer as any).options?.color || '#3388ff',
+            fillColor: (layer as any).options?.fillColor || '#3388ff',
+            fillOpacity: (layer as any).options?.fillOpacity || 0.2,
+            weight: (layer as any).options?.weight || 3,
+            opacity: (layer as any).options?.opacity || 1
+          }
+        };
 
-      let type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | undefined;
-      let data: any;
+        let type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | undefined;
+        let data: any;
 
       if (layer instanceof L.Circle) {
         type_forme = 'CERCLE';
         data = {
           ...baseData,
-          center: [(layer as L.Circle).getLatLng().lng, (layer as L.Circle).getLatLng().lat],
+            center: [(layer as L.Circle).getLatLng().lng, (layer as L.Circle).getLatLng().lat],
           radius: layer.getRadius()
         };
       } else if (layer instanceof L.Rectangle) {
@@ -868,50 +914,50 @@ async function savePlan() {
             northEast: [bounds.getNorthEast().lng, bounds.getNorthEast().lat]
           }
         };
-      } else if ((layer as any).properties?.type === 'Semicircle') {
+        } else if ((layer as any).properties?.type === 'Semicircle') {
         type_forme = 'DEMI_CERCLE';
         data = {
           ...baseData,
-          center: [(layer as L.Circle).getLatLng().lng, (layer as L.Circle).getLatLng().lat],
-          radius: (layer as any).getRadius(),
-          startAngle: (layer as any).properties.style.startAngle || 0,
-          endAngle: (layer as any).properties.style.stopAngle || 180
+            center: [(layer as L.Circle).getLatLng().lng, (layer as L.Circle).getLatLng().lat],
+            radius: (layer as any).getRadius(),
+            startAngle: (layer as any).properties.style.startAngle || 0,
+            endAngle: (layer as any).properties.style.stopAngle || 180
         };
       } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
         type_forme = 'LIGNE';
-        const latLngs = layer.getLatLngs() as L.LatLng[];
+          const latLngs = layer.getLatLngs() as L.LatLng[];
         data = {
           ...baseData,
-          points: latLngs.map(ll => [ll.lng, ll.lat])
+            points: latLngs.map(ll => [ll.lng, ll.lat])
         };
-      } else if ((layer as any).properties?.type === 'text') {
+        } else if ((layer as any).properties?.type === 'text') {
         type_forme = 'TEXTE';
         data = {
           ...baseData,
-          position: [(layer as L.Marker).getLatLng().lng, (layer as L.Marker).getLatLng().lat],
-          content: (layer as any).properties.text,
+            position: [(layer as L.Marker).getLatLng().lng, (layer as L.Marker).getLatLng().lat],
+            content: (layer as any).properties.text,
           style: {
-            ...(layer as any).properties.style,
-            fontSize: (layer as any).properties.style.fontSize
+              ...(layer as any).properties.style,
+              fontSize: (layer as any).properties.style.fontSize
           }
         };
       }
 
       if (type_forme && data) {
         elements.push({
-          id: (layer as any).id,
+            id: (layer as any).id,
           type_forme,
           data: {
             ...data,
-            rotation: (layer as any).properties?.rotation || 0
+              rotation: (layer as any).properties?.rotation || 0
           }
         });
       }
     });
     
-    drawingStore.elements = elements;
+      drawingStore.elements = elements;
     await drawingStore.saveToPlan(currentPlan.value.id);
-    
+      
     showSaveSuccess.value = true;
     setTimeout(() => {
       showSaveSuccess.value = false;
@@ -931,8 +977,8 @@ function goToPlans() {
 
 // Nettoyer lors du démontage du composant
 onUnmounted(() => {
-  // Si l'utilisateur n'est plus connecté
-  if (!authStore.user) {
+    // Si l'utilisateur n'est plus connecté
+    if (!authStore.user) {
     clearLastPlan();
   }
   irrigationStore.clearCurrentPlan();
@@ -978,10 +1024,10 @@ const handleAdjustView = () => {
 
 // Fonction pour supprimer la forme sélectionnée
 const deleteSelectedShape = () => {
-  if (selectedLeafletShape.value && featureGroup.value) {
+    if (selectedLeafletShape.value && featureGroup.value) {
     setDrawingTool('');  // Ceci va nettoyer les points de contrôle
-    featureGroup.value.removeLayer(selectedLeafletShape.value as L.Layer);
-    selectedLeafletShape.value = null;
+      featureGroup.value.removeLayer(selectedLeafletShape.value as L.Layer);
+      selectedLeafletShape.value = null;
   }
 };
 
@@ -1151,69 +1197,418 @@ function clearLastPlan() {
   localStorage.removeItem('lastPlanId');
 }
 
-// Modifier la fonction addControlPointTooltips pour gérer les types LatLng
-function addControlPointTooltips(layer: L.Layer) {
-  setTimeout(() => {
-    const controlPoints = document.querySelectorAll('.leaflet-pm-draggable');
-    controlPoints.forEach((point: Element, index: number) => {
-      if (!point.querySelector('.control-point-tooltip')) {
-        const tooltip = document.createElement('div');
-        tooltip.className = 'control-point-tooltip';
-        
-        let info = '';
-        if (layer instanceof L.Circle) {
-          const radius = layer.getRadius();
-          if (index === 0) {
-            info = `Centre (${formatCoordinates(layer.getLatLng())})`;
-          } else {
-            info = `Rayon: ${formatDistance(radius)}`;
+  // Modifier la fonction addControlPointTooltips pour gérer les types LatLng
+  function addControlPointTooltips(layer: L.Layer) {
+    setTimeout(() => {
+      const controlPoints = document.querySelectorAll('.leaflet-pm-draggable');
+      controlPoints.forEach((point: Element, index: number) => {
+        if (!point.querySelector('.control-point-tooltip')) {
+          const tooltip = document.createElement('div');
+          tooltip.className = 'control-point-tooltip';
+          
+          let info = '';
+          if (layer instanceof L.Circle) {
+            const radius = layer.getRadius();
+            if (index === 0) {
+              info = `Centre (${formatCoordinates(layer.getLatLng())})`;
+            } else {
+              info = `Rayon: ${formatDistance(radius)}`;
+            }
+          } else if (layer instanceof L.Rectangle) {
+            const bounds = layer.getBounds();
+            const width = calculateDistance(bounds.getSouthWest(), bounds.getSouthEast());
+            const height = calculateDistance(bounds.getSouthWest(), bounds.getNorthWest());
+            info = `Point ${index + 1}<br>L: ${formatDistance(width)}<br>H: ${formatDistance(height)}`;
+          } else if (layer instanceof L.Polyline) {
+            const latLngs = layer.getLatLngs() as L.LatLng[];
+            if (latLngs.length > 1) {
+              const distance = calculateDistance(
+                latLngs[index],
+                latLngs[index > 0 ? index - 1 : latLngs.length - 1]
+              );
+              info = `Point ${index + 1}<br>Distance: ${formatDistance(distance)}`;
+            }
           }
-        } else if (layer instanceof L.Rectangle) {
-          const bounds = layer.getBounds();
-          const width = calculateDistance(bounds.getSouthWest(), bounds.getSouthEast());
-          const height = calculateDistance(bounds.getSouthWest(), bounds.getNorthWest());
-          info = `Point ${index + 1}<br>L: ${formatDistance(width)}<br>H: ${formatDistance(height)}`;
-        } else if (layer instanceof L.Polyline) {
-          const latLngs = layer.getLatLngs() as L.LatLng[];
-          if (latLngs.length > 1) {
-            const distance = calculateDistance(
-              latLngs[index],
-              latLngs[index > 0 ? index - 1 : latLngs.length - 1]
-            );
-            info = `Point ${index + 1}<br>Distance: ${formatDistance(distance)}`;
-          }
+          
+          tooltip.innerHTML = info;
+          point.appendChild(tooltip);
         }
-        
-        tooltip.innerHTML = info;
-        point.appendChild(tooltip);
-      }
-    });
-  }, 100);
-}
-
-// Fonctions utilitaires pour les calculs et le formatage
-function calculateDistance(point1: L.LatLng, point2: L.LatLng): number {
-  return point1.distanceTo(point2);
-}
-
-function formatDistance(value: number): string {
-  if (!value && value !== 0) return '0 m';
-  return `${value.toFixed(2)} m`;
-}
-
-function formatCoordinates(latLng: L.LatLng): string {
-  return `${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`;
-}
-
-// Fonction pour nettoyer la carte
-function clearMap() {
-  if (featureGroup.value) {
-    featureGroup.value.clearLayers();
+      });
+    }, 100);
   }
-  shapes.value = [];
+
+  // Fonctions utilitaires pour les calculs et le formatage
+  function calculateDistance(point1: L.LatLng, point2: L.LatLng): number {
+    return point1.distanceTo(point2);
+  }
+
+  function formatDistance(value: number): string {
+    if (!value && value !== 0) return '0 m';
+    return `${value.toFixed(2)} m`;
+  }
+
+  function formatCoordinates(latLng: L.LatLng): string {
+    return `${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`;
+  }
+
+  // Fonction pour nettoyer la carte
+  function clearMap() {
+    if (featureGroup.value) {
+      featureGroup.value.clearLayers();
+    }
+    shapes.value = [];
+  }
+
+  // Fonction pour formater les mesures
+  function formatMeasure(value: number, unit: string = 'm'): string {
+    if (unit === 'm²') {
+      return `${(value / 10000).toFixed(2)} ha`;
+    } else if (unit === 'm') {
+      if (value >= 1000) {
+        return `${(value / 1000).toFixed(2)} km`;
+      }
+      return `${value.toFixed(2)} m`;
+    }
+    return `${value.toFixed(2)} ${unit}`;
+  }
+
+  // Fonction pour générer la synthèse
+  const isGeneratingSynthesis = ref(false);
+
+  // Fonction pour formater le nom complet
+  function formatFullName(user: CompanyUser | null): string {
+    if (!user || !user.first_name || !user.last_name) {
+      return 'N/A';
+    }
+    return `${user.first_name} ${user.last_name.toUpperCase()}${user.company_name ? ` (${user.company_name})` : ''}`;
+  }
+
+  // Fonction pour traduire le type de forme en français
+  function getShapeTypeFr(type: string): string {
+    const types: { [key: string]: string } = {
+      'Circle': 'Cercle',
+      'Rectangle': 'Rectangle',
+      'Semicircle': 'Demi-cercle',
+      'Line': 'Ligne',
+      'Polygon': 'Polygone',
+      'Text': 'Texte'
+    };
+    return types[type] || type;
+  }
+
+  // Fonction pour récupérer les détails d'un utilisateur
+  async function getUserDetails(userId: number): Promise<CompanyUser | null> {
+    try {
+      const response = await api.get(`/users/${userId}/`);
+      return response.data;
+    } catch (error) {
+      console.error(`Erreur lors de la récupération des détails de l'utilisateur ${userId}:`, error);
+      return null;
+    }
+  }
+
+  async function generateSynthesis() {
+    if (!currentPlan.value || !map.value || !featureGroup.value) {
+      console.log('[generateSynthesis] Conditions initiales non remplies');
+      return;
+    }
+
+    try {
+      console.log('[generateSynthesis] Début de la génération');
+      isGeneratingSynthesis.value = true;
+
+      // Utiliser directement les détails du plan
+      const concessionnaireDetails = currentPlan.value.concessionnaire_details;
+      const clientDetails = currentPlan.value.client_details;
+
+      // Désélectionner toute forme active
+      if (selectedLeafletShape.value) {
+        clearActiveControlPoints();
+        selectedLeafletShape.value = null;
+      }
+
+      // Créer le PDF en mode paysage
+      const pdf = new jsPDF('l', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      // Page de garde
+      const logoImg = new Image();
+      logoImg.src = logo;
+      await new Promise<void>((resolve) => {
+        logoImg.onload = () => resolve();
+        logoImg.onerror = () => resolve();
+      });
+      
+      // Logo centré en haut
+      pdf.addImage(logoImg, 'JPEG', (pageWidth - 60) / 2, 20, 60, 60);
+      
+      // Titre du plan
+      pdf.setFontSize(24);
+      pdf.setTextColor(0);
+      pdf.text(currentPlan.value.nom || 'Sans titre', pageWidth/2, 100, { align: 'center' });
+      
+      // Informations du plan
+      let yPos = 120;
+
+      // Informations du concessionnaire et client
+      pdf.setFontSize(14);
+      if (concessionnaireDetails) {
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Concessionnaire:', 20, yPos);
+        pdf.setFont(undefined, 'normal');
+        pdf.text(`${concessionnaireDetails.first_name} ${concessionnaireDetails.last_name}${concessionnaireDetails.company_name ? ` (${concessionnaireDetails.company_name})` : ''}`, 20, yPos + 8);
+        yPos += 25;
+      }
+      
+      if (clientDetails) {
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Client:', 20, yPos);
+        pdf.setFont(undefined, 'normal');
+        pdf.text(`${clientDetails.first_name} ${clientDetails.last_name}${clientDetails.company_name ? ` (${clientDetails.company_name})` : ''}`, 20, yPos + 8);
+        yPos += 25;
+      }
+      
+      // Description
+      if (currentPlan.value.description) {
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Description:', 20, yPos);
+        pdf.setFont(undefined, 'normal');
+        const splitDescription = pdf.splitTextToSize(currentPlan.value.description, 150);
+        pdf.text(splitDescription, 20, yPos + 8);
+        yPos += 10 * splitDescription.length + 15;
+      }
+
+      // Dates en bas de page
+      pdf.setFontSize(10);
+      pdf.setTextColor(100);
+      pdf.text(`Date de création: ${formatLastSaved(currentPlan.value.date_creation)}`, 20, pageHeight - 20);
+      pdf.text(`Dernière modification: ${formatLastSaved(currentPlan.value.date_modification)}`, pageWidth - 20, pageHeight - 20, { align: 'right' });
+
+      // Récupérer les formes
+      const layers: L.Layer[] = [];
+      featureGroup.value.eachLayer((layer: L.Layer) => layers.push(layer));
+      console.log(`[generateSynthesis] Nombre de formes à traiter: ${layers.length}`);
+
+      // Initialiser le screenshoter
+      const screenshoter = L.simpleMapScreenshoter({
+        hideElementsWithSelectors: ['.leaflet-control-container', '.leaflet-pm-toolbar'],
+        preventDownload: true
+      }).addTo(map.value);
+
+      // Pour chaque forme, créer une nouvelle page
+      for (let i = 0; i < layers.length; i++) {
+        pdf.addPage();
+
+        // Ajouter le logo en filigrane
+        const logoWidth = 30;
+        const logoHeight = 30;
+        pdf.addImage(logo, 'JPEG', pageWidth - logoWidth - 10, 10, logoWidth, logoHeight);
+
+        // Ajouter les informations du client et concessionnaire en en-tête
+        pdf.setFontSize(8);
+        pdf.setTextColor(100);
+        let yHeader = 25;
+        if (concessionnaireDetails) {
+          pdf.text(`Concessionnaire: ${concessionnaireDetails.first_name} ${concessionnaireDetails.last_name}${concessionnaireDetails.company_name ? ` (${concessionnaireDetails.company_name})` : ''}`, 20, yHeader);
+          yHeader += 10;
+        }
+        if (clientDetails) {
+          pdf.text(`Client: ${clientDetails.first_name} ${clientDetails.last_name}${clientDetails.company_name ? ` (${clientDetails.company_name})` : ''}`, 20, yHeader);
+        }
+
+        // Ajouter une barre de séparation élégante
+        pdf.setDrawColor(200, 200, 200);
+        pdf.setLineWidth(0.5);
+        pdf.line(20, 45, pageWidth - 20, 45);
+
+        const layer = layers[i];
+        const properties = (layer as any).properties;
+
+        // Titre de la forme sous la ligne de séparation
+        if (properties) {
+          pdf.setTextColor(0);
+          pdf.setFontSize(16);
+          pdf.setFont(undefined, 'bold');
+          pdf.text(getShapeTypeFr(properties.type), 20, 60);
+        }
+
+        // Ajuster la vue
+        const bounds = (layer as any).getBounds?.() || (layer as any).getLatLng?.();
+        if (bounds) {
+          map.value.fitBounds(bounds instanceof L.LatLng ? L.latLngBounds([bounds]) : bounds, {
+            padding: [50, 50]
+          });
+        }
+
+        await nextTick();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        try {
+          // Capturer la carte
+          const dataUrl = await screenshoter.takeScreen('image');
+          const mapImage = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = dataUrl;
+          });
+
+          // Calculer les dimensions pour 60% de la largeur
+          const imgWidth = pageWidth * 0.6 - 30;
+          let imgHeight = (mapImage.height * imgWidth) / mapImage.width;
+          
+          if (imgHeight > pageHeight * 0.9) {
+            imgHeight = pageHeight * 0.9;
+          }
+
+          const yOffset = (pageHeight - imgHeight) / 2;
+          pdf.addImage(dataUrl, 'PNG', 20, yOffset, imgWidth, imgHeight);
+
+          // Section des propriétés (40% de la largeur)
+          if (properties) {
+            const propX = pageWidth * 0.6 + 10;
+            let propY = 70; // Ajusté pour aligner avec le titre de la forme
+
+            // Propriétés principales
+            pdf.setFontSize(12);
+            pdf.setFont(undefined, 'normal');
+
+            // Cercle
+            if (properties.type === 'Circle') {
+              pdf.text(`Rayon: ${formatMeasure(properties.radius)}`, propX, propY);
+              propY += 10;
+              pdf.text(`Diamètre: ${formatMeasure(properties.radius * 2)}`, propX, propY);
+              propY += 10;
+              pdf.text(`Surface: ${formatMeasure(properties.area, 'm²')}`, propX, propY);
+              propY += 10;
+              pdf.text(`Périmètre: ${formatMeasure(properties.perimeter)}`, propX, propY);
+              propY += 10;
+              if (properties.surfaceInterieure) {
+                pdf.text(`Surface intérieure: ${formatMeasure(properties.surfaceInterieure, 'm²')}`, propX, propY);
+                propY += 10;
+              }
+              if (properties.surfaceExterieure) {
+                pdf.text(`Surface extérieure: ${formatMeasure(properties.surfaceExterieure, 'm²')}`, propX, propY);
+                propY += 10;
+              }
+            }
+
+            // Rectangle
+            else if (properties.type === 'Rectangle') {
+              pdf.text(`Largeur: ${formatMeasure(properties.width)}`, propX, propY);
+              propY += 10;
+              pdf.text(`Hauteur: ${formatMeasure(properties.height)}`, propX, propY);
+              propY += 10;
+              pdf.text(`Surface: ${formatMeasure(properties.area, 'm²')}`, propX, propY);
+              propY += 10;
+              pdf.text(`Périmètre: ${formatMeasure(properties.perimeter)}`, propX, propY);
+              propY += 10;
+              if (properties.surfaceInterieure) {
+                pdf.text(`Surface intérieure: ${formatMeasure(properties.surfaceInterieure, 'm²')}`, propX, propY);
+                propY += 10;
+              }
+              if (properties.surfaceExterieure) {
+                pdf.text(`Surface extérieure: ${formatMeasure(properties.surfaceExterieure, 'm²')}`, propX, propY);
+                propY += 10;
+              }
+            }
+
+            // Ligne
+            else if (properties.type === 'Line') {
+              pdf.text(`Longueur: ${formatMeasure(properties.length)}`, propX, propY);
+              propY += 10;
+              if (properties.dimensions?.width) {
+                pdf.text(`Largeur d'influence: ${formatMeasure(properties.dimensions.width)}`, propX, propY);
+                propY += 10;
+              }
+              if (properties.surfaceInfluence) {
+                pdf.text(`Surface d'influence: ${formatMeasure(properties.surfaceInfluence, 'm²')}`, propX, propY);
+                propY += 10;
+              }
+            }
+
+            // Polygone
+            else if (properties.type === 'Polygon') {
+              pdf.text(`Surface: ${formatMeasure(properties.area, 'm²')}`, propX, propY);
+              propY += 10;
+              pdf.text(`Périmètre: ${formatMeasure(properties.perimeter)}`, propX, propY);
+              propY += 10;
+              if (properties.surfaceInterieure) {
+                pdf.text(`Surface intérieure: ${formatMeasure(properties.surfaceInterieure, 'm²')}`, propX, propY);
+                propY += 10;
+              }
+              if (properties.surfaceExterieure) {
+                pdf.text(`Surface extérieure: ${formatMeasure(properties.surfaceExterieure, 'm²')}`, propX, propY);
+                propY += 10;
+              }
+            }
+
+            // Demi-cercle
+            else if (properties.type === 'Semicircle') {
+              pdf.text(`Rayon: ${formatMeasure(properties.radius)}`, propX, propY);
+              propY += 10;
+              pdf.text(`Diamètre: ${formatMeasure(properties.radius * 2)}`, propX, propY);
+              propY += 10;
+              pdf.text(`Surface: ${formatMeasure(properties.area, 'm²')}`, propX, propY);
+              propY += 10;
+              pdf.text(`Périmètre: ${formatMeasure(properties.perimeter)}`, propX, propY);
+              propY += 10;
+              pdf.text(`Longueur d'arc: ${formatMeasure(properties.arcLength)}`, propX, propY);
+              propY += 10;
+              pdf.text(`Angle d'ouverture: ${properties.openingAngle.toFixed(1)}°`, propX, propY);
+              propY += 10;
+              if (properties.surfaceInterieure) {
+                pdf.text(`Surface intérieure: ${formatMeasure(properties.surfaceInterieure, 'm²')}`, propX, propY);
+                propY += 10;
+              }
+              if (properties.surfaceExterieure) {
+                pdf.text(`Surface extérieure: ${formatMeasure(properties.surfaceExterieure, 'm²')}`, propX, propY);
+                propY += 10;
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`[generateSynthesis] Erreur capture forme ${i + 1}:`, error);
+        }
+      }
+
+      // Retirer le screenshoter
+      map.value.removeControl(screenshoter);
+      
+      console.log('[generateSynthesis] Génération du PDF terminée');
+      pdf.save(`synthese_${currentPlan.value.nom}.pdf`);
+
+    } catch (error) {
+      console.error('[generateSynthesis] Erreur:', error);
+    } finally {
+      isGeneratingSynthesis.value = false;
+    }
 }
 </script>
 
 <style>
 @import '../styles/MapView.css';
+
+  /* Masquer les contrôles de la carte pendant la génération */
+  .generating-synthesis .leaflet-control-container {
+    display: none !important;
+  }
+
+  /* Masquer le quadrillage de la carte lors de la capture */
+  .leaflet-grid-layer,
+  .leaflet-grid-label,
+  .leaflet-tile-container img {
+    border: none !important;
+    outline: none !important;
+  }
+  
+  .leaflet-container {
+    background: transparent !important;
+  }
+
+  .leaflet-tile {
+    border: none !important;
+    outline: none !important;
+  }
 </style> 
