@@ -397,7 +397,7 @@ const showFillOptions = computed(() => {
     selectedShape: props.selectedShape
   });
   if (!shapeType) return false;
-  return ['Circle', 'Rectangle', 'Polygon'].includes(shapeType);
+  return ['Circle', 'Rectangle', 'Polygon', 'Semicircle'].includes(shapeType);
 });
 
 // Fonction pour basculer l'état des sections
