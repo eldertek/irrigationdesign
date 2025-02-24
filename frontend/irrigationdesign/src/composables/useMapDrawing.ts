@@ -1642,85 +1642,27 @@ export function useMapDrawing(): MapDrawingReturn {
     if (!map.value || !featureGroup.value) return;
 
     clearActiveControlPoints();
-    const defaultCenter = L.latLng(0, 0);
-    const center = (layer.getCenter?.() || layer.getLatLng?.()) ?? defaultCenter;
-    const radius = layer.getRadius?.() ?? 0;
-    const startAngle = layer.getStartAngle?.() ?? 0;
-    const stopAngle = layer.getStopAngle?.() ?? 180;
+    const center = layer.getCenter();
+    const radius = layer.getRadius();
+    const startAngle = layer.getStartAngle();
+    const stopAngle = layer.getStopAngle();
+    const openingAngle = layer.getOpeningAngle();
 
-    // Points de contrôle des angles (rouges)
-    const angles = [startAngle, stopAngle];
-    angles.forEach((currentAngle, index) => {
-      const rad = (currentAngle * Math.PI) / 180;
-      const point = L.latLng(
-        center.lat + (radius / 111319.9) * Math.sin(rad),
-        center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(rad)
-      );
+    // Points de contrôle des angles (rouges) - Utiliser les nouvelles méthodes
+    const startPoint = layer.calculatePointOnArc(startAngle);
+    const stopPoint = layer.calculatePointOnArc(stopAngle);
 
-      const angleControl = createControlPoint(point, '#DC2626');
-      activeControlPoints.push(angleControl);
+    const startControl = createControlPoint(startPoint, '#DC2626');
+    const stopControl = createControlPoint(stopPoint, '#DC2626');
+    activeControlPoints.push(startControl, stopControl);
 
-      addMeasureEvents(angleControl, layer, () => {
-        return `Angle: ${formatAngle(currentAngle)}`;
-      });
+    // Ajouter les mesures aux points de contrôle des angles
+    addMeasureEvents(startControl, layer, () => {
+      return `Angle d'ouverture: ${formatAngle(openingAngle)}`;
+    });
 
-      angleControl.on('mousedown', (e: L.LeafletMouseEvent) => {
-        if (!map.value) return;
-        L.DomEvent.stopPropagation(e);
-        map.value.dragging.disable();
-
-        let isDragging = true;
-
-        // Cacher le point bleu pendant le déplacement des points rouges
-        const radiusControl = activeControlPoints.find(point => point.options.color === '#2563EB');
-        if (radiusControl) {
-          radiusControl.setStyle({ opacity: 0, fillOpacity: 0 });
-        }
-
-        const onMouseMove = (e: L.LeafletMouseEvent) => {
-          if (!isDragging || !map.value) return;
-
-          const newAngle = Math.atan2(
-            e.latlng.lat - center.lat,
-            e.latlng.lng - center.lng
-          ) * 180 / Math.PI;
-
-          const exactPoint = L.latLng(
-            center.lat + (radius / 111319.9) * Math.sin(newAngle * Math.PI / 180),
-            center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(newAngle * Math.PI / 180)
-          );
-
-          angleControl.setLatLng(exactPoint);
-
-          // Mise à jour des angles selon le point déplacé
-          if (index === 0) {
-            layer.setAngles(newAngle, layer.getStopAngle());
-          } else {
-            layer.setAngles(layer.getStartAngle(), newAngle);
-          }
-
-          // Recalculer et émettre les nouvelles propriétés
-          const newProperties = calculateShapeProperties(layer, 'Semicircle');
-          layer.properties = { ...newProperties };
-          layer.fire('properties:updated', {
-            shape: layer,
-            properties: layer.properties
-          });
-        };
-
-        const onMouseUp = () => {
-          isDragging = false;
-          if (!map.value) return;
-          map.value.off('mousemove', onMouseMove);
-          document.removeEventListener('mouseup', onMouseUp);
-          map.value.dragging.enable();
-          // Réafficher et mettre à jour le point bleu après le relâchement
-          updateSemicircleControlPoints(layer);
-        };
-
-        map.value.on('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-      });
+    addMeasureEvents(stopControl, layer, () => {
+      return `Angle d'ouverture: ${formatAngle(openingAngle)}`;
     });
 
     // Point central (vert)
@@ -1729,31 +1671,26 @@ export function useMapDrawing(): MapDrawingReturn {
 
     // Ajouter les mesures au point central
     addMeasureEvents(centerPoint, layer, () => {
-      const area = (Math.PI * radius * radius * layer.getOpeningAngle()) / 360;
+      const area = layer.properties.area || 0;
       return [
         formatMeasure(radius, 'm', 'Rayon'),
         formatMeasure(area, 'm²', 'Surface'),
-        `Angle: ${formatAngle(layer.getOpeningAngle())}`
+        `Angle: ${formatAngle(openingAngle)}`
       ].join('<br>');
     });
 
     // Point de contrôle du rayon au milieu de l'arc (bleu)
-    const openingAngle = layer.getOpeningAngle();
     // Ne pas afficher le point bleu si l'angle d'ouverture est trop petit
     if (openingAngle > 5) {
-      const midAngle = ((startAngle + stopAngle) / 2 + 360) % 360;
-      const midRad = (midAngle * Math.PI) / 180;
-      const midPoint = L.latLng(
-        center.lat + (radius / 111319.9) * Math.sin(midRad),
-        center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(midRad)
-      );
+      // Utiliser la méthode de CircleArc pour trouver le point milieu sur l'arc
+      const midPoint = layer.calculateMidpointPosition();
       
       const radiusControl = createControlPoint(midPoint, '#2563EB');
       activeControlPoints.push(radiusControl);
 
       // Ajouter les mesures au point de contrôle du rayon
       addMeasureEvents(radiusControl, layer, () => {
-        return formatMeasure(radius, 'm', 'Rayon');
+        return formatMeasure(layer.getRadius(), 'm', 'Rayon');
       });
 
       // Gestion du redimensionnement via le point de contrôle du rayon
@@ -1769,35 +1706,22 @@ export function useMapDrawing(): MapDrawingReturn {
           const newRadius = center.distanceTo(e.latlng);
           layer.setRadius(newRadius);
 
-          // Calculer le nouvel angle pour garder le point sur l'arc
-          const newAngle = Math.atan2(
-            e.latlng.lat - center.lat,
-            e.latlng.lng - center.lng
-          ) * 180 / Math.PI;
+          // Recalculer les positions des points de contrôle
+          const newStartPoint = layer.calculatePointOnArc(startAngle);
+          const newStopPoint = layer.calculatePointOnArc(stopAngle);
+          const newMidPoint = layer.calculateMidpointPosition();
           
-          // S'assurer que le point reste dans l'arc
-          const currentArcAngle = layer.getOpeningAngle();
-          const normalizedAngle = ((newAngle - startAngle + 360) % 360);
-          if (normalizedAngle <= currentArcAngle) {
-            // Mettre à jour la position du point de contrôle sur l'arc
-            const exactPoint = L.latLng(
-              center.lat + (newRadius / 111319.9) * Math.sin(midRad),
-              center.lng + (newRadius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(midRad)
-            );
-            radiusControl.setLatLng(exactPoint);
+          // Mettre à jour les positions des points de contrôle
+          startControl.setLatLng(newStartPoint);
+          stopControl.setLatLng(newStopPoint);
+          radiusControl.setLatLng(newMidPoint);
 
-            // Mettre à jour les propriétés
-            updateLayerProperties(layer, 'Semicircle');
-
-            // Mettre à jour la position des points de contrôle des angles
-            angles.forEach((angle, index) => {
-              const rad = (angle * Math.PI) / 180;
-              const point = L.latLng(
-                center.lat + (newRadius / 111319.9) * Math.sin(rad),
-                center.lng + (newRadius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(rad)
-              );
-              activeControlPoints[index].setLatLng(point);
-            });
+          // Les propriétés sont automatiquement mises à jour par la méthode setRadius
+          selectedShape.value = layer;
+          
+          // Forcer la mise à jour des tooltips pour refléter le nouveau rayon
+          if (radiusControl && (radiusControl as ControlPoint).measureDiv) {
+            (radiusControl as ControlPoint).measureDiv.innerHTML = formatMeasure(newRadius, 'm', 'Rayon');
           }
         };
 
@@ -1814,6 +1738,77 @@ export function useMapDrawing(): MapDrawingReturn {
       });
     }
 
+    // Gestion du déplacement des points de contrôle des angles
+    [startControl, stopControl].forEach((angleControl, index) => {
+      angleControl.on('mousedown', (e: L.LeafletMouseEvent) => {
+        if (!map.value) return;
+        L.DomEvent.stopPropagation(e);
+        map.value.dragging.disable();
+    
+        let isDragging = true;
+    
+        // Référence au point bleu
+        const radiusControl = activeControlPoints.find(pt => (pt as any).options?.color === '#2563EB');
+        
+        // On ne cache plus le point bleu pendant le déplacement
+    
+        const onMouseMove = (e: L.LeafletMouseEvent) => {
+          if (!isDragging || !map.value) return;
+    
+          const newAngle = Math.atan2(
+            e.latlng.lat - center.lat,
+            e.latlng.lng - center.lng
+          ) * 180 / Math.PI;
+    
+          // Mise à jour des angles selon le point déplacé
+          if (index === 0) {
+            layer.setAngles(newAngle, layer.getStopAngle());
+          } else {
+            layer.setAngles(layer.getStartAngle(), newAngle);
+          }
+    
+          // Recalculer les positions des points de contrôle après mise à jour des angles
+          const updatedStartAngle = layer.getStartAngle();
+          const updatedStopAngle = layer.getStopAngle();
+          const updatedOpeningAngle = layer.getOpeningAngle();
+          
+          const newStartPoint = layer.calculatePointOnArc(updatedStartAngle);
+          const newStopPoint = layer.calculatePointOnArc(updatedStopAngle);
+          
+          // Mettre à jour les positions des points de contrôle rouges
+          startControl.setLatLng(newStartPoint);
+          stopControl.setLatLng(newStopPoint);
+    
+          // Maintenir visible et mettre à jour le point bleu en temps réel
+          if (radiusControl && updatedOpeningAngle > 5) {
+            const newMidPoint = layer.calculateMidpointPosition();
+            radiusControl.setLatLng(newMidPoint);
+            radiusControl.setStyle({ opacity: 1, fillOpacity: 1 }); // S'assurer qu'il est visible
+          } else if (radiusControl) {
+            // Si l'angle devient trop petit, masquer temporairement le point bleu
+            radiusControl.setStyle({ opacity: 0, fillOpacity: 0 });
+          }
+    
+          // Les propriétés sont automatiquement mises à jour par la méthode setAngles
+          selectedShape.value = layer;
+        };
+
+        const onMouseUp = () => {
+          isDragging = false;
+          if (!map.value) return;
+          map.value.off('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          map.value.dragging.enable();
+          
+          // Réafficher et repositionner correctement tous les points de contrôle
+          updateSemicircleControlPoints(layer);
+        };
+
+        map.value.on('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+    });
+
     // Gestion du déplacement du point central
     centerPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
       if (!map.value) return;
@@ -1824,19 +1819,36 @@ export function useMapDrawing(): MapDrawingReturn {
 
       const onMouseMove = (e: L.LeafletMouseEvent) => {
         if (!isDragging) return;
+        
+        // Utiliser la méthode de CircleArc pour déplacer le centre
         layer.setCenter(e.latlng);
         centerPoint.setLatLng(e.latlng);
 
-        // Recalculer et émettre les nouvelles propriétés
-        const newProperties = calculateShapeProperties(layer, 'Semicircle');
-        layer.properties = { ...newProperties };
-        layer.fire('properties:updated', {
-          shape: layer,
-          properties: layer.properties
-        });
+        // Recalculer les positions des points de contrôle
+        const updatedStartAngle = layer.getStartAngle();
+        const updatedStopAngle = layer.getStopAngle();
+        const updatedOpeningAngle = layer.getOpeningAngle();
+        
+        const newStartPoint = layer.calculatePointOnArc(updatedStartAngle);
+        const newStopPoint = layer.calculatePointOnArc(updatedStopAngle);
+        
+        // Mettre à jour les positions des points de contrôle
+        startControl.setLatLng(newStartPoint);
+        stopControl.setLatLng(newStopPoint);
+        
+        // Mettre à jour le point de contrôle du rayon s'il existe
+        const radiusControl = activeControlPoints.find(pt => (pt as any).options?.color === '#2563EB');
+        if (radiusControl && updatedOpeningAngle > 5) {
+          const newMidPoint = layer.calculateMidpointPosition();
+          radiusControl.setLatLng(newMidPoint);
+          radiusControl.setStyle({ opacity: 1, fillOpacity: 1 }); // S'assurer qu'il est visible
+        } else if (radiusControl) {
+          // Si l'angle devient trop petit, masquer temporairement le point bleu
+          radiusControl.setStyle({ opacity: 0, fillOpacity: 0 });
+        }
 
-        // Mettre à jour la position des points de contrôle des angles
-        updateSemicircleControlPoints(layer);
+        // Les propriétés sont automatiquement mises à jour par la méthode setCenter
+        selectedShape.value = layer;
       };
 
       const onMouseUp = () => {
@@ -1910,37 +1922,28 @@ export function useMapDrawing(): MapDrawingReturn {
         tempControlPointsGroup.value.addLayer(tempMidPoint);
       });
     } else if (layer instanceof CircleArc || layer.properties?.type === 'Semicircle') {
-      // Récupérer les valeurs avec des valeurs par défaut
-      const defaultCenter = L.latLng(0, 0);
-      const center = (layer.getCenter?.() || layer.getLatLng?.()) ?? defaultCenter;
-      const radius = layer.getRadius?.() ?? 0;
-      const startAngle = layer.getStartAngle?.() ?? 0;
-      const stopAngle = layer.getStopAngle?.() ?? 180;
-
-      // Point central temporaire
-      const tempCenterPoint = createControlPoint(center, '#059669');
+      // Utiliser les méthodes de CircleArc pour calculer les positions des points de contrôle
+      const arc = layer as CircleArc;
+      
+      // Point central temporaire (vert)
+      const tempCenterPoint = createControlPoint(arc.getCenter(), '#059669');
       tempControlPointsGroup.value.addLayer(tempCenterPoint);
 
-      // Points des angles temporaires
-      [startAngle, stopAngle].forEach(angle => {
-        const rad = (angle * Math.PI) / 180;
-        const point = L.latLng(
-          center.lat + (radius / 111319.9) * Math.sin(rad),
-          center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(rad)
-        );
-        const tempAnglePoint = createControlPoint(point, '#DC2626');
-        tempControlPointsGroup.value.addLayer(tempAnglePoint);
-      });
+      // Points de début et de fin d'arc temporaires (rouge)
+      const startPoint = arc.calculatePointOnArc(arc.getStartAngle());
+      const stopPoint = arc.calculatePointOnArc(arc.getStopAngle());
+      
+      const tempStartPoint = createControlPoint(startPoint, '#DC2626');
+      const tempStopPoint = createControlPoint(stopPoint, '#DC2626');
+      tempControlPointsGroup.value.addLayer(tempStartPoint);
+      tempControlPointsGroup.value.addLayer(tempStopPoint);
 
-      // Point de contrôle du rayon au milieu de l'arc
-      const midAngle = ((startAngle + stopAngle) / 2 + 360) % 360;
-      const midRad = (midAngle * Math.PI) / 180;
-      const midPoint = L.latLng(
-        center.lat + (radius / 111319.9) * Math.sin(midRad),
-        center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(midRad)
-      );
-      const tempRadiusPoint = createControlPoint(midPoint, '#2563EB');
-      tempControlPointsGroup.value.addLayer(tempRadiusPoint);
+      // Point de rayon au milieu de l'arc (bleu)
+      if (arc.getOpeningAngle() > 5) {
+        const midPoint = arc.calculateMidpointPosition();
+        const tempMidPoint = createControlPoint(midPoint, '#2563EB');
+        tempControlPointsGroup.value.addLayer(tempMidPoint);
+      }
     } else if (layer instanceof L.Polyline) {
       const points = layer.getLatLngs() as L.LatLng[];
 
