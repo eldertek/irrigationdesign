@@ -214,18 +214,10 @@
                 <span class="text-gray-600">Longueur :</span>
                 <span class="font-medium">{{ formatMeasure(localProperties.length || 0) }}</span>
               </div>
-              <template v-if="localProperties.dimensions?.width">
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Largeur d'influence :</span>
-                  <span class="font-medium">{{ formatMeasure(localProperties.dimensions.width) }}</span>
-                </div>
-              </template>
-              <template v-if="localProperties.surfaceInfluence">
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Surface d'influence :</span>
-                  <span class="font-medium">{{ formatArea(localProperties.surfaceInfluence) }}</span>
-                </div>
-              </template>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Surface d'influence :</span>
+                <span class="font-medium">{{ formatArea(localProperties.surfaceInfluence || 0) }}</span>
+              </div>
             </div>
 
             <!-- Polygone -->
@@ -347,6 +339,19 @@ watch(
     });
   },
   { deep: true }
+);
+
+// Watcher plus spécifique pour détecter les changements dans les propriétés de la forme sélectionnée
+watch(
+  () => props.selectedShape?.properties,
+  (newProperties) => {
+    console.log('[DrawingTools] Changement détecté directement dans les propriétés de la forme', newProperties);
+    if (newProperties && props.selectedShape) {
+      // Mise à jour proactive des propriétés locales
+      localProperties.value = { ...newProperties };
+    }
+  },
+  { deep: true, immediate: true }
 );
 
 const drawingTools = [

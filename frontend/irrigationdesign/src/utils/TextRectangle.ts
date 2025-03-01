@@ -1,5 +1,6 @@
 import L from 'leaflet';
-import 'leaflet-path-transform';
+import * as turf from '@turf/turf';
+import { Polygon } from './Polygon';
 
 interface TextRectangleProperties {
   type: string;
@@ -8,6 +9,7 @@ interface TextRectangleProperties {
   height: number;
   area: number;
   rotation: number;
+  center?: L.LatLng;
   style: {
     color?: string;
     weight?: number;
@@ -19,23 +21,33 @@ interface TextRectangleProperties {
   };
 }
 
-export class TextRectangle extends L.Rectangle {
-  private textMarker: L.Marker;
+export class TextRectangle extends Polygon {
   public properties: TextRectangleProperties;
+  private originalLatLngs: L.LatLng[] = [];
+  private _textContainer: HTMLDivElement | null = null;
 
   constructor(
     bounds: L.LatLngBoundsExpression,
     text: string = 'Double-cliquez pour éditer',
     options: L.PolylineOptions = {}
   ) {
-    super(bounds, {
+    const b = bounds instanceof L.LatLngBounds ? bounds : L.latLngBounds(bounds);
+    const latLngs: L.LatLng[] = [
+      b.getSouthWest(),
+      b.getSouthEast(),
+      b.getNorthEast(),
+      b.getNorthWest()
+    ];
+
+    super(latLngs, {
       ...options,
       pmIgnore: false,
       interactive: true,
       className: 'leaflet-text-rectangle'
     });
 
-    // Initialiser les propriétés
+    this.originalLatLngs = latLngs.slice();
+
     this.properties = {
       type: 'TextRectangle',
       text: text,
@@ -51,81 +63,40 @@ export class TextRectangle extends L.Rectangle {
       }
     };
 
-    // Créer le marqueur de texte
-    const textIcon = L.divIcon({
-      className: 'text-icon',
-      html: `<div class="text-container" contenteditable="false">${text}</div>`,
-      iconSize: [40, 40],
-      iconAnchor: [20, 20]
-    });
+    // Créer le conteneur de texte
+    this._textContainer = document.createElement('div');
+    this._textContainer.className = 'text-container';
+    this._textContainer.style.position = 'absolute';
+    this._textContainer.style.transform = 'translate(-50%, -50%)';
+    this._textContainer.style.pointerEvents = 'auto';
+    this._textContainer.style.cursor = 'text';
+    this._textContainer.style.padding = '2px 5px';
+    this._textContainer.style.borderRadius = '3px';
+    this._textContainer.style.backgroundColor = this.properties.style.backgroundColor || '#FFFFFF';
+    this._textContainer.style.color = this.properties.style.textColor || '#000000';
+    this._textContainer.style.fontSize = this.properties.style.fontSize || '14px';
+    this._textContainer.innerText = text;
 
-    this.textMarker = L.marker(this.getBounds().getCenter(), {
-      icon: textIcon,
-      draggable: false
-    });
-    // Activer la transformation
-    (this as any).transform.enable({
-      rotation: true,
-      scaling: true
-    });
-
-    // Gérer les événements
-    this.on('add', () => {
-      if (this._map) {
-        this.textMarker.addTo(this._map);
-        this.updateTextPosition();
-      }
-    });
-
-    this.on('remove', () => {
-      this.textMarker.remove();
-    });
-
-    this.on('transform:rotate', (e: any) => {
-      this.properties.rotation = e.rotation;
-      this.updateTextRotation();
-    });
-
-    this.on('transform', () => {
-      this.updateTextPosition();
-      this.updateProperties();
-    });
-
-    // Gestion de l'édition du texte
-    this.textMarker.on('dblclick', (e: L.LeafletMouseEvent) => {
-      L.DomEvent.stopPropagation(e); // Empêche le zoom de la carte
-      const textElement = this.textMarker.getElement()?.querySelector('.text-container') as HTMLElement;
-      if (!textElement) return;
-
-      // Désactiver la transformation pour masquer les points de contrôle
-      (this as any).transform.disable();
-
-      textElement.contentEditable = 'true';
-      textElement.focus();
-      textElement.classList.add('editing');
-
-      // Sélectionner tout le texte
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(textElement);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
+    // Gestion du double-clic pour l'édition
+    this._textContainer.addEventListener('dblclick', (e: MouseEvent) => {
+      e.stopPropagation();
+      if (!this._textContainer) return;
+      
+      this._textContainer.contentEditable = 'true';
+      this._textContainer.focus();
+      this._textContainer.classList.add('editing');
 
       const finishEditing = () => {
-        textElement.contentEditable = 'false';
-        textElement.classList.remove('editing');
-        const newText = textElement.innerText.trim();
+        if (!this._textContainer) return;
+        this._textContainer.contentEditable = 'false';
+        this._textContainer.classList.remove('editing');
+        const newText = this._textContainer.innerText.trim();
         if (newText) {
           this.properties.text = newText;
-          this.setText(newText); // Utiliser la méthode setText existante
+          this.setText(newText);
         }
-        textElement.removeEventListener('blur', finishEditing);
-        textElement.removeEventListener('keydown', onKeyDown);
-        // Réactiver la transformation après l'édition
-        (this as any).transform.enable({
-          rotation: true,
-          scaling: true
-        });
+        this._textContainer.removeEventListener('blur', finishEditing);
+        this._textContainer.removeEventListener('keydown', onKeyDown);
       };
 
       const onKeyDown = (e: KeyboardEvent) => {
@@ -135,72 +106,199 @@ export class TextRectangle extends L.Rectangle {
         }
       };
 
-      textElement.addEventListener('blur', finishEditing);
-      textElement.addEventListener('keydown', onKeyDown);
+      this._textContainer.addEventListener('blur', finishEditing);
+      this._textContainer.addEventListener('keydown', onKeyDown);
     });
+
+    // Événements pour maintenir la forme rectangulaire
+    this.on('pm:vertexremoved', this.enforceRectangularShape);
+    this.on('pm:vertexadded', this.enforceRectangularShape);
+    this.on('pm:dragend', this.enforceRectangularShape);
+    this.on('pm:markerdragend', this.onMarkerDragEnd);
+
+    // Événements pour la mise à jour de la position du texte
+    this.on('move', this.updateTextPosition);
+    this.on('drag', this.updateTextPosition);
+
+    this.updateProperties();
+  }
+
+  onAdd(map: L.Map): this {
+    super.onAdd(map);
+    if (this._textContainer && this._map) {
+      this._map.getPanes().overlayPane.appendChild(this._textContainer);
+      this.updateTextPosition();
+    }
+    return this;
+  }
+
+  onRemove(map: L.Map): this {
+    if (this._textContainer && this._textContainer.parentElement) {
+      this._textContainer.parentElement.removeChild(this._textContainer);
+    }
+    super.onRemove(map);
+    return this;
   }
 
   private updateTextPosition(): void {
-    const center = this.getBounds().getCenter();
-    this.textMarker.setLatLng(center);
+    if (!this._textContainer || !this._map) return;
+    const center = this.getCenter();
+    const pos = this._map.latLngToLayerPoint(center);
+    this._textContainer.style.left = `${pos.x}px`;
+    this._textContainer.style.top = `${pos.y}px`;
   }
 
-  private updateTextRotation(): void {
-    const element = this.textMarker.getElement();
-    if (element) {
-      element.style.transform = `rotate(${this.properties.rotation}deg)`;
-    }
-  }
-
-  private updateProperties(): void {
-    const bounds = this.getBounds();
-    const ne = bounds.getNorthEast();
-    const sw = bounds.getSouthWest();
-    
-    // Calculer les dimensions en mètres
-    this.properties.width = this.calculateDistance(
-      [sw.lat, sw.lng],
-      [sw.lat, ne.lng]
-    );
-    this.properties.height = this.calculateDistance(
-      [sw.lat, sw.lng],
-      [ne.lat, sw.lng]
-    );
-    this.properties.area = this.properties.width * this.properties.height;
-  }
-
-  private calculateDistance(point1: [number, number], point2: [number, number]): number {
-    const lat1 = point1[0] * Math.PI / 180;
-    const lon1 = point1[1] * Math.PI / 180;
-    const lat2 = point2[0] * Math.PI / 180;
-    const lon2 = point2[1] * Math.PI / 180;
-
-    const R = 6371000; // Rayon de la Terre en mètres
-    const dLat = lat2 - lat1;
-    const dLon = lon2 - lon1;
-
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1) * Math.cos(lat2) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  }
-
-  setText(text: string): void {
+  public setText(text: string): void {
     this.properties.text = text;
-    const element = this.textMarker.getElement()?.querySelector('.text-container') as HTMLElement;
-    if (element) {
-      element.innerText = text;
+    if (this._textContainer) {
+      this._textContainer.innerText = text;
     }
   }
 
-  setTextStyle(style: Partial<TextRectangleProperties['style']>): void {
+  public setTextStyle(style: Partial<TextRectangleProperties['style']>): void {
     this.properties.style = { ...this.properties.style, ...style };
-    const element = this.textMarker.getElement()?.querySelector('.text-container') as HTMLElement;
-    if (element) {
-      if (style.textColor) element.style.color = style.textColor;
-      if (style.fontSize) element.style.fontSize = style.fontSize;
-      if (style.backgroundColor) element.style.backgroundColor = style.backgroundColor;
+    if (this._textContainer) {
+      if (style.textColor) this._textContainer.style.color = style.textColor;
+      if (style.fontSize) this._textContainer.style.fontSize = style.fontSize;
+      if (style.backgroundColor) this._textContainer.style.backgroundColor = style.backgroundColor;
     }
+  }
+
+  private enforceRectangularShape = (): void => {
+    const latLngs = this.getLatLngs()[0] as L.LatLng[];
+    if (latLngs.length !== 4) {
+      console.warn('TextRectangle must have exactly 4 points');
+      this.setLatLngs([this.originalLatLngs]);
+      return;
+    }
+
+    const bounds = this.getBounds();
+    const sw = bounds.getSouthWest();
+    const se = L.latLng(bounds.getSouth(), bounds.getEast());
+    const ne = bounds.getNorthEast();
+    const nw = L.latLng(bounds.getNorth(), bounds.getWest());
+    const newLatLngs = [sw, se, ne, nw];
+
+    const hasSignificantChange = newLatLngs.some((newLL, i) => {
+      const oldLL = latLngs[i];
+      return Math.abs(newLL.lat - oldLL.lat) > 1e-6 || Math.abs(newLL.lng - oldLL.lng) > 1e-6;
+    });
+
+    if (hasSignificantChange) {
+      L.Polygon.prototype.setLatLngs.call(this, [newLatLngs]);
+      this.originalLatLngs = newLatLngs.slice();
+      this.updateTextPosition();
+      this.updateProperties();
+    }
+  };
+
+  private onMarkerDragEnd = (e: any): void => {
+    const marker = e.marker;
+    const markerLatLng = marker.getLatLng();
+    const vertices = this.getLatLngs()[0] as L.LatLng[];
+    let minDist = Infinity;
+    let closestIndex = 0;
+    vertices.forEach((vertex, i) => {
+      const dist = markerLatLng.distanceTo(vertex);
+      if (dist < minDist) {
+        minDist = dist;
+        closestIndex = i;
+      }
+    });
+
+    if (closestIndex % 2 === 0) {
+      this.resizeFromCorner(closestIndex, markerLatLng);
+    } else {
+      this.resizeFromSide(closestIndex, markerLatLng);
+    }
+  };
+
+  public setLatLngs(latlngs: L.LatLngExpression[] | L.LatLngExpression[][]): this {
+    super.setLatLngs(latlngs);
+    this.enforceRectangularShape();
+    this.updateTextPosition();
+    return this;
+  }
+
+  public updateProperties(): void {
+    const latLngs = this.getLatLngs()[0] as L.LatLng[];
+    if (latLngs.length !== 4) {
+      console.warn('TextRectangle doit avoir exactement 4 points');
+      return;
+    }
+
+    const sw = latLngs[0];
+    const se = latLngs[1];
+    const nw = latLngs[3];
+
+    const width = turf.distance([sw.lng, sw.lat], [se.lng, se.lat], { units: 'meters' });
+    const height = turf.distance([sw.lng, sw.lat], [nw.lng, nw.lat], { units: 'meters' });
+    const area = width * height;
+
+    const deltaLng = se.lng - sw.lng;
+    const deltaLat = se.lat - sw.lat;
+    let rotation = Math.atan2(deltaLat, deltaLng) * (180 / Math.PI);
+    rotation = (rotation + 360) % 360;
+
+    this.properties.width = width;
+    this.properties.height = height;
+    this.properties.area = area;
+    this.properties.rotation = rotation;
+    this.properties.center = this.getCenter();
+
+    this.fire('properties:updated', {
+      shape: this,
+      properties: this.properties
+    });
+  }
+
+  public resizeFromCorner(cornerIndex: number, newLatLng: L.LatLng): void {
+    const latLngs = this.getLatLngs()[0] as L.LatLng[];
+    if (latLngs.length !== 4) return;
+
+    const adjacent1 = (cornerIndex + 1) % 4;
+    const adjacent2 = (cornerIndex + 3) % 4;
+    latLngs[cornerIndex] = newLatLng;
+
+    if (cornerIndex === 0 || cornerIndex === 2) {
+      latLngs[adjacent1] = L.latLng(latLngs[adjacent1].lat, newLatLng.lng);
+      latLngs[adjacent2] = L.latLng(newLatLng.lat, latLngs[adjacent2].lng);
+    } else {
+      latLngs[adjacent1] = L.latLng(newLatLng.lat, latLngs[adjacent1].lng);
+      latLngs[adjacent2] = L.latLng(latLngs[adjacent2].lat, newLatLng.lng);
+    }
+
+    L.Polygon.prototype.setLatLngs.call(this, [latLngs]);
+    this.updateTextPosition();
+  }
+
+  public resizeFromSide(sideIndex: number, newLatLng: L.LatLng): void {
+    const latLngs = this.getLatLngs()[0] as L.LatLng[];
+    if (latLngs.length !== 4) return;
+
+    if (sideIndex === 0 || sideIndex === 2) {
+      latLngs[sideIndex].lat = newLatLng.lat;
+      latLngs[(sideIndex + 1) % 4].lat = newLatLng.lat;
+    } else {
+      latLngs[sideIndex].lng = newLatLng.lng;
+      latLngs[(sideIndex + 1) % 4].lng = newLatLng.lng;
+    }
+
+    L.Polygon.prototype.setLatLngs.call(this, [latLngs]);
+    this.updateTextPosition();
+  }
+
+  public moveFromCenter(newCenter: L.LatLng): void {
+    const currentCenter = this.getCenter();
+    const deltaLat = newCenter.lat - currentCenter.lat;
+    const deltaLng = newCenter.lng - currentCenter.lng;
+    const latLngs = this.getLatLngs()[0] as L.LatLng[];
+    const newLatLngs = latLngs.map(ll => L.latLng(ll.lat + deltaLat, ll.lng + deltaLng));
+    L.Polygon.prototype.setLatLngs.call(this, [newLatLngs]);
+    this.updateTextPosition();
+  }
+
+  public getMidPoints(): L.LatLng[] {
+    return super.getMidPoints();
   }
 } 

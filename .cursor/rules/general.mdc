@@ -1,6 +1,7 @@
 ---
-description: 
+description: General rule
 globs: 
+alwaysApply: true
 ---
 # AI Cursor Rules - IrrigationDesign
 
@@ -25,12 +26,8 @@ Ce document définit les règles et exigences pour l'AI Cursor dans le configura
   - Création de plans sous sa concession
 
 #### 1.2 Organisation des Plans
-- **Plans Personnels**
-  - Interface dédiée "Mes plans"
-  - Accès rapide aux dernières modifications
-  - Actions directes (modification, suppression)
 - **Plans Clients**
-  - Vue séparée pour les plans clients
+  - Vue pour les plans clients
   - Informations détaillées (client, concession)
   - Contrôles d'accès basés sur les rôles
 
@@ -42,6 +39,8 @@ Ce document définit les règles et exigences pour l'AI Cursor dans le configura
   - Cercle
   - Demi-cercle
   - Ligne
+  - Texte
+  
 - **Propriétés Modifiables**
   - Dimensions
   - Position
@@ -78,7 +77,6 @@ Ce document définit les règles et exigences pour l'AI Cursor dans le configura
 - **Génération de Documents**
   - Export PDF automatique
   - Synthèse des mesures
-  - Documentation technique
 
 ### 4. Expérience Utilisateur 🎯
 
@@ -120,15 +118,11 @@ Ce document définit les règles et exigences pour l'AI Cursor dans le configura
   - Import de données géographiques
   - Visualisation 3D
   - Ajustements automatiques
-- **Export et Partage**
-  - Formats standards
-  - Collaboration
-  - Archivage
 
 ## 🔄 Cycle de Vie
 
 ### 1. Création de Plan
-1. Sélection du type de plan
+1. Sélection des utilisateurs associés
 2. Configuration initiale
 3. Choix du client/concession
 4. Validation des accès
@@ -171,11 +165,6 @@ Ce document définit les règles et exigences pour l'AI Cursor dans le configura
 - Validation côté serveur
 - Audit des actions
 
-## 🔄 Mises à Jour
-- Version: 1.0.0
-- Dernière mise à jour: [DATE]
-- Auteur: [AUTEUR]
-
 ---
 
-Ce document est vivant et sera mis à jour régulièrement pour refléter les évolutions du projet. 
+Ce document est vivant et sera mis à jour régulièrement pour refléter les évolutions du projet. Tu l'éditeras au besoin.
