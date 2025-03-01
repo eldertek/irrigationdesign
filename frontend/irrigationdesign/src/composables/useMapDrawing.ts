@@ -1713,9 +1713,10 @@ export function useMapDrawing(): MapDrawingReturn {
     const points = layer.getLatLngs() as L.LatLng[];
     
     // Point central (vert) - Ajouter pour les lignes personnalisées
+    let centerPoint: ControlPoint | null = null;
     if (layer instanceof Line) {
       const center = layer.getCenter();
-      const centerPoint = createControlPoint(center, '#059669');
+      centerPoint = createControlPoint(center, '#059669') as ControlPoint;
       activeControlPoints.push(centerPoint);
       
       // Ajouter les mesures au point central
@@ -1761,7 +1762,7 @@ export function useMapDrawing(): MapDrawingReturn {
           L.Polyline.prototype.setLatLngs.call(layer, newLatLngs);
           
           // Mise à jour du centre (toujours instantanée)
-          centerPoint.setLatLng(e.latlng);
+          centerPoint?.setLatLng(e.latlng);
           
           // Ne pas mettre à jour les autres points pendant le déplacement
         };
@@ -1834,6 +1835,14 @@ export function useMapDrawing(): MapDrawingReturn {
         
         let isDragging = true;
         
+        // Cacher le point central (vert) pendant le redimensionnement
+        if (centerPoint) {
+          centerPoint.setStyle({ opacity: 0, fillOpacity: 0 });
+          if (centerPoint.measureDiv) {
+            centerPoint.measureDiv.style.display = 'none';
+          }
+        }
+        
         const onMouseMove = (e: L.LeafletMouseEvent) => {
           if (!isDragging) return;
           
@@ -1850,17 +1859,6 @@ export function useMapDrawing(): MapDrawingReturn {
           
           // Mettre à jour uniquement les midpoints affectés
           updateMidPoints();
-          
-          // Recalculer et mettre à jour le point central pour qu'il reste sur la ligne
-          if (layer instanceof Line) {
-            const newCenter = layer.getCenter();
-            // Parcourir tous les points de contrôle et mettre à jour celui dont la couleur est '#059669'
-            activeControlPoints.forEach(cp => {
-              if (cp.options && cp.options.color === '#059669') {
-                cp.setLatLng(newCenter);
-              }
-            });
-          }
         };
         
         const onMouseUp = () => {
@@ -1874,6 +1872,16 @@ export function useMapDrawing(): MapDrawingReturn {
           if (layer instanceof Line) {
             layer.updateProperties();
             updateLayerProperties(layer, 'Line');
+          }
+          
+          // Faire réapparaître le point central avec sa position mise à jour
+          if (centerPoint && layer instanceof Line) {
+            const newCenter = layer.getCenter();
+            centerPoint.setLatLng(newCenter);
+            centerPoint.setStyle({ opacity: 1, fillOpacity: 1 });
+            if (centerPoint.measureDiv) {
+              centerPoint.measureDiv.style.display = '';
+            }
           }
           
           // Mise à jour de selectedShape pour déclencher la réactivité
@@ -1959,6 +1967,18 @@ export function useMapDrawing(): MapDrawingReturn {
 
           let isDragging = true;
           
+          // Cacher le point central (vert) pendant l'opération d'ajout de vertex
+          const centerControlPoint = activeControlPoints.find(cp => 
+            cp.options && cp.options.color === '#059669'
+          ) as ControlPoint | undefined;
+          
+          if (centerControlPoint) {
+            centerControlPoint.setStyle({ opacity: 0, fillOpacity: 0 });
+            if (centerControlPoint.measureDiv) {
+              centerControlPoint.measureDiv.style.display = 'none';
+            }
+          }
+          
           const onMouseMove = (e: L.LeafletMouseEvent) => {
             if (!isDragging) return;
             // Insérer un nouveau point
@@ -1988,6 +2008,9 @@ export function useMapDrawing(): MapDrawingReturn {
               // Ajouter cet appel pour mettre à jour les propriétés de la couche
               updateLayerProperties(layer, 'Line');
             }
+            
+            // Le point central sera automatiquement recréé avec la bonne visibilité
+            // lors de l'appel à updateLineControlPoints dans onMouseMove
             
             // Mise à jour de selectedShape pour déclencher la réactivité
             selectedShape.value = null; // Forcer un reset
