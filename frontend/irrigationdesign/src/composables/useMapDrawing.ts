@@ -8,7 +8,6 @@ import { TextRectangle } from '../utils/TextRectangle';
 import { Line } from '../utils/Line';
 import type { TextStyle, TextMarker } from '../types/leaflet';
 import * as turf from '@turf/turf';
-import { performanceMonitor } from '../utils/PerformanceMonitor';
 
 
 // Ajouter cette interface avant la déclaration du module 'leaflet'
@@ -1708,8 +1707,6 @@ export function useMapDrawing(): MapDrawingReturn {
 
   // Fonction pour mettre à jour les points de contrôle d'une ligne
   const updateLineControlPoints = (layer: L.Polyline) => {
-    performance.mark('updateLineControlPoints-start');
-    
     if (!map.value || !featureGroup.value) return;
 
     clearActiveControlPoints();
@@ -1717,19 +1714,8 @@ export function useMapDrawing(): MapDrawingReturn {
     
     // Point central (vert) - Ajouter pour les lignes personnalisées
     if (layer instanceof Line) {
-      performance.mark('getCenter-start');
       const center = layer.getCenter();
-      performance.mark('getCenter-end');
-      performance.measure('getCenter-in-updateLineControlPoints', 'getCenter-start', 'getCenter-end');
-      
       const centerPoint = createControlPoint(center, '#059669');
-      
-      // Si la ligne est en mode déplacement de sommet, cacher le point central
-      if (layer.shouldHideCenterPoint()) {
-        centerPoint.setStyle({ opacity: 0, fillOpacity: 0 });
-      }
-      
-      controlPointsGroup.value.addLayer(centerPoint);
       activeControlPoints.push(centerPoint);
       
       // Ajouter les mesures au point central
@@ -1743,21 +1729,6 @@ export function useMapDrawing(): MapDrawingReturn {
         if (!map.value) return;
         L.DomEvent.stopPropagation(e);
         map.value.dragging.disable();
-        
-        // Démarrer le monitoring des performances
-        const observer = performanceMonitor.start();
-        
-        // Activer le mode d'optimisation pour la ligne
-        if (layer instanceof Line) {
-          layer.startVertexMove();
-          
-          // Cacher le point central (vert) pendant le déplacement
-          activeControlPoints.forEach(cp => {
-            if (cp.options && cp.options.color === '#059669') {
-              cp.setStyle({ opacity: 0, fillOpacity: 0 });
-            }
-          });
-        }
         
         let isDragging = true;
         const startPoint = e.latlng;
@@ -1773,9 +1744,6 @@ export function useMapDrawing(): MapDrawingReturn {
         
         const onMouseMove = (e: L.LeafletMouseEvent) => {
           if (!isDragging) return;
-          
-          // Incrémenter le compteur d'itérations pour le monitoring
-          performanceMonitor.iteration();
           
           // Calculer le déplacement par rapport au point initial
           const dx = e.latlng.lng - startPoint.lng;
@@ -1805,33 +1773,22 @@ export function useMapDrawing(): MapDrawingReturn {
           document.removeEventListener('mouseup', onMouseUp);
           map.value.dragging.enable();
           
-          // Désactiver le mode d'optimisation et mettre à jour les propriétés
+          // Supprimer complètement les points de contrôle et les recréer
+          // pour éviter les problèmes de synchronisation
+          clearActiveControlPoints();
+          
+          // Recréer tous les points de contrôle avec leurs positions correctes
+          updateLineControlPoints(layer);
+          
+          // Mettre à jour les propriétés UNIQUEMENT à la fin du déplacement
           if (layer instanceof Line) {
-            layer.endVertexMove();
-            
-            // Réafficher le point central et mettre à jour sa position
-            const newCenter = layer.getCenter();
-            activeControlPoints.forEach(cp => {
-              if (cp.options && cp.options.color === '#059669') {
-                cp.setLatLng(newCenter);
-                cp.setStyle({ opacity: 1, fillOpacity: 1 });
-              }
-            });
-            
-            updateLayerProperties(layer, 'Line');
-          } else {
-            // Mise à jour des propriétés à la fin de l'édition
+            layer.updateProperties();
+            // Ajouter cet appel pour mettre à jour les propriétés de la couche
             updateLayerProperties(layer, 'Line');
           }
           
-          // Arrêter le monitoring des performances et afficher les résultats
-          performanceMonitor.stop(observer);
-          
           // Mise à jour de selectedShape pour déclencher la réactivité
-          selectedShape.value = null; // Forcer un reset
-          nextTick(() => {
-            selectedShape.value = layer;
-          });
+          selectedShape.value = layer;
         };
         
         map.value.on('mousemove', onMouseMove);
@@ -1875,36 +1832,11 @@ export function useMapDrawing(): MapDrawingReturn {
         L.DomEvent.stopPropagation(e);
         map.value.dragging.disable();
         
-        // Démarrer le monitoring des performances
-        const observer = performanceMonitor.start();
-        
-        // Activer le mode d'optimisation pour la ligne
-        if (layer instanceof Line) {
-          layer.startVertexMove();
-          
-          // Cacher le point central (vert) pendant le déplacement
-          activeControlPoints.forEach(cp => {
-            if (cp.options && cp.options.color === '#059669') {
-              cp.setStyle({ opacity: 0, fillOpacity: 0 });
-            }
-          });
-        }
-        
         let isDragging = true;
-        
-        // Stocker les références aux points milieux adjacents
-        // qui doivent être mis à jour pendant le déplacement
-        const adjacentMidpointIndices: number[] = [];
-        if (i > 0) adjacentMidpointIndices.push(i - 1); // Point milieu précédent
-        if (i < points.length - 1) adjacentMidpointIndices.push(i); // Point milieu suivant
         
         const onMouseMove = (e: L.LeafletMouseEvent) => {
           if (!isDragging) return;
           
-          // Incrémenter le compteur d'itérations pour le monitoring
-          performanceMonitor.iteration();
-          
-          performance.mark('moveVertex-start');
           // Déplacer le vertex
           if (layer instanceof Line) {
             layer.moveVertex(i, e.latlng);
@@ -1912,38 +1844,23 @@ export function useMapDrawing(): MapDrawingReturn {
             points[i] = e.latlng;
             layer.setLatLngs(points);
           }
-          performance.mark('moveVertex-end');
-          performance.measure('moveVertex', 'moveVertex-start', 'moveVertex-end');
           
           // Mettre à jour uniquement ce point marker
           pointMarker.setLatLng(e.latlng);
           
-          performance.mark('updateMidPoints-start');
-          // Mettre à jour uniquement les midpoints adjacents au point déplacé
-          // plutôt que de tout recalculer
+          // Mettre à jour uniquement les midpoints affectés
+          updateMidPoints();
+          
+          // Recalculer et mettre à jour le point central pour qu'il reste sur la ligne
           if (layer instanceof Line) {
-            const allMidPoints = layer.getMidPoints();
-            
-            // Mettre à jour uniquement les points milieux adjacents
-            adjacentMidpointIndices.forEach(idx => {
-              if (idx >= 0 && idx < allMidPoints.length && idx + points.length < activeControlPoints.length) {
-                const midPointMarker = activeControlPoints[points.length + idx];
-                midPointMarker.setLatLng(allMidPoints[idx]);
-              }
-            });
-          } else {
-            // Mise à jour pour les polylignes standard
-            adjacentMidpointIndices.forEach(idx => {
-              if (idx >= 0 && idx < points.length - 1 && idx + points.length < activeControlPoints.length) {
-                const p1 = (layer.getLatLngs() as L.LatLng[])[idx];
-                const p2 = (layer.getLatLngs() as L.LatLng[])[idx + 1];
-                const midPoint = L.latLng((p1.lat + p2.lat) / 2, (p1.lng + p2.lng) / 2);
-                activeControlPoints[points.length + idx].setLatLng(midPoint);
+            const newCenter = layer.getCenter();
+            // Parcourir tous les points de contrôle et mettre à jour celui dont la couleur est '#059669'
+            activeControlPoints.forEach(cp => {
+              if (cp.options && cp.options.color === '#059669') {
+                cp.setLatLng(newCenter);
               }
             });
           }
-          performance.mark('updateMidPoints-end');
-          performance.measure('updateMidPoints', 'updateMidPoints-start', 'updateMidPoints-end');
         };
         
         const onMouseUp = () => {
@@ -1953,27 +1870,11 @@ export function useMapDrawing(): MapDrawingReturn {
           document.removeEventListener('mouseup', onMouseUp);
           map.value.dragging.enable();
           
-          // Désactiver le mode d'optimisation et mettre à jour les propriétés
+          // Mise à jour des propriétés à la fin de l'édition
           if (layer instanceof Line) {
-            layer.endVertexMove();
-            
-            // Réafficher le point central et mettre à jour sa position
-            const newCenter = layer.getCenter();
-            activeControlPoints.forEach(cp => {
-              if (cp.options && cp.options.color === '#059669') {
-                cp.setLatLng(newCenter);
-                cp.setStyle({ opacity: 1, fillOpacity: 1 });
-              }
-            });
-            
-            updateLayerProperties(layer, 'Line');
-          } else {
-            // Mise à jour des propriétés à la fin de l'édition
+            layer.updateProperties();
             updateLayerProperties(layer, 'Line');
           }
-          
-          // Arrêter le monitoring des performances et afficher les résultats
-          performanceMonitor.stop(observer);
           
           // Mise à jour de selectedShape pour déclencher la réactivité
           selectedShape.value = null; // Forcer un reset
@@ -1991,17 +1892,6 @@ export function useMapDrawing(): MapDrawingReturn {
 
     // Points milieux (bleu)
     const updateMidPoints = () => {
-      performance.mark('updateMidPoints-start');
-      
-      // Vérifier si on est en mode déplacement d'un vertex et si la ligne est une instance de Line
-      if (layer instanceof Line && layer['_isMovingVertex']) {
-        // Si on est en déplacement, la mise à jour est gérée dans onMouseMove
-        // Ne pas recréer tous les points milieux
-        performance.mark('updateMidPoints-end');
-        performance.measure('updateMidPoints-skipped', 'updateMidPoints-start', 'updateMidPoints-end');
-        return;
-      }
-      
       // Récupérer les points à jour
       const currentPoints = layer.getLatLngs() as L.LatLng[];
       
@@ -2022,7 +1912,7 @@ export function useMapDrawing(): MapDrawingReturn {
           const p2 = currentPoints[i + 1];
           return L.latLng((p1.lat + p2.lat) / 2, (p1.lng + p2.lng) / 2);
         });
-      
+
       midPoints.forEach((midPoint, i) => {
         const midPointMarker = createControlPoint(midPoint, '#2563EB');
         activeControlPoints.push(midPointMarker);
@@ -2110,14 +2000,9 @@ export function useMapDrawing(): MapDrawingReturn {
           document.addEventListener('mouseup', onMouseUp);
         });
       });
-      performance.mark('updateMidPoints-end');
-      performance.measure('updateMidPoints', 'updateMidPoints-start', 'updateMidPoints-end');
     };
 
     updateMidPoints();
-    
-    performance.mark('updateLineControlPoints-end');
-    performance.measure('updateLineControlPoints', 'updateLineControlPoints-start', 'updateLineControlPoints-end');
   };
 
   // Mettre à jour la fonction updatePolygonControlPoints pour ajouter plus de mesures
@@ -2585,12 +2470,6 @@ export function useMapDrawing(): MapDrawingReturn {
       if (layer instanceof Line) {
         const center = (layer as Line).getCenter();
         const tempCenterPoint = createControlPoint(center, '#059669');
-        
-        // Si la ligne est en mode déplacement de sommet, ne pas afficher le point central
-        if ((layer as Line).shouldHideCenterPoint()) {
-          tempCenterPoint.setStyle({ opacity: 0, fillOpacity: 0 });
-        }
-        
         tempControlPointsGroup.value.addLayer(tempCenterPoint);
       }
 
