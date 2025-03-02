@@ -776,6 +776,9 @@ function getUserDetails(userId: number | null): LocalUser | null {
 // Ajouter la fonction de callback
 async function onPlanCreated(planId: number) {
   await loadPlans();
+  // Sauvegarder l'ID du nouveau plan dans localStorage
+  localStorage.setItem('lastPlanId', planId.toString());
+  console.log(`Plan ${planId} créé et défini comme plan actif`);
   // Rediriger vers l'éditeur avec le nouveau plan
   router.push('/');
 }

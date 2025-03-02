@@ -82,6 +82,9 @@
         <div v-if="currentPlan && !isGeneratingSynthesis" class="absolute top-0 left-0 right-0 z-[1000]">
           <MapToolbar 
             :last-save="currentPlan?.date_modification ? new Date(currentPlan.date_modification) : undefined"
+            :plan-name="currentPlan?.nom"
+            :plan-description="currentPlan?.description"
+            :save-status="saveStatus"
             @change-map-type="changeBaseMap"
             @create-new-plan="showNewPlanModal = true"
             @load-plan="showLoadPlanModal = true"
@@ -91,7 +94,7 @@
           />
         </div>
         
-        <!-- Panneau latéral d'outils de dessin -->
+        <!-- Panneau latéral d'outils de dessin avec z-index ajusté pour qu'il soit sous la barre d'outils -->
         <DrawingTools 
           v-if="currentPlan && !isGeneratingSynthesis" 
           :current-tool="currentTool" 
@@ -100,6 +103,7 @@
           @style-update="updateShapeStyle"
           @properties-update="updateShapeProperties"
           @delete-shape="deleteSelectedShape"
+          class="drawing-tools-wrapper"
         />
         
         <!-- Interface de synthèse -->
@@ -113,24 +117,6 @@
             </div>
             <p class="text-lg font-medium text-gray-900">Génération de la synthèse en cours...</p>
             <p class="text-sm text-gray-500 mt-2">Veuillez patienter pendant que nous analysons votre plan.</p>
-          </div>
-        </div>
-
-        <!-- Message de succès pour la sauvegarde -->
-        <div 
-          v-if="showSaveSuccess" 
-          class="absolute top-20 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-md transition-opacity duration-500 ease-in-out"
-          :class="{ 'opacity-100': showSaveSuccess, 'opacity-0': !showSaveSuccess }"
-        >
-          <div class="flex">
-            <div class="flex-shrink-0">
-              <svg class="h-5 w-5 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-              </svg>
-            </div>
-            <div class="ml-3">
-              <p class="text-sm">Plan sauvegardé avec succès !</p>
-            </div>
           </div>
         </div>
       </div>
@@ -400,6 +386,8 @@ import { useDrawingStore } from '@/stores/drawing';
 import type { Plan } from '@/stores/irrigation';
   import type { DrawingElement, ShapeType, CircleData, RectangleData, SemicircleData, LineData, TextData } from '@/types/drawing';
 import { CircleArc } from '@/utils/CircleArc';
+import { TextRectangle } from '@/utils/TextRectangle';
+import type { TextRectangleOptions } from '@/utils/TextRectangleOptions';
 import { useAuthStore } from '@/stores/auth';
   import type { UserDetails } from '@/types/user';
 import api from '@/services/api';
@@ -427,8 +415,6 @@ const {
 
 const {
   initMap: initState,
-  baseMaps,
-  currentBaseMap,
   changeBaseMap
 } = useMapState();
 
@@ -439,7 +425,7 @@ const currentPlan = ref<Plan | null>(null);
 
 // État pour la sauvegarde
 const saving = ref(false);
-const showSaveSuccess = ref(false);
+const saveStatus = ref<'saving' | 'success' | null>(null);
 
 // Ajout des imports et des refs nécessaires
 const authStore = useAuthStore();
@@ -465,13 +451,13 @@ const filteredClients = computed(() => {
 
   if (authStore.user?.user_type === 'admin') {
     const clients = selectedDealer.value ? dealerClients.value : [];
-    console.log('[MapView][filteredClients] Admin clients:', clients);
+
     return clients;
   } else if (authStore.user?.user_type === 'dealer') {
-    console.log('[MapView][filteredClients] Dealer clients:', dealerClients.value);
+
     return dealerClients.value;
   }
-  console.log('[MapView][filteredClients] No clients returned');
+
   return [];
 });
 
@@ -512,8 +498,21 @@ function getMapPosition(): { lat: number; lng: number; zoom: number } | null {
   return null;
 }
 
+// Fonction pour calculer les limites d'un rectangle à partir d'un point central
+function calculateBoundsFromCenter(center: L.LatLng, width: number, height: number): L.LatLngBounds {
+  // Convertir taille en mètres en degrés lat/lng approximatifs
+  // La constante 111111 est la distance approximative en mètres d'un degré de latitude
+  const latOffset = height / 2 / 111111;
+  const lngOffset = width / 2 / (111111 * Math.cos(center.lat * Math.PI / 180));
+  
+  return L.latLngBounds(
+    L.latLng(center.lat - latOffset, center.lng - lngOffset),
+    L.latLng(center.lat + latOffset, center.lng + lngOffset)
+  );
+}
+
 onMounted(async () => {
-  console.log('[onMounted] Starting initialization...');
+
   
   // Charger les plans
   await irrigationStore.fetchPlans();
@@ -537,12 +536,6 @@ onMounted(async () => {
     mapInstance.pm.addControls({
       rotateMode: false
     });
-    
-    // Ajouter la couche de carte satellite Esri World Imagery
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-      maxZoom: 19
-    }).addTo(mapInstance);
     
     // Initialiser l'état de la carte avec l'instance existante
     initState(mapInstance);
@@ -578,13 +571,13 @@ onMounted(async () => {
 
   // Charger les concessionnaires au montage du composant si l'utilisateur est admin
   if (authStore.user?.user_type === 'admin') {
-    console.log('[onMounted] Loading dealers for admin...');
+
     await loadDealers();
   }
 
   // Charger les clients si c'est un concessionnaire
   if (authStore.user?.user_type === 'dealer') {
-    console.log('[onMounted] Loading clients for dealer...');
+
     await loadDealerClients();
   }
 });
@@ -628,15 +621,36 @@ async function loadPlan(planId: number) {
   try {
     clearMap();
     
-    await drawingStore.loadPlanElements(planId);
+    console.log(`Tentative de chargement du plan ${planId}...`);
+    
+    // Utiliser d'abord getPlanById pour vérifier si le plan existe dans le store
     const plan = irrigationStore.getPlanById(planId);
     
-    if (plan) {
-      currentPlan.value = plan;
-      irrigationStore.setCurrentPlan(plan);
-      drawingStore.setCurrentPlan(plan.id);
+    // Si le plan n'existe pas dans le store, vérifier avec l'API
+    if (!plan) {
+      try {
+        // Vérifier si le plan existe via une requête directe
+        await api.get(`/plans/${planId}/`);
+      } catch (error: any) {
+        // Si le plan n'existe pas (404), effacer l'ID du localStorage
+        if (error.response?.status === 404) {
+          console.warn(`Plan ${planId} non trouvé - Suppression de la référence du localStorage`);
+          localStorage.removeItem('lastPlanId');
+        }
+        throw error; // Propager l'erreur pour le traitement en amont
+      }
+    }
+    
+    await drawingStore.loadPlanElements(planId);
+    const loadedPlan = irrigationStore.getPlanById(planId);
+    
+    if (loadedPlan) {
+      currentPlan.value = loadedPlan;
+      irrigationStore.setCurrentPlan(loadedPlan);
+      drawingStore.setCurrentPlan(loadedPlan.id);
       
-      localStorage.setItem('lastPlanId', plan.id.toString());
+      // Mettre à jour l'ID du dernier plan consulté
+      localStorage.setItem('lastPlanId', loadedPlan.id.toString());
 
       if (map.value && featureGroup.value) {
         drawingStore.getCurrentElements.forEach(element => {
@@ -678,6 +692,27 @@ async function loadPlan(planId: number) {
                   semiData.endAngle,
                   style
                 );
+                
+                // S'assurer que le type est correctement défini
+                (layer as any).properties = {
+                  type: 'Semicircle',
+                  radius: semiData.radius,
+                  startAngle: semiData.startAngle,
+                  stopAngle: semiData.endAngle,
+                  style: style
+                };
+                
+                // Calculer les propriétés additionnelles
+                const area = Math.PI * Math.pow(semiData.radius, 2) * ((semiData.endAngle - semiData.startAngle) / 360);
+                const perimeter = 2 * semiData.radius + (Math.PI * semiData.radius * ((semiData.endAngle - semiData.startAngle) / 180));
+                const arcLength = Math.PI * semiData.radius * ((semiData.endAngle - semiData.startAngle) / 180);
+                
+                (layer as any).properties.area = area;
+                (layer as any).properties.perimeter = perimeter;
+                (layer as any).properties.arcLength = arcLength;
+                (layer as any).properties.openingAngle = semiData.endAngle - semiData.startAngle;
+                
+                console.log('[loadPlan] Demi-cercle restauré avec propriétés:', (layer as any).properties);
               }
               break;
             }
@@ -687,6 +722,31 @@ async function loadPlan(planId: number) {
               if (lineData.points) {
                 const points = lineData.points.map(p => L.latLng(p[1], p[0]));
                 layer = L.polyline(points, style);
+                
+                // S'assurer que le type est correctement défini
+                (layer as any).properties = {
+                  type: 'Line',
+                  style: style
+                };
+                
+                // Calculer la longueur de la ligne
+                let length = 0;
+                for (let i = 1; i < points.length; i++) {
+                  length += points[i].distanceTo(points[i-1]);
+                }
+                
+                (layer as any).properties.length = length;
+                
+                // Vérifier si des dimensions existent dans les données
+                if (lineData.hasOwnProperty('dimensions') && (lineData as any).dimensions) {
+                  (layer as any).properties.dimensions = (lineData as any).dimensions;
+                  if ((lineData as any).dimensions.width && length) {
+                    const surfaceInfluence = length * (lineData as any).dimensions.width;
+                    (layer as any).properties.surfaceInfluence = surfaceInfluence;
+                  }
+                }
+                
+                console.log('[loadPlan] Ligne restaurée avec propriétés:', (layer as any).properties);
               }
               break;
             }
@@ -694,25 +754,72 @@ async function loadPlan(planId: number) {
             case 'TEXTE': {
               const textData = otherData as TextData;
               if (textData.position && textData.content) {
-                const textIcon = L.divIcon({
-                  html: `<div class="text-annotation" style="font-size: ${style.fontSize || '14px'}">${textData.content}</div>`,
-                  className: 'text-container'
-                });
-                layer = L.marker([textData.position[1], textData.position[0]], {
-                  icon: textIcon,
-                  ...style
-                });
+                console.log('[loadPlan] Chargement d\'un élément texte avec données:', textData);
+                
+                // Récupérer la position et convertir en LatLng
+                const position = L.latLng(textData.position[1], textData.position[0]);
+                
+                // Déterminer les dimensions du rectangle (valeurs par défaut si non spécifiées)
+                const width = textData.width || 100; // largeur en mètres
+                const height = textData.height || 50; // hauteur en mètres
+                
+                // Créer les limites du rectangle à partir de la position et des dimensions
+                let bounds: L.LatLngBounds;
+                
+                if (textData.bounds) {
+                  // Si les limites sont déjà spécifiées, les utiliser
+                  bounds = L.latLngBounds(
+                    [textData.bounds.southWest[1], textData.bounds.southWest[0]],
+                    [textData.bounds.northEast[1], textData.bounds.northEast[0]]
+                  );
+                } else {
+                  // Sinon, calculer les limites à partir du centre et des dimensions
+                  bounds = calculateBoundsFromCenter(position, width, height);
+                }
+                
+                // Créer le TextRectangle avec les bonnes limites et le texte
+                layer = new TextRectangle(bounds, textData.content, {
+                  ...style,
+                  textColor: (textData.style as any)?.textColor || '#000000',
+                  fontSize: (textData.style as any)?.fontSize || '14px',
+                  fontFamily: (textData.style as any)?.fontFamily || 'Arial, sans-serif',
+                  textAlign: (textData.style as any)?.textAlign || 'center',
+                  backgroundColor: (textData.style as any)?.backgroundColor || '#FFFFFF',
+                  backgroundOpacity: (textData.style as any)?.backgroundOpacity !== undefined 
+                    ? (textData.style as any).backgroundOpacity 
+                    : 1
+                } as TextRectangleOptions) as unknown as L.Layer;
+                
+                // Appliquer la rotation si spécifiée
+                if (textData.rotation && typeof (layer as any).setRotation === 'function') {
+                  (layer as any).setRotation(textData.rotation);
+                }
+                
+                console.log('[loadPlan] TextRectangle créé avec succès:', layer);
               }
               break;
             }
           }
 
           if (layer) {
-            layer.properties = {
-              type: element.type_forme,
-              style: style,
-              ...otherData
-            };
+            // Stocker l'ID de la base de données sur la couche pour la retrouver lors de la sauvegarde
+            (layer as any)._dbId = element.id;
+            
+            // Ne pas écraser les propriétés déjà définies pour les types spécifiques
+            if (!(layer as any).properties) {
+              (layer as any).properties = {
+                type: element.type_forme === 'DEMI_CERCLE' ? 'Semicircle' : element.type_forme,
+                style: style,
+                ...otherData
+              };
+              console.log(`[loadPlan] Propriétés initialisées pour ${element.type_forme}:`, (layer as any).properties);
+            } else {
+              // Pour les types avec propriétés déjà définies, s'assurer que les données supplémentaires sont ajoutées
+              if (otherData.rotation) {
+                (layer as any).properties.rotation = otherData.rotation;
+              }
+              console.log(`[loadPlan] Propriétés enrichies pour ${element.type_forme}:`, (layer as any).properties);
+            }
 
             featureGroup.value?.addLayer(layer);
 
@@ -720,7 +827,7 @@ async function loadPlan(planId: number) {
               id: element.id,
               type: element.type_forme,
               layer: layer,
-              properties: layer.properties
+              properties: (layer as any).properties
             });
 
             if (otherData.rotation && typeof (layer as any).setRotation === 'function') {
@@ -729,10 +836,17 @@ async function loadPlan(planId: number) {
           }
         });
       }
+      
+      console.log(`Plan ${planId} chargé avec succès avec ${drawingStore.getCurrentElements.length} formes`);
+    } else {
+      console.error(`Plan ${planId} introuvable après chargement`);
     }
+    
     showLoadPlanModal.value = false;
   } catch (error) {
     console.error('Erreur lors du chargement du plan:', error);
+    // Afficher une notification d'erreur à l'utilisateur
+    // ...
   }
 }
 
@@ -744,28 +858,39 @@ async function savePlan() {
   }
 
   saving.value = true;
+  saveStatus.value = 'saving';
+  
   try {
-      const elements: DrawingElement[] = [];
+    const elements: DrawingElement[] = [];
     
-      featureGroup.value.eachLayer((layer: L.Layer) => {
+    // Récupérer les identifiants existants dans la base de données
+    // Ces identifiants sont chargés lors du loadPlan() et stockés dans drawingStore.elements
+    const existingIds = new Set(drawingStore.getCurrentElements
+      .filter(el => el.id !== undefined)
+      .map(el => el.id as number));
+    
+    // Identifiants actuellement présents sur la carte
+    const currentLayerIds = new Set<number>();
+    
+    featureGroup.value.eachLayer((layer: L.Layer) => {
       const baseData = {
         style: {
-            color: (layer as any).options?.color || '#3388ff',
-            fillColor: (layer as any).options?.fillColor || '#3388ff',
-            fillOpacity: (layer as any).options?.fillOpacity || 0.2,
-            weight: (layer as any).options?.weight || 3,
-            opacity: (layer as any).options?.opacity || 1
-          }
-        };
+          color: (layer as any).options?.color || '#3388ff',
+          fillColor: (layer as any).options?.fillColor || '#3388ff',
+          fillOpacity: (layer as any).options?.fillOpacity || 0.2,
+          weight: (layer as any).options?.weight || 3,
+          opacity: (layer as any).options?.opacity || 1
+        }
+      };
 
-        let type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | undefined;
-        let data: any;
+      let type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | undefined;
+      let data: any;
 
       if (layer instanceof L.Circle) {
         type_forme = 'CERCLE';
         data = {
           ...baseData,
-            center: [(layer as L.Circle).getLatLng().lng, (layer as L.Circle).getLatLng().lat],
+          center: [(layer as L.Circle).getLatLng().lng, (layer as L.Circle).getLatLng().lat],
           radius: layer.getRadius()
         };
       } else if (layer instanceof L.Rectangle) {
@@ -778,57 +903,155 @@ async function savePlan() {
             northEast: [bounds.getNorthEast().lng, bounds.getNorthEast().lat]
           }
         };
-        } else if ((layer as any).properties?.type === 'Semicircle') {
+      } else if ((layer as any).properties?.type === 'Semicircle') {
         type_forme = 'DEMI_CERCLE';
+        // Récupérer le centre de manière sécurisée
+        let center;
+        if (typeof (layer as any).getLatLng === 'function') {
+          // Si la méthode getLatLng est disponible
+          center = (layer as any).getLatLng();
+          console.log('[savePlan] Demi-cercle - centre récupéré avec getLatLng', center);
+        } else if ((layer as any).getCenter && typeof (layer as any).getCenter === 'function') {
+          // Sinon, essayer avec getCenter qui pourrait être implémenté
+          center = (layer as any).getCenter();
+          console.log('[savePlan] Demi-cercle - centre récupéré avec getCenter', center);
+        } else if ((layer as any)._latlng) {
+          // En dernier recours, essayer d'accéder directement à la propriété _latlng
+          center = (layer as any)._latlng;
+          console.log('[savePlan] Demi-cercle - centre récupéré via _latlng', center);
+        } else {
+          console.warn('Impossible de récupérer le centre du demi-cercle', layer);
+          // Utiliser un centre par défaut pour éviter de planter
+          center = { lat: 0, lng: 0 };
+        }
+        
+        // Récupérer le rayon de manière sécurisée
+        const radius = (layer as any).getRadius ? (layer as any).getRadius() : 0;
+        console.log('[savePlan] Demi-cercle - rayon:', radius);
+        
+        // Récupérer les angles de manière sécurisée
+        const startAngle = (layer as any).properties?.style?.startAngle || 0;
+        const endAngle = (layer as any).properties?.style?.stopAngle || 180;
+        console.log('[savePlan] Demi-cercle - angles:', { startAngle, endAngle });
+        
         data = {
           ...baseData,
-            center: [(layer as L.Circle).getLatLng().lng, (layer as L.Circle).getLatLng().lat],
-            radius: (layer as any).getRadius(),
-            startAngle: (layer as any).properties.style.startAngle || 0,
-            endAngle: (layer as any).properties.style.stopAngle || 180
+          center: [center.lng, center.lat],
+          radius: radius,
+          startAngle: startAngle,
+          endAngle: endAngle
         };
+        
+        console.log('[savePlan] Données du demi-cercle préparées:', data);
       } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
         type_forme = 'LIGNE';
-          const latLngs = layer.getLatLngs() as L.LatLng[];
+        const latLngs = layer.getLatLngs() as L.LatLng[];
         data = {
           ...baseData,
-            points: latLngs.map(ll => [ll.lng, ll.lat])
+          points: latLngs.map(ll => [ll.lng, ll.lat])
         };
-        } else if ((layer as any).properties?.type === 'text') {
+      } else if (layer instanceof TextRectangle || (layer as any).properties?.type === 'TextRectangle') {
+        type_forme = 'TEXTE';
+        
+        // Récupérer les données du TextRectangle
+        const textRectangle = layer as unknown as TextRectangle;
+        const bounds = textRectangle.getBounds();
+        const text = textRectangle.properties?.text || '';
+        
+        // Récupérer les styles spécifiques au texte
+        const textStyle = {
+          ...(textRectangle.properties?.style || {}),
+          ...(textRectangle.options || {})
+        } as TextRectangleOptions;
+        
+        // Préparer les données de sauvegarde
+        data = {
+          ...baseData,
+          // Stocker la position (centre) et les limites
+          position: [bounds.getCenter().lng, bounds.getCenter().lat],
+          content: text,
+          bounds: {
+            southWest: [bounds.getSouthWest().lng, bounds.getSouthWest().lat],
+            northEast: [bounds.getNorthEast().lng, bounds.getNorthEast().lat]
+          },
+          // Intégrer tous les styles spécifiques au texte
+          style: {
+            ...baseData.style,
+            textColor: textStyle.textColor || '#000000',
+            fontSize: textStyle.fontSize || '14px',
+            fontFamily: textStyle.fontFamily || 'Arial, sans-serif',
+            textAlign: textStyle.textAlign || 'center', 
+            backgroundColor: textStyle.backgroundColor || '#FFFFFF',
+            backgroundOpacity: textStyle.backgroundOpacity !== undefined ? textStyle.backgroundOpacity : 1
+          } as TextRectangleOptions,
+          // Conserver la rotation si présente
+          rotation: (layer as any).properties?.rotation || 0
+        };
+        
+        console.log('[savePlan] Sauvegarde TextRectangle avec données:', data);
+      } else if ((layer as any).properties?.type === 'text') {
+        // Ancien type de texte (à conserver pour la compatibilité)
         type_forme = 'TEXTE';
         data = {
           ...baseData,
-            position: [(layer as L.Marker).getLatLng().lng, (layer as L.Marker).getLatLng().lat],
-            content: (layer as any).properties.text,
+          position: [(layer as L.Marker).getLatLng().lng, (layer as L.Marker).getLatLng().lat],
+          content: (layer as any).properties.text,
           style: {
-              ...(layer as any).properties.style,
-              fontSize: (layer as any).properties.style.fontSize
+            ...(layer as any).properties.style,
+            fontSize: (layer as any).properties.style.fontSize
           }
         };
       }
 
       if (type_forme && data) {
+        // Assurer que chaque couche a un identifiant persistant
+        let elementId: number | undefined = (layer as any)._elementId;
+        
+        // Si la couche a déjà un ID depuis le chargement (donc existe en DB), l'utiliser
+        if ((layer as any)._dbId) {
+          elementId = (layer as any)._dbId;
+          // S'assurer que l'ID est un nombre valide avant de l'ajouter
+          if (typeof elementId === 'number') {
+            currentLayerIds.add(elementId);
+          }
+        }
+        
         elements.push({
-            id: (layer as any).id,
+          id: elementId,
           type_forme,
           data: {
             ...data,
-              rotation: (layer as any).properties?.rotation || 0
+            rotation: (layer as any).properties?.rotation || 0
           }
         });
       }
     });
     
-      drawingStore.elements = elements;
-    await drawingStore.saveToPlan(currentPlan.value.id);
-      
-    showSaveSuccess.value = true;
+    // Identifier les éléments supprimés (existants dans la DB mais plus sur la carte)
+    const elementsToDelete = Array.from(existingIds).filter(id => !currentLayerIds.has(id));
+    
+    console.log('Sauvegarde du plan:', {
+      totalElements: elements.length,
+      elementsToDelete: elementsToDelete.length,
+      details: { elements, elementsToDelete }
+    });
+    
+    drawingStore.elements = elements;
+    
+    // Passer les éléments à supprimer au store
+    await drawingStore.saveToPlan(currentPlan.value.id, { elementsToDelete });
+    
+    // Changer l'état à "success"
+    saveStatus.value = 'success';
+    
+    // Réinitialiser l'état après un délai
     setTimeout(() => {
-      showSaveSuccess.value = false;
+      saveStatus.value = null;
     }, 3000);
 
   } catch (error) {
     console.error('Erreur lors de la sauvegarde du plan:', error);
+    saveStatus.value = null;
   } finally {
     saving.value = false;
   }
@@ -912,13 +1135,13 @@ async function loadDealers() {
 
 // Fonction pour charger les clients d'un concessionnaire
 async function loadDealerClients() {
-  console.log('[loadDealerClients] Starting...');
-  console.log('[loadDealerClients] authStore.user:', authStore.user);
+
+
   isLoadingClients.value = true;
   try {
     // Pour un concessionnaire, utiliser son propre ID
     const dealerId = authStore.user?.id;
-    console.log('[loadDealerClients] Using dealerId:', dealerId);
+
 
     if (!dealerId) {
       console.error('[loadDealerClients] No dealer ID available');
@@ -931,7 +1154,7 @@ async function loadDealerClients() {
         concessionnaire: dealerId
       }
     });
-    console.log('[loadDealerClients] Response:', response.data);
+
     
     // S'assurer que nous avons toujours un tableau
     if (Array.isArray(response.data)) {
@@ -942,7 +1165,7 @@ async function loadDealerClients() {
       dealerClients.value = [];
     }
     
-    console.log('[loadDealerClients] Processed clients:', dealerClients.value);
+
   } catch (error) {
     console.error('[loadDealerClients] Error:', error);
     dealerClients.value = [];
@@ -952,7 +1175,7 @@ async function loadDealerClients() {
 }
 
 async function selectClient(client: UserDetails) {
-  console.log('[MapView][selectClient] Starting with client:', client);
+
   console.log('[MapView][selectClient] Current state:', {
     selectedDealer: selectedDealer.value,
     selectedClient: selectedClient.value,
@@ -960,10 +1183,10 @@ async function selectClient(client: UserDetails) {
   });
 
   if (newPlanModalRef.value) {
-    console.log('[MapView][selectClient] Using NewPlanModal ref');
+
     newPlanModalRef.value.selectClient(client);
     selectedClient.value = client;
-    console.log('[MapView][selectClient] Updated selectedClient:', selectedClient.value);
+
 
     // Charger les plans du client avec les paramètres de filtrage
     isLoadingPlans.value = true;
@@ -980,7 +1203,7 @@ async function selectClient(client: UserDetails) {
       const response = await api.get('/plans/', {
         params: params
       });
-      console.log('[MapView][selectClient] Loaded client plans:', response.data);
+
       clientPlans.value = response.data;
     } catch (error) {
       console.error('[MapView][selectClient] Error loading client plans:', error);
@@ -1008,12 +1231,26 @@ function backToClientList() {
 
 // Ajouter la fonction de callback
 async function onPlanCreated(planId: number) {
-  const plan = await irrigationStore.getPlanById(planId);
+  console.log(`onPlanCreated - Tentative de chargement du plan ${planId}`);
+  
+  // Actualiser la liste des plans pour s'assurer que le nouveau plan est bien présent
+  await irrigationStore.fetchPlans();
+  
+  const plan = irrigationStore.getPlanById(planId);
   if (plan) {
+    console.log(`Plan ${planId} trouvé, chargement en cours...`);
+    
+    // Mettre à jour l'ID du dernier plan consulté dans localStorage
+    localStorage.setItem('lastPlanId', planId.toString());
+    
     currentPlan.value = plan;
     irrigationStore.setCurrentPlan(plan);
     drawingStore.setCurrentPlan(plan.id);
     showNewPlanModal.value = false;
+    
+    console.log(`Plan ${planId} chargé avec succès`);
+  } else {
+    console.error(`Plan ${planId} introuvable après création! Vérifiez les permissions.`);
   }
 }
 
@@ -1093,19 +1330,19 @@ function clearLastPlan() {
       'Semicircle': 'Demi-cercle',
       'Line': 'Ligne',
       'Polygon': 'Polygone',
-      'Text': 'Texte'
+      'TextRectangle': 'Rectangle avec texte'
     };
     return types[type] || type;
   }
 
   async function generateSynthesis() {
     if (!currentPlan.value || !map.value || !featureGroup.value) {
-      console.log('[generateSynthesis] Conditions initiales non remplies');
+
       return;
     }
 
     try {
-      console.log('[generateSynthesis] Début de la génération');
+
       isGeneratingSynthesis.value = true;
 
       // Utiliser directement les détails du plan
@@ -1179,7 +1416,7 @@ function clearLastPlan() {
       // Récupérer les formes
       const layers: L.Layer[] = [];
       featureGroup.value.eachLayer((layer: L.Layer) => layers.push(layer));
-      console.log(`[generateSynthesis] Nombre de formes à traiter: ${layers.length}`);
+
 
       // Initialiser le screenshoter avec des options améliorées
       const screenshoter = L.simpleMapScreenshoter({
@@ -1202,7 +1439,7 @@ function clearLastPlan() {
         // Ajouter le logo en filigrane
         const logoWidth = 30;
         const logoHeight = 30;
-        pdf.addImage(logo, 'JPEG', pageWidth - logoWidth - 10, 10, logoWidth, logoHeight);
+        pdf.addImage(logoImg, 'JPEG', pageWidth - logoWidth - 10, 10, logoWidth, logoHeight);
 
         // Ajouter les informations du client et concessionnaire en en-tête
         pdf.setFontSize(8);
@@ -1399,7 +1636,7 @@ function clearLastPlan() {
       // Retirer le screenshoter
       map.value.removeControl(screenshoter);
       
-      console.log('[generateSynthesis] Génération du PDF terminée');
+
       pdf.save(`synthese_${currentPlan.value.nom}.pdf`);
 
     } catch (error) {
@@ -1412,4 +1649,17 @@ function clearLastPlan() {
 
 <style>
 @import '../styles/MapView.css';
+
+.map-container {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+/* Style pour le wrapper des outils de dessin */
+.drawing-tools-wrapper {
+  position: relative;
+  z-index: 999; /* Juste en dessous du MapToolbar qui est à 1000 */
+  height: 100%;
+}
 </style> 

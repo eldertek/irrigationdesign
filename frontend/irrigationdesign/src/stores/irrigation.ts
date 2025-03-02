@@ -115,9 +115,9 @@ export const useIrrigationStore = defineStore('irrigation', {
     async createPlan(planData: NewPlan) {
       this.loading = true;
       try {
-        console.log('Creating plan with data:', planData);
+
         const response = await api.post('/plans/', planData);
-        console.log('Plan creation response:', response.data);
+
         this.plans.push(response.data);
         return response.data;
       } catch (error: unknown) {

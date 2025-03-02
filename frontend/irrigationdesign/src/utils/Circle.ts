@@ -26,7 +26,7 @@ export class Circle extends L.Circle {
     // Écouter uniquement les événements qui indiquent la fin d'une modification
     // pour ne pas surcharger avec des mises à jour constantes
     this.on('add', () => {
-      console.log('Circle added to map, updating properties');
+
       this.updateProperties();
     });
   }

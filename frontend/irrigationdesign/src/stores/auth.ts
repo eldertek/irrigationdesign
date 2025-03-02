@@ -8,7 +8,7 @@ api.defaults.withCredentials = true;
 
 // Fonction utilitaire pour les logs de debug
 const logRequestDetails = (config: any) => {
-  console.log('Full request URL:', `${api.defaults.baseURL}${config.url}`);
+
   console.log('Request config:', {
     url: config.url,
     method: config.method,
@@ -150,10 +150,10 @@ export const useAuthStore = defineStore('auth', {
 
   actions: {
     async initialize(initialState: any) {
-      console.log('Initializing auth store with state:', initialState);
+
       
       if (!initialState) {
-        console.log('No initial state, attempting to restore session...');
+
         const restored = await this.restoreSession();
         this.initialized = true;
         return restored;
@@ -173,12 +173,12 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async restoreSession() {
-      console.log('Attempting to restore session...');
+
       try {
         // Vérifier si un token existe avant d'essayer de le rafraîchir
         const token = getCookie('access_token');
         if (!token) {
-          console.log('No token found, skipping session restore');
+
           this.isAuthenticated = false;
           this.user = null;
           return false;
@@ -190,7 +190,7 @@ export const useAuthStore = defineStore('auth', {
           this.user = response.data.user;
           this.isAuthenticated = true;
           this.mustChangePassword = response.data.user.must_change_password || false;
-          console.log('Session restored successfully');
+
           return true;
         }
         
@@ -277,13 +277,13 @@ export const useAuthStore = defineStore('auth', {
 
     async changePassword(oldPassword: string, newPassword: string) {
       try {
-        console.log('Attempting to change password...');
+
         const response = await api.post(`/users/change_password/`, {
           old_password: oldPassword,
           password: newPassword
         });
         
-        console.log('Password change response:', response.data);
+
         
         this.user = {
           ...this.user,
@@ -299,7 +299,7 @@ export const useAuthStore = defineStore('auth', {
 
     async refreshToken() {
       try {
-        console.log('Attempting to refresh token...');
+
         const response = await api.post('/token/refresh/', {}, {
           withCredentials: true
         });
@@ -309,7 +309,7 @@ export const useAuthStore = defineStore('auth', {
           throw new Error('No access token received');
         }
         
-        console.log('Token refreshed successfully');
+
         setSecureCookie('access_token', access, 1);
         this.isAuthenticated = true;
         
@@ -321,7 +321,7 @@ export const useAuthStore = defineStore('auth', {
         });
         
         if (error.response?.status === 401 || error.response?.status === 403) {
-          console.log('Token refresh failed with auth error, logging out');
+
           await this.logout();
         }
         

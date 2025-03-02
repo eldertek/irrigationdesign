@@ -9,8 +9,6 @@ import { Line } from '../utils/Line';
 import type { TextStyle, TextMarker } from '../types/leaflet';
 import * as turf from '@turf/turf';
 import centroid from '@turf/centroid';
-import { PerformanceTracker } from '@/utils/PerformanceTracker';
-
 
 // Ajouter cette interface avant la déclaration du module 'leaflet'
 interface CustomIconOptions extends L.DivIconOptions {
@@ -506,8 +504,8 @@ export function useMapDrawing(): MapDrawingReturn {
 
   // Fonction pour calculer les propriétés d'une forme
   const calculateShapeProperties = (layer: L.Layer, type: string): any => {
-    PerformanceTracker.start('useMapDrawing.calculateShapeProperties');
-    console.log('=== CALCULATING SHAPE PROPERTIES START ===');
+
+
     console.log('Input layer:', {
       type,
       instanceof: {
@@ -528,10 +526,10 @@ export function useMapDrawing(): MapDrawingReturn {
 
     try {
       if (layer instanceof TextRectangle) {
-        PerformanceTracker.end('useMapDrawing.calculateShapeProperties');
+        
         return layer.properties;
       } else if (layer instanceof L.Circle) {
-        PerformanceTracker.start('useMapDrawing.calculateShapeProperties.Circle');
+
         const radius = layer.getRadius();
         const center = layer.getLatLng();
         properties.radius = radius;
@@ -541,11 +539,11 @@ export function useMapDrawing(): MapDrawingReturn {
         properties.center = center;
         properties.surfaceInterieure = properties.area;
         properties.surfaceExterieure = properties.area;
-        console.log('Circle properties calculated:', properties);
-        PerformanceTracker.end('useMapDrawing.calculateShapeProperties.Circle');
+
+        
       } 
       else if (layer instanceof CircleArc) {
-        PerformanceTracker.start('useMapDrawing.calculateShapeProperties.CircleArc');
+
         const radius = layer.getRadius();
         const center = layer.getCenter();
         const startAngle = layer.getStartAngle();
@@ -563,19 +561,19 @@ export function useMapDrawing(): MapDrawingReturn {
         properties.openingAngle = openingAngle;
         properties.surfaceInterieure = properties.area;
         properties.surfaceExterieure = properties.area;
-        console.log('CircleArc properties calculated:', properties);
-        PerformanceTracker.end('useMapDrawing.calculateShapeProperties.CircleArc');
+
+        
       }
       else if (layer instanceof L.Rectangle) {
-        PerformanceTracker.start('useMapDrawing.calculateShapeProperties.Rectangle');
+
         const bounds = layer.getBounds();
         const ne = bounds.getNorthEast();
         const sw = bounds.getSouthWest();
         
-        PerformanceTracker.start('useMapDrawing.calculateShapeProperties.Rectangle.turf');
+
         const width = turf.distance([sw.lng, sw.lat], [ne.lng, sw.lat], { units: 'meters' });
         const height = turf.distance([sw.lng, sw.lat], [sw.lng, ne.lat], { units: 'meters' });
-        PerformanceTracker.end('useMapDrawing.calculateShapeProperties.Rectangle.turf');
+        
         
         properties.width = width;
         properties.height = height;
@@ -587,28 +585,28 @@ export function useMapDrawing(): MapDrawingReturn {
           width,
           height
         };
-        console.log('Rectangle properties calculated:', properties);
-        PerformanceTracker.end('useMapDrawing.calculateShapeProperties.Rectangle');
+
+        
       }
       else if (layer instanceof L.Polygon) {
-        PerformanceTracker.start('useMapDrawing.calculateShapeProperties.Polygon');
+
         const latLngs = layer.getLatLngs()[0] as L.LatLng[];
         const coordinates = latLngs.map((ll: L.LatLng) => [ll.lng, ll.lat]);
         coordinates.push(coordinates[0]); // Fermer le polygone
         
-        PerformanceTracker.start('useMapDrawing.calculateShapeProperties.Polygon.turf');
+
         const polygon = turf.polygon([coordinates]);
         properties.area = turf.area(polygon);
         properties.perimeter = turf.length(turf.lineString([...coordinates]), { units: 'meters' });
-        PerformanceTracker.end('useMapDrawing.calculateShapeProperties.Polygon.turf');
+        
         
         properties.surfaceInterieure = properties.area;
         properties.surfaceExterieure = properties.area;
-        console.log('Polygon properties calculated:', properties);
-        PerformanceTracker.end('useMapDrawing.calculateShapeProperties.Polygon');
+
+        
       }
       else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-        PerformanceTracker.start('useMapDrawing.calculateShapeProperties.Line');
+
         if (layer instanceof Line) {
           // Si c'est notre classe Line personnalisée
           layer.updateProperties();
@@ -617,16 +615,16 @@ export function useMapDrawing(): MapDrawingReturn {
             ...layer.properties,
             type: 'Line'
           });
-          console.log('Line (custom class) properties calculated:', properties);
+
         } else {
           // Pour les polylines standard de Leaflet
           const latLngs = layer.getLatLngs() as L.LatLng[];
           const coordinates = latLngs.map((ll: L.LatLng) => [ll.lng, ll.lat]);
           
-          PerformanceTracker.start('useMapDrawing.calculateShapeProperties.Line.turf');
+
           const line = turf.lineString(coordinates);
           properties.length = turf.length(line, { units: 'meters' });
-          PerformanceTracker.end('useMapDrawing.calculateShapeProperties.Line.turf');
+          
           
           // Calculer la surface d'influence pour les lignes
           const width = 10; // Largeur d'influence par défaut en mètres
@@ -634,9 +632,9 @@ export function useMapDrawing(): MapDrawingReturn {
           properties.dimensions = {
             width
           };
-          console.log('Polyline properties calculated:', properties);
+
         }
-        PerformanceTracker.end('useMapDrawing.calculateShapeProperties.Line');
+        
       }
 
       // Ajouter les propriétés de style
@@ -654,9 +652,9 @@ export function useMapDrawing(): MapDrawingReturn {
       console.error('Error calculating shape properties:', error);
     }
 
-    console.log('=== CALCULATING SHAPE PROPERTIES END ===');
-    console.log('Final properties:', properties);
-    PerformanceTracker.end('useMapDrawing.calculateShapeProperties');
+
+
+    
     return properties;
   };
 
@@ -886,48 +884,54 @@ export function useMapDrawing(): MapDrawingReturn {
             // Check for any remnant standard rectangles that might be duplicates
             if (featureGroup.value) {
               const allLayers = featureGroup.value.getLayers();
-              console.log('[TextRectangle] Checking for duplicates. Total layers:', allLayers.length);
+
               
               const textRectBounds = layer.getBounds();
-              console.log('[TextRectangle] Selected TextRectangle bounds:', textRectBounds.toBBoxString());
+
               
               // Look for Rectangle layers with the same bounds
               const duplicateRectangles = allLayers.filter((otherLayer: L.Layer) => {
-                if (otherLayer !== layer && 
-                    otherLayer instanceof L.Rectangle && 
-                    !(otherLayer instanceof TextRectangle)) {
-                  // Compare bounds to see if it's a duplicate
-                  const otherBounds = (otherLayer as L.Rectangle).getBounds();
-                  const isSameBounds = 
-                    Math.abs(otherBounds.getNorth() - textRectBounds.getNorth()) < 1e-6 &&
-                    Math.abs(otherBounds.getSouth() - textRectBounds.getSouth()) < 1e-6 &&
-                    Math.abs(otherBounds.getEast() - textRectBounds.getEast()) < 1e-6 &&
-                    Math.abs(otherBounds.getWest() - textRectBounds.getWest()) < 1e-6;
-                  
-                  console.log('[TextRectangle] Comparing with Rectangle:', {
-                    id: (otherLayer as any)._leaflet_id,
-                    bounds: otherBounds.toBBoxString(),
-                    isSameBounds: isSameBounds
-                  });
-                  
-                  return isSameBounds;
+                // Skip if it's the same layer or not a Rectangle
+                if (otherLayer === layer || !(otherLayer instanceof L.Rectangle)) {
+                  return false;
                 }
-                return false;
+                
+                // Check if it's a TextRectangle by looking at its properties
+                // Using as any to bypass TypeScript's strict type checking
+                if ((otherLayer as any).properties && (otherLayer as any).properties.type === 'TextRectangle') {
+                  return false;
+                }
+                
+                // Compare bounds to see if it's a duplicate
+                const otherBounds = (otherLayer as L.Rectangle).getBounds();
+                const isSameBounds = 
+                  Math.abs(otherBounds.getNorth() - textRectBounds.getNorth()) < 1e-6 &&
+                  Math.abs(otherBounds.getSouth() - textRectBounds.getSouth()) < 1e-6 &&
+                  Math.abs(otherBounds.getEast() - textRectBounds.getEast()) < 1e-6 &&
+                  Math.abs(otherBounds.getWest() - textRectBounds.getWest()) < 1e-6;
+                  
+                console.log('[TextRectangle] Comparing with Rectangle:', {
+                  id: (otherLayer as any)._leaflet_id,
+                  bounds: otherBounds.toBBoxString(),
+                  isSameBounds: isSameBounds
+                });
+                
+                return isSameBounds;
               });
               
               // Remove any found duplicates
               if (duplicateRectangles.length > 0) {
                 console.warn(`[TextRectangle] Found ${duplicateRectangles.length} duplicate rectangle(s) with TextRectangle, removing...`);
                 duplicateRectangles.forEach((duplicate: L.Layer) => {
-                  console.log('[TextRectangle] Removing duplicate:', (duplicate as any)._leaflet_id);
+
                   featureGroup.value?.removeLayer(duplicate);
                   if (map.value) {
                     map.value.removeLayer(duplicate);
                   }
                 });
-                console.log('[TextRectangle] After removing duplicates, total layers:', featureGroup.value.getLayers().length);
+
               } else {
-                console.log('[TextRectangle] No duplicates found');
+
               }
             }
           } catch (e) {
@@ -1113,25 +1117,22 @@ export function useMapDrawing(): MapDrawingReturn {
   const setDrawingTool = (tool: string) => {
     if (!map.value) return;
 
-    console.log('=== SETTING DRAWING TOOL START ===');
-    console.log('Current tool:', currentTool.value);
-    console.log('New tool:', tool);
+
+
+
 
     // Nettoyer les messages d'aide existants
     document.querySelectorAll('.drawing-help-message').forEach(msg => msg.remove());
 
     // Désactiver tous les modes et nettoyer les points de contrôle
     try {
-      console.log('Disabling all modes...');
+
       
       // Désactiver les modes de manière sécurisée
       const pm = map.value.pm;
       // Désactiver les modes globaux de manière sécurisée
       if (pm.globalEditModeEnabled()) {
         pm.disableGlobalEditMode();
-      }
-      if (pm.globalDragModeEnabled()) {
-        pm.disableGlobalDragMode();
       }
       if (pm.globalRemovalModeEnabled()) {
         pm.disableGlobalRemovalMode();
@@ -1146,11 +1147,11 @@ export function useMapDrawing(): MapDrawingReturn {
     }
 
     currentTool.value = tool;
-    console.log('Tool set to:', currentTool.value);
+
 
     // Si aucun outil n'est sélectionné
     if (!tool) {
-      console.log('No tool selected, clearing control points');
+
       clearActiveControlPoints();
       return;
     }
@@ -1158,7 +1159,7 @@ export function useMapDrawing(): MapDrawingReturn {
     // Attendre un court instant avant d'afficher le nouveau message
     setTimeout(() => {
       try {
-        console.log('Enabling tool:', tool);
+
         switch (tool) {
           case 'Circle':
             showHelpMessage('Cliquez et maintenez pour dessiner un cercle, relâchez pour terminer');
@@ -1216,279 +1217,67 @@ export function useMapDrawing(): MapDrawingReturn {
               map.value.on('click', onClick);
             }
             break;
-          case 'drag':
-            showHelpMessage('Cliquez et maintenez une forme pour la déplacer');
-            map.value?.pm.enableGlobalDragMode();
-            break;
           case 'delete':
             showHelpMessage('Cliquez sur une forme pour la supprimer');
             map.value?.pm.enableGlobalRemovalMode();
             break;
           case 'TextRectangle':
             showHelpMessage('Cliquez et maintenez pour dessiner un rectangle avec texte, relâchez pour terminer');
-            console.log('[TextRectangle] Starting TextRectangle tool');
+
             map.value?.pm.enableDraw('Rectangle', {
               finishOn: 'mouseup' as any,
               continueDrawing: false
             });
 
-            // Intercepter l'événement de création du rectangle
-            map.value.once('pm:create', (e: any) => {
-              const layer = e.layer;
-              
-              // Check all layers in feature group before starting
-              console.log('[TextRectangle] BEFORE PROCESSING - All layers in feature group:', 
-                featureGroup.value 
-                  ? featureGroup.value.getLayers().map((l: any) => ({
-                      id: l._leaflet_id,
-                      type: l.constructor.name,
-                      isOnMap: map.value?.hasLayer(l)
-                    }))
-                  : 'No feature group'
-              );
-              
-              console.log('[TextRectangle] Rectangle created:', {
-                id: layer._leaflet_id || 'unknown',
-                instanceType: layer.constructor.name,
-                isRectangle: layer instanceof L.Rectangle,
-                bounds: layer.getBounds ? layer.getBounds().toBBoxString() : 'no bounds'
-              });
-              
-              // Check if there's already a rectangle with these bounds
-              if (featureGroup.value && layer.getBounds) {
-                const newBounds = layer.getBounds();
-                const existingRectangles = featureGroup.value.getLayers().filter((l: any) => {
-                  if (l !== layer && l instanceof L.Rectangle && l.getBounds) {
-                    const lBounds = l.getBounds();
-                    const isSameBounds = 
-                      Math.abs(lBounds.getNorth() - newBounds.getNorth()) < 1e-6 &&
-                      Math.abs(lBounds.getSouth() - newBounds.getSouth()) < 1e-6 &&
-                      Math.abs(lBounds.getEast() - newBounds.getEast()) < 1e-6 &&
-                      Math.abs(lBounds.getWest() - newBounds.getWest()) < 1e-6;
-                    
-                    if (isSameBounds) {
-                      console.warn('[TextRectangle] Found existing rectangle with same bounds:', {
-                        existingId: (l as any)._leaflet_id || 'unknown',
-                        newId: (layer as any)._leaflet_id || 'unknown',
-                        bounds: lBounds.toBBoxString()
-                      });
-                    }
-                    
-                    return isSameBounds;
-                  }
-                  return false;
-                });
-                
-                if (existingRectangles.length > 0) {
-                  console.warn(`[TextRectangle] ALERT: ${existingRectangles.length} rectangles already exist with the same bounds!`);
-                }
-              }
-              
-              // Make sure we first remove the original layer properly
-              if (featureGroup.value && layer) {
-                // Get bounds before removing to ensure we have data for the TextRectangle
-                const bounds = layer.getBounds();
-                const options = {
-                  color: '#3388ff',
-                  weight: 2,
-                  fillColor: '#3388ff',
-                  fillOpacity: 0.2,
-                  // Copy any other options from the original layer
-                  ...layer.options
-                };
-                
-                // Properly remove the rectangle from all groups to prevent duplicates
-                console.log('[TextRectangle] Attempting to remove original Rectangle:', {
-                  inFeatureGroup: featureGroup.value?.hasLayer(layer),
-                  layerCount: featureGroup.value?.getLayers().length || 0
-                });
-                
-                // Try a complete cleanup with better error handling and type assertions
-                try {
-                  // First try with removeFrom method to ensure proper cleanup
-                  if (typeof layer.removeFrom === 'function') {
-                    try {
-                      layer.removeFrom(featureGroup.value);
-                      console.log('[TextRectangle] Used removeFrom method for feature group');
-                    } catch (error) {
-                      console.error('[TextRectangle] Error using removeFrom method:', error);
-                      // Fallback to removeLayer
-                      if (featureGroup.value?.hasLayer(layer)) {
-                        featureGroup.value.removeLayer(layer);
-                        console.log('[TextRectangle] Removed from feature group using removeLayer after removeFrom failed');
-                      }
-                    }
-                  } else {
-                    // First, remove from feature group
-                    if (featureGroup.value?.hasLayer(layer)) {
-                      featureGroup.value.removeLayer(layer);
-                      console.log('[TextRectangle] Removed from feature group using removeLayer');
-                    }
-                  }
-                  
-                  // Double-check removal
-                  if (featureGroup.value?.hasLayer(layer)) {
-                    console.warn('[TextRectangle] WARNING: Layer still in feature group after removal! Trying alternative methods...');
-                    
-                    // Try forcibly removing all rectangles with similar bounds
-                    try {
-                      const layersArray = featureGroup.value.getLayers();
-                      let removedCount = 0;
-                      
-                      for (let i = layersArray.length - 1; i >= 0; i--) {
-                        const currentLayer = layersArray[i];
-                        if (currentLayer !== layer && 
-                            currentLayer instanceof L.Rectangle && 
-                            !(currentLayer instanceof TextRectangle) &&
-                            currentLayer.getBounds) {
-                          
-                          const currentBounds = currentLayer.getBounds();
-                          const originalBounds = layer.getBounds();
-                          const isSameBounds = 
-                            Math.abs(currentBounds.getNorth() - originalBounds.getNorth()) < 1e-6 &&
-                            Math.abs(currentBounds.getSouth() - originalBounds.getSouth()) < 1e-6 &&
-                            Math.abs(currentBounds.getEast() - originalBounds.getEast()) < 1e-6 &&
-                            Math.abs(currentBounds.getWest() - originalBounds.getWest()) < 1e-6;
-                          
-                          if (isSameBounds) {
-                            console.log('[TextRectangle] Removing duplicate rectangle:', (currentLayer as any)._leaflet_id || 'unknown');
-                            featureGroup.value.removeLayer(currentLayer);
-                            removedCount++;
-                          }
-                        }
-                      }
-                      
-                      if (removedCount > 0) {
-                        console.log(`[TextRectangle] Forcibly removed ${removedCount} duplicate rectangles`);
-                      }
-                    } catch (e) {
-                      console.error('[TextRectangle] Error removing layer references:', e);
-                    }
-                  }
-                  
-                  // Then ensure removal from map
-                  if (map.value && map.value.hasLayer(layer)) {
-                    map.value.removeLayer(layer);
-                    console.log('[TextRectangle] Removed from map');
-                  }
-                  
-                  // Verify removal
-                  console.log('[TextRectangle] After removal:', {
-                    inFeatureGroup: featureGroup.value && featureGroup.value.hasLayer(layer),
-                    onMap: map.value && map.value.hasLayer(layer),
-                    layerCount: featureGroup.value?.getLayers().length || 0
-                  });
-                  
-                  // Forcibly break any references
-                  if ((layer as any)._map) (layer as any)._map = null;
-                  if ((layer as any)._mapToAdd) (layer as any)._mapToAdd = null;
-                  
-                  // Wait a tick to ensure complete removal before creating TextRectangle
-                  setTimeout(() => {
-                    try {
-                      // Final check - if there's already a TextRectangle with these bounds, don't create another one
-                      if (featureGroup.value) {
-                        const existingTextRectangles = featureGroup.value.getLayers().filter((l: any) => {
-                          return l instanceof TextRectangle && l.getBounds && (() => {
-                            const lBounds = l.getBounds();
-                            const isSameBounds = 
-                              Math.abs(lBounds.getNorth() - bounds.getNorth()) < 1e-6 &&
-                              Math.abs(lBounds.getSouth() - bounds.getSouth()) < 1e-6 &&
-                              Math.abs(lBounds.getEast() - bounds.getEast()) < 1e-6 &&
-                              Math.abs(lBounds.getWest() - bounds.getWest()) < 1e-6;
-                            return isSameBounds;
-                          })();
-                        });
+            map.value?.on('pm:create', (e: any) => {
+              if (e.shape === 'Rectangle' && e.layer) {
+                const bounds = e.layer.getBounds();
+                const rect = new TextRectangle(bounds, 'Double-cliquez pour éditer');
 
-                        if (existingTextRectangles.length > 0) {
-                          console.log('[TextRectangle] A TextRectangle with these bounds already exists, not creating a new one');
-                          selectedShape.value = existingTextRectangles[0];
-                          return;
-                        }
-                      }
-                      
-                      // Check all layers in feature group before creating TextRectangle
-                      console.log('[TextRectangle] BEFORE CREATING TEXTRECTANGLE - All layers in feature group:', 
-                        featureGroup.value 
-                          ? featureGroup.value.getLayers().map((l: any) => ({
-                              id: (l as any)._leaflet_id || 'unknown',
-                              type: l.constructor.name,
-                              isOnMap: map.value?.hasLayer(l)
-                            }))
-                          : 'No feature group'
-                      );
-                      
-                      console.log('[TextRectangle] Creating new TextRectangle with bounds:', bounds.toBBoxString());
-                      
-                      // Create the TextRectangle with the saved bounds and options
-                      const textRect = new TextRectangle(
-                        bounds,
-                        'Double-cliquez pour éditer',
-                        options
-                      );
-                      console.log('[TextRectangle] TextRectangle created:', {
-                        id: (textRect as any)._leaflet_id || 'unknown',
-                        instanceType: textRect.constructor.name,
-                        hasTextElement: !!textRect.getTextElement()
-                      });
-                      
-                      // Add TextRectangle to feature group and select it
-                      if (featureGroup.value) {
-                        featureGroup.value.addLayer(textRect);
-                        console.log('[TextRectangle] Added to feature group, new count:', featureGroup.value.getLayers().length);
-                        
-                        // Check all layers in feature group after adding TextRectangle
-                        console.log('[TextRectangle] AFTER ADDING TEXTRECTANGLE - All layers in feature group:', 
-                          featureGroup.value.getLayers().map((l: any) => ({
-                            id: (l as any)._leaflet_id || 'unknown',
-                            type: l.constructor.name,
-                            isOnMap: map.value?.hasLayer(l)
-                          }))
-                        );
-                        
-                        // Set selected shape
-              selectedShape.value = textRect;
-                      }
-                      
-                      // Custom event handlers for the TextRectangle
-                      textRect.on('mouseover', () => {
-                        // Skip generating temporary control points for TextRectangle
-                        // Double-click will directly activate editing
-                      });
-                      
-                      textRect.on('click', (e: L.LeafletMouseEvent) => {
-                        L.DomEvent.stopPropagation(e);
-                        selectedShape.value = textRect;
-                      });
-                      
-                      // Auto-edit on creation for better UX
-                      setTimeout(() => {
-                        try {
-                          textRect.fire('dblclick', { 
-                            latlng: textRect.getCenter(),
-                            originalEvent: new MouseEvent('dblclick')
-                          } as L.LeafletMouseEvent);
-                        } catch (err) {
-                          console.error('[TextRectangle] Error starting auto-edit:', err);
-                        }
-                      }, 100);
-                    } catch (error) {
-                      console.error('Error creating TextRectangle:', error);
-                    }
-                  }, 50); // Increased from 0 to give more time for cleanup
-                } catch (error) {
-                  console.error('Error removing original rectangle:', error);
+                // Stocker les propriétés sur le rectangle
+                rect.properties = {
+                  type: 'TextRectangle',
+                  text: 'Double-cliquez pour éditer',
+                  width: 0, // Sera calculé automatiquement
+                  height: 0, // Sera calculé automatiquement
+                  area: 0,   // Sera calculé automatiquement
+                  rotation: 0,
+                  style: {
+                    color: '#3B82F6',
+                    weight: 2,
+                    fillColor: '#F9FAFB',
+                    fillOpacity: 0.8,
+                    textColor: '#000000',
+                    fontSize: '14px',
+                    fontFamily: 'Arial, sans-serif',
+                    textAlign: 'center'
+                  }
+                };
+
+                // Supprimer le rectangle temporaire
+                map.value?.removeLayer(e.layer);
+
+                // Ajouter le rectangle de texte à la couche de dessin
+                if (featureGroup.value) {
+                  featureGroup.value.addLayer(rect);
+                  selectedShape.value = rect;
+                  
+                  // Mettre à jour les propriétés
+                  rect.updateProperties();
                 }
+
+                // Désactiver le mode dessin
+                map.value?.pm.disableDraw();
               }
             });
             break;
         }
-        console.log('Tool enabled successfully');
+
       } catch (error) {
         console.error('Error enabling tool:', error);
       }
     }, 100);
-    console.log('=== SETTING DRAWING TOOL END ===');
+
   };
 
   const updateShapeStyle = (style: any) => {
@@ -1569,7 +1358,7 @@ export function useMapDrawing(): MapDrawingReturn {
   };
 
   const forceShapeUpdate = (layer: L.Layer) => {
-    PerformanceTracker.start('useMapDrawing.forceShapeUpdate');
+
     console.log('[forceShapeUpdate] Début', {
       currentProperties: layer.properties,
       selectedShapeRef: selectedShape.value
@@ -1577,23 +1366,23 @@ export function useMapDrawing(): MapDrawingReturn {
 
     // Réassigner directement selectedShape avec une nouvelle référence
     selectedShape.value = null; // Forcer un reset
-    PerformanceTracker.start('useMapDrawing.forceShapeUpdate.nextTick');
+
     nextTick(() => {
-      PerformanceTracker.start('useMapDrawing.forceShapeUpdate.setSelectedShape');
+
       selectedShape.value = layer;
       console.log('[forceShapeUpdate] Après mise à jour', {
         selectedShape: selectedShape.value,
         properties: selectedShape.value.properties
       });
-      PerformanceTracker.end('useMapDrawing.forceShapeUpdate.setSelectedShape');
+      
     });
-    PerformanceTracker.end('useMapDrawing.forceShapeUpdate.nextTick');
     
-    PerformanceTracker.end('useMapDrawing.forceShapeUpdate');
+    
+    
   };
 
   const updateLayerProperties = (layer: L.Layer, shapeType: string) => {
-    PerformanceTracker.start('useMapDrawing.updateLayerProperties');
+
     console.log('[updateLayerProperties] Début', {
       layer,
       shapeType,
@@ -1602,7 +1391,7 @@ export function useMapDrawing(): MapDrawingReturn {
 
     // Utiliser debouncedCalculateProperties au lieu de calculateShapeProperties directement
     const debouncedCalculateProperties = debounce((layer: L.Layer, shapeType: string) => {
-      PerformanceTracker.start('useMapDrawing.updateLayerProperties.calculate');
+
       const newProperties = calculateShapeProperties(layer, shapeType);
       console.log('[updateLayerProperties] Nouvelles propriétés calculées', {
         newProperties
@@ -1612,9 +1401,9 @@ export function useMapDrawing(): MapDrawingReturn {
       layer.properties = { ...newProperties };
       
       // Forcer la mise à jour de la forme sélectionnée
-      PerformanceTracker.start('useMapDrawing.updateLayerProperties.forceUpdate');
+
       forceShapeUpdate(layer);
-      PerformanceTracker.end('useMapDrawing.updateLayerProperties.forceUpdate');
+      
       
       // Émettre l'événement avec les nouvelles propriétés
       layer.fire('properties:updated', {
@@ -1626,11 +1415,11 @@ export function useMapDrawing(): MapDrawingReturn {
         finalProperties: layer.properties,
         selectedShape: selectedShape.value
       });
-      PerformanceTracker.end('useMapDrawing.updateLayerProperties.calculate');
+      
     }, 100); // Délai de 100ms
 
     debouncedCalculateProperties(layer, shapeType);
-    PerformanceTracker.end('useMapDrawing.updateLayerProperties');
+    
   };
 
   // Fonction pour calculer le point milieu entre deux points
@@ -1720,7 +1509,7 @@ export function useMapDrawing(): MapDrawingReturn {
           selectedShape.value = null; // Forcer un reset
           nextTick(() => {
             selectedShape.value = layer;
-            console.log('Circle resize complete, final properties:', layer.properties);
+
           });
           
           // Mettre à jour les propriétés via la méthode globale aussi
@@ -1800,8 +1589,8 @@ export function useMapDrawing(): MapDrawingReturn {
     });
 
     // Écouter l'événement circle:resized pour mettre à jour les propriétés
-    layer.on('circle:resized', (e) => {
-      console.log('Circle resized event received:', e);
+    layer.on('circle:resized', () => {
+
       updateLayerProperties(layer, 'Circle');
     });
 
@@ -2094,7 +1883,7 @@ export function useMapDrawing(): MapDrawingReturn {
         selectedShape.value = null; // Forcer un reset
         nextTick(() => {
           selectedShape.value = rectangleLayer;
-          console.log('Rectangle move complete, final properties:', rectangleLayer.properties);
+
         });
       };
       
@@ -2105,9 +1894,9 @@ export function useMapDrawing(): MapDrawingReturn {
 
   // Fonction pour mettre à jour les points de contrôle d'une ligne
   const updateLineControlPoints = (layer: L.Polyline) => {
-    PerformanceTracker.start('useMapDrawing.updateLineControlPoints');
+
     if (!map.value || !featureGroup.value) {
-      PerformanceTracker.end('useMapDrawing.updateLineControlPoints');
+      
       return;
     }
 
@@ -2117,7 +1906,7 @@ export function useMapDrawing(): MapDrawingReturn {
     // Point central (vert) - Ajouter pour les lignes personnalisées
     let centerPoint: ControlPoint | null = null;
     if (layer instanceof Line) {
-      PerformanceTracker.start('useMapDrawing.updateLineControlPoints.centerPoint');
+
       const center = layer.getCenter();
       centerPoint = createControlPoint(center, '#059669') as ControlPoint;
       activeControlPoints.push(centerPoint);
@@ -2130,9 +1919,9 @@ export function useMapDrawing(): MapDrawingReturn {
       
       // Gestion du déplacement via le point central
       centerPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
-        PerformanceTracker.start('useMapDrawing.centerPoint.mousedown');
+
         if (!map.value) {
-          PerformanceTracker.end('useMapDrawing.centerPoint.mousedown');
+          
           return;
         }
         L.DomEvent.stopPropagation(e);
@@ -2144,18 +1933,18 @@ export function useMapDrawing(): MapDrawingReturn {
         const originalLatLngs = [...(layer.getLatLngs() as L.LatLng[])];
         
         // Cacher tous les points de contrôle sauf le point central (index 0) pendant le déplacement
-        PerformanceTracker.start('useMapDrawing.centerPoint.hideOtherPoints');
+
         activeControlPoints.forEach((point, index) => {
           if (index > 0) { // Ne pas cacher le point central
             point.setStyle({ opacity: 0, fillOpacity: 0 });
           }
         });
-        PerformanceTracker.end('useMapDrawing.centerPoint.hideOtherPoints');
+        
         
         const onMouseMove = (e: L.LeafletMouseEvent) => {
-          PerformanceTracker.start('useMapDrawing.centerPoint.mouseMove');
+
           if (!isDragging) {
-            PerformanceTracker.end('useMapDrawing.centerPoint.mouseMove');
+            
             return;
           }
           
@@ -2164,31 +1953,31 @@ export function useMapDrawing(): MapDrawingReturn {
           const dy = e.latlng.lat - startPoint.lat;
           
           // Créer une nouvelle liste de points déplacés
-          PerformanceTracker.start('useMapDrawing.centerPoint.createNewPoints');
+
           const newLatLngs = originalLatLngs.map(point => 
             L.latLng(
               point.lat + dy,
               point.lng + dx
             )
           );
-          PerformanceTracker.end('useMapDrawing.centerPoint.createNewPoints');
+          
           
           // Mettre à jour directement les positions sans utiliser move()
-          PerformanceTracker.start('useMapDrawing.centerPoint.updatePositions');
+
           L.Polyline.prototype.setLatLngs.call(layer, newLatLngs);
-          PerformanceTracker.end('useMapDrawing.centerPoint.updatePositions');
+          
           
           // Mise à jour du centre (toujours instantanée)
           centerPoint?.setLatLng(e.latlng);
           
-          PerformanceTracker.end('useMapDrawing.centerPoint.mouseMove');
+          
         };
         
         const onMouseUp = () => {
-          PerformanceTracker.start('useMapDrawing.centerPoint.mouseUp');
+
           isDragging = false;
           if (!map.value) {
-            PerformanceTracker.end('useMapDrawing.centerPoint.mouseUp');
+            
             return;
           }
           map.value.off('mousemove', onMouseMove);
@@ -2197,38 +1986,38 @@ export function useMapDrawing(): MapDrawingReturn {
           
           // Supprimer complètement les points de contrôle et les recréer
           // pour éviter les problèmes de synchronisation
-          PerformanceTracker.start('useMapDrawing.centerPoint.recreateControlPoints');
+
           clearActiveControlPoints();
           
           // Recréer tous les points de contrôle avec leurs positions correctes
           updateLineControlPoints(layer);
-          PerformanceTracker.end('useMapDrawing.centerPoint.recreateControlPoints');
+          
           
           // Mettre à jour les propriétés UNIQUEMENT à la fin du déplacement
-          PerformanceTracker.start('useMapDrawing.centerPoint.updateProperties');
+
           if (layer instanceof Line) {
             layer.updateProperties();
             // Ajouter cet appel pour mettre à jour les propriétés de la couche
             updateLayerProperties(layer, 'Line');
           }
-          PerformanceTracker.end('useMapDrawing.centerPoint.updateProperties');
+          
           
           // Mise à jour de selectedShape pour déclencher la réactivité
           selectedShape.value = layer;
           
-          PerformanceTracker.end('useMapDrawing.centerPoint.mouseUp');
+          
         };
         
         map.value.on('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
         
-        PerformanceTracker.end('useMapDrawing.centerPoint.mousedown');
+        
       });
-      PerformanceTracker.end('useMapDrawing.updateLineControlPoints.centerPoint');
+      
     }
 
     // Points d'extrémité (rouge)
-    PerformanceTracker.start('useMapDrawing.updateLineControlPoints.vertices');
+
     points.forEach((point, i) => {
       const pointMarker = createControlPoint(point, '#DC2626');
       activeControlPoints.push(pointMarker);
@@ -2260,9 +2049,9 @@ export function useMapDrawing(): MapDrawingReturn {
       });
 
       pointMarker.on('mousedown', (e: L.LeafletMouseEvent) => {
-        PerformanceTracker.start(`useMapDrawing.vertex.mousedown.${i}`);
+
         if (!map.value) {
-          PerformanceTracker.end(`useMapDrawing.vertex.mousedown.${i}`);
+          
           return;
         }
         L.DomEvent.stopPropagation(e);
@@ -2271,14 +2060,14 @@ export function useMapDrawing(): MapDrawingReturn {
         let isDragging = true;
         
         // Cacher le point central (vert) pendant le redimensionnement
-        PerformanceTracker.start(`useMapDrawing.vertex.hideCenter.${i}`);
+
         if (centerPoint) {
           centerPoint.setStyle({ opacity: 0, fillOpacity: 0 });
           if (centerPoint.measureDiv) {
             centerPoint.measureDiv.style.display = 'none';
           }
         }
-        PerformanceTracker.end(`useMapDrawing.vertex.hideCenter.${i}`);
+        
         
         // Stocker les midpoints affectés par le déplacement de ce vertex
         const affectedMidPoints: number[] = [];
@@ -2289,38 +2078,38 @@ export function useMapDrawing(): MapDrawingReturn {
         const midPointControlIndices = affectedMidPoints.map(idx => points.length + idx);
         
         const onMouseMove = (e: L.LeafletMouseEvent) => {
-          PerformanceTracker.start(`useMapDrawing.vertex.mouseMove.${i}`);
+
           if (!isDragging) {
-            PerformanceTracker.end(`useMapDrawing.vertex.mouseMove.${i}`);
+            
             return;
           }
           
           // Déplacer le vertex sans mettre à jour les propriétés
-          PerformanceTracker.start(`useMapDrawing.vertex.moveVertex.${i}`);
+
           if (layer instanceof Line) {
             layer.moveVertex(i, e.latlng, false);  // Pas de mise à jour des propriétés pendant le drag
           } else {
             points[i] = e.latlng;
             layer.setLatLngs(points);
           }
-          PerformanceTracker.end(`useMapDrawing.vertex.moveVertex.${i}`);
+          
           
           // Mettre à jour uniquement ce point marker de manière fiable
           pointMarker.setLatLng(e.latlng);
           
           // Mettre à jour uniquement les midpoints affectés
-          PerformanceTracker.start(`useMapDrawing.vertex.updateAffectedMidPoints.${i}`);
+
           updateAffectedMidPoints(affectedMidPoints, midPointControlIndices);
-          PerformanceTracker.end(`useMapDrawing.vertex.updateAffectedMidPoints.${i}`);
           
-          PerformanceTracker.end(`useMapDrawing.vertex.mouseMove.${i}`);
+          
+          
         };
         
         const onMouseUp = () => {
-          PerformanceTracker.start(`useMapDrawing.vertex.mouseUp.${i}`);
+
           isDragging = false;
           if (!map.value) {
-            PerformanceTracker.end(`useMapDrawing.vertex.mouseUp.${i}`);
+            
             return;
           }
           map.value.off('mousemove', onMouseMove);
@@ -2328,15 +2117,15 @@ export function useMapDrawing(): MapDrawingReturn {
           map.value.dragging.enable();
           
           // Mise à jour des propriétés à la fin de l'édition
-          PerformanceTracker.start(`useMapDrawing.vertex.updateProps.${i}`);
+
           if (layer instanceof Line) {
             layer.updateProperties();
             updateLayerProperties(layer, 'Line');
           }
-          PerformanceTracker.end(`useMapDrawing.vertex.updateProps.${i}`);
+          
           
           // Faire réapparaître le point central avec sa position mise à jour
-          PerformanceTracker.start(`useMapDrawing.vertex.showCenter.${i}`);
+
           if (centerPoint && layer instanceof Line) {
             const newCenter = layer.getCenter();
             centerPoint.setLatLng(newCenter);
@@ -2345,37 +2134,37 @@ export function useMapDrawing(): MapDrawingReturn {
               centerPoint.measureDiv.style.display = '';
             }
           }
-          PerformanceTracker.end(`useMapDrawing.vertex.showCenter.${i}`);
+          
           
           // Mise à jour de selectedShape pour déclencher la réactivité
-          PerformanceTracker.start(`useMapDrawing.vertex.updateSelectedShape.${i}`);
+
           selectedShape.value = null; // Forcer un reset
           nextTick(() => {
             selectedShape.value = layer;
           });
-          PerformanceTracker.end(`useMapDrawing.vertex.updateSelectedShape.${i}`);
           
-          PerformanceTracker.end(`useMapDrawing.vertex.mouseUp.${i}`);
+          
+          
         };
         
         map.value.on('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
         
-        PerformanceTracker.end(`useMapDrawing.vertex.mousedown.${i}`);
+        
       });
     });
-    PerformanceTracker.end('useMapDrawing.updateLineControlPoints.vertices');
+    
 
     // Optimiser la mise à jour des midpoints
 
     // Points milieux (bleu)
     const updateMidPoints = () => {
-      PerformanceTracker.start('useMapDrawing.updateMidPoints');
+
       // Récupérer les points à jour
       const currentPoints = layer.getLatLngs() as L.LatLng[];
       
       // Supprimer les anciens points milieux
-      PerformanceTracker.start('useMapDrawing.updateMidPoints.removeOld');
+
       const vertexCount = layer instanceof Line ? currentPoints.length + 1 : currentPoints.length;
       activeControlPoints.slice(vertexCount).forEach(point => {
         if (point && typeof point.remove === 'function') {
@@ -2383,10 +2172,10 @@ export function useMapDrawing(): MapDrawingReturn {
         }
       });
       activeControlPoints = activeControlPoints.slice(0, vertexCount);
-      PerformanceTracker.end('useMapDrawing.updateMidPoints.removeOld');
+      
 
       // Créer les nouveaux points milieux
-      PerformanceTracker.start('useMapDrawing.updateMidPoints.createNew');
+
       const midPoints = layer instanceof Line ? 
         (layer as Line).getMidPoints() : 
         Array.from({length: currentPoints.length - 1}, (_, i) => {
@@ -2394,9 +2183,9 @@ export function useMapDrawing(): MapDrawingReturn {
           const p2 = currentPoints[i + 1];
           return L.latLng((p1.lat + p2.lat) / 2, (p1.lng + p2.lng) / 2);
         });
-      PerformanceTracker.end('useMapDrawing.updateMidPoints.createNew');
+      
 
-      PerformanceTracker.start('useMapDrawing.updateMidPoints.addToMap');
+
       midPoints.forEach((midPoint, i) => {
         const midPointMarker = createControlPoint(midPoint, '#2563EB');
         activeControlPoints.push(midPointMarker);
@@ -2437,9 +2226,9 @@ export function useMapDrawing(): MapDrawingReturn {
         });
 
         midPointMarker.on('mousedown', (e: L.LeafletMouseEvent) => {
-          PerformanceTracker.start(`useMapDrawing.midPoint.mousedown.${i}`);
+
           if (!map.value) {
-            PerformanceTracker.end(`useMapDrawing.midPoint.mousedown.${i}`);
+            
             return;
           }
           L.DomEvent.stopPropagation(e);
@@ -2450,7 +2239,7 @@ export function useMapDrawing(): MapDrawingReturn {
           const currentPoints = layer.getLatLngs() as L.LatLng[];
           
           // Cacher le point central (vert) pendant l'opération d'ajout de vertex
-          PerformanceTracker.start(`useMapDrawing.midPoint.hideCenter.${i}`);
+
           const centerControlPoint = activeControlPoints.find(cp => 
             cp.options && cp.options.color === '#059669'
           ) as ControlPoint | undefined;
@@ -2461,16 +2250,16 @@ export function useMapDrawing(): MapDrawingReturn {
               centerControlPoint.measureDiv.style.display = 'none';
             }
           }
-          PerformanceTracker.end(`useMapDrawing.midPoint.hideCenter.${i}`);
+          
           
           const onMouseMove = (e: L.LeafletMouseEvent) => {
-            PerformanceTracker.start(`useMapDrawing.midPoint.mouseMove.${i}`);
+
             if (!isDragging) {
-              PerformanceTracker.end(`useMapDrawing.midPoint.mouseMove.${i}`);
+              
               return;
             }
             // Insérer un nouveau point sans mettre à jour les propriétés
-            PerformanceTracker.start(`useMapDrawing.midPoint.addVertex.${i}`);
+
             if (layer instanceof Line) {
               layer.addVertex(currentSegmentIndex, e.latlng, false);  // Pas de mise à jour des propriétés pendant le drag
             } else {
@@ -2478,23 +2267,24 @@ export function useMapDrawing(): MapDrawingReturn {
               current.splice(currentSegmentIndex + 1, 0, e.latlng);
               layer.setLatLngs(current);
             }
-            PerformanceTracker.end(`useMapDrawing.midPoint.addVertex.${i}`);
+            
             
             // Réinitialiser complètement les points de contrôle
-            PerformanceTracker.start(`useMapDrawing.midPoint.recreateControlPoints.${i}`);
+
             clearActiveControlPoints();
             updateLineControlPoints(layer);
-            PerformanceTracker.end(`useMapDrawing.midPoint.recreateControlPoints.${i}`);
             
-            isDragging = false;  // Arrêter le glisser-déposer après insertion
-            PerformanceTracker.end(`useMapDrawing.midPoint.mouseMove.${i}`);
+            
+            // Simuler un mouseUp pour nettoyer proprement les écouteurs
+            onMouseUp();
+            
           };
           
           const onMouseUp = () => {
-            PerformanceTracker.start(`useMapDrawing.midPoint.mouseUp.${i}`);
+
             isDragging = false;
             if (!map.value) {
-              PerformanceTracker.end(`useMapDrawing.midPoint.mouseUp.${i}`);
+              
               return;
             }
             map.value.off('mousemove', onMouseMove);
@@ -2502,42 +2292,42 @@ export function useMapDrawing(): MapDrawingReturn {
             map.value.dragging.enable();
             
             // Mise à jour des propriétés à la fin de l'édition
-            PerformanceTracker.start(`useMapDrawing.midPoint.updateProps.${i}`);
+
             if (layer instanceof Line) {
               layer.updateProperties();
               // Ajouter cet appel pour mettre à jour les propriétés de la couche
               updateLayerProperties(layer, 'Line');
             }
-            PerformanceTracker.end(`useMapDrawing.midPoint.updateProps.${i}`);
+            
             
             // Le point central sera automatiquement recréé avec la bonne visibilité
             // lors de l'appel à updateLineControlPoints dans onMouseMove
             
             // Mise à jour de selectedShape pour déclencher la réactivité
-            PerformanceTracker.start(`useMapDrawing.midPoint.updateSelectedShape.${i}`);
+
             selectedShape.value = null; // Forcer un reset
             nextTick(() => {
               selectedShape.value = layer;
             });
-            PerformanceTracker.end(`useMapDrawing.midPoint.updateSelectedShape.${i}`);
             
-            PerformanceTracker.end(`useMapDrawing.midPoint.mouseUp.${i}`);
+            
+            
           };
           
           map.value.on('mousemove', onMouseMove);
           document.addEventListener('mouseup', onMouseUp);
           
-          PerformanceTracker.end(`useMapDrawing.midPoint.mousedown.${i}`);
+          
         });
       });
-      PerformanceTracker.end('useMapDrawing.updateMidPoints.addToMap');
       
-      PerformanceTracker.end('useMapDrawing.updateMidPoints');
+      
+      
     };
 
     // Fonction pour mettre à jour uniquement les midpoints affectés par le déplacement d'un vertex
     const updateAffectedMidPoints = (segmentIndices: number[], controlPointIndices: number[]) => {
-      PerformanceTracker.start('useMapDrawing.updateAffectedMidPoints');
+
       const currentPoints = layer.getLatLngs() as L.LatLng[];
 
       // Pour chaque segment affecté, mettre à jour le midpoint correspondant
@@ -2608,25 +2398,25 @@ export function useMapDrawing(): MapDrawingReturn {
         }
       });
       
-      PerformanceTracker.end('useMapDrawing.updateAffectedMidPoints');
+      
     };
 
     updateMidPoints();
-    PerformanceTracker.end('useMapDrawing.updateLineControlPoints');
+    
   };
 
   // Mettre à jour la fonction updatePolygonControlPoints pour ajouter plus de mesures
   const updatePolygonControlPoints = (layer: L.Polygon) => {
-    PerformanceTracker.start('useMapDrawing.updatePolygonControlPoints');
+
     if (!map.value || !featureGroup.value) {
-      PerformanceTracker.end('useMapDrawing.updatePolygonControlPoints');
+      
       return;
     }
 
     clearActiveControlPoints();
     const points = (layer.getLatLngs()[0] as L.LatLng[]);
     
-    PerformanceTracker.start('useMapDrawing.updatePolygonControlPoints.calculateProperties');
+
     // Convertir les points en format GeoJSON pour turf
     const coordinates = points.map(point => [point.lng, point.lat]);
     coordinates.push(coordinates[0]); // Fermer le polygone
@@ -2637,10 +2427,10 @@ export function useMapDrawing(): MapDrawingReturn {
       const nextPoint = points[(idx + 1) % points.length];
       return acc + curr.distanceTo(nextPoint);
     }, 0);
-    PerformanceTracker.end('useMapDrawing.updatePolygonControlPoints.calculateProperties');
+    
 
     // Point central (vert)
-    PerformanceTracker.start('useMapDrawing.updatePolygonControlPoints.createCenterPoint');
+
     let center: L.LatLng;
     if (typeof layer.getCenter === 'function') {
       try {
@@ -2660,7 +2450,7 @@ export function useMapDrawing(): MapDrawingReturn {
     // Créer le point central (vert)
     const centerPoint = createControlPoint(center, '#059669') as ControlPoint;
     activeControlPoints.push(centerPoint);
-    PerformanceTracker.end('useMapDrawing.updatePolygonControlPoints.createCenterPoint');
+    
 
     // Ajouter les mesures au point central
     addMeasureEvents(centerPoint, layer, () => {
@@ -2672,9 +2462,9 @@ export function useMapDrawing(): MapDrawingReturn {
 
     // Gestion du déplacement via le point central
     centerPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
-      PerformanceTracker.start('useMapDrawing.polygonCenterPoint.mousedown');
+
       if (!map.value) {
-        PerformanceTracker.end('useMapDrawing.polygonCenterPoint.mousedown');
+        
         return;
       }
       L.DomEvent.stopPropagation(e);
@@ -2686,13 +2476,13 @@ export function useMapDrawing(): MapDrawingReturn {
       const originalPoints = [...points];
       
       // Cacher tous les points de contrôle sauf le point central pendant le déplacement
-      PerformanceTracker.start('useMapDrawing.polygonCenterPoint.hideControlPoints');
+
       activeControlPoints.forEach((point, index) => {
         if (index > 0) { // Ne pas cacher le point central
           point.setStyle({ opacity: 0, fillOpacity: 0 });
         }
       });
-      PerformanceTracker.end('useMapDrawing.polygonCenterPoint.hideControlPoints');
+      
       
       // Fonction throttlée pour limiter les mises à jour pendant le déplacement
       const throttledMove = throttle((moveEvent: L.LeafletMouseEvent) => {
@@ -2718,23 +2508,23 @@ export function useMapDrawing(): MapDrawingReturn {
       }, 16); // 60fps
       
       const onMouseMove = (e: L.LeafletMouseEvent) => {
-        PerformanceTracker.start('useMapDrawing.polygonCenterPoint.mouseMove');
+
         if (!isDragging) {
-          PerformanceTracker.end('useMapDrawing.polygonCenterPoint.mouseMove');
+          
           return;
         }
         
         // Utiliser la version throttlée
         throttledMove(e);
         
-        PerformanceTracker.end('useMapDrawing.polygonCenterPoint.mouseMove');
+        
       };
       
       const onMouseUp = () => {
-        PerformanceTracker.start('useMapDrawing.polygonCenterPoint.mouseUp');
+
         isDragging = false;
         if (!map.value) {
-          PerformanceTracker.end('useMapDrawing.polygonCenterPoint.mouseUp');
+          
           return;
         }
         map.value.off('mousemove', onMouseMove);
@@ -2770,16 +2560,16 @@ export function useMapDrawing(): MapDrawingReturn {
         nextTick(() => {
           selectedShape.value = layer;
         });
-        PerformanceTracker.end('useMapDrawing.polygonCenterPoint.mouseUp');
+        
       };
       
       map.value.on('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
-      PerformanceTracker.end('useMapDrawing.polygonCenterPoint.mousedown');
+      
     });
 
     // Points de sommet (rouge pour harmonisation)
-    PerformanceTracker.start('useMapDrawing.updatePolygonControlPoints.createVertexPoints');
+
     points.forEach((point, i) => {
       const pointMarker = createControlPoint(point, '#DC2626');
       activeControlPoints.push(pointMarker);
@@ -2800,10 +2590,10 @@ export function useMapDrawing(): MapDrawingReturn {
       });
 
       pointMarker.on('mousedown', (e: L.LeafletMouseEvent) => {
-        PerformanceTracker.start(`useMapDrawing.polygonVertex.mousedown.${i}`);
+
         L.DomEvent.stopPropagation(e);
         if (!map.value) {
-          PerformanceTracker.end(`useMapDrawing.polygonVertex.mousedown.${i}`);
+          
           return;
         }
         
@@ -2857,23 +2647,23 @@ export function useMapDrawing(): MapDrawingReturn {
         }, 16); // 60fps
         
         const onMouseMove = (e: L.LeafletMouseEvent) => {
-          PerformanceTracker.start(`useMapDrawing.polygonVertex.mouseMove.${i}`);
+
           if (!isDragging) {
-            PerformanceTracker.end(`useMapDrawing.polygonVertex.mouseMove.${i}`);
+            
             return;
           }
           
           // Utiliser la version throttlée
           throttledDrag(e);
           
-          PerformanceTracker.end(`useMapDrawing.polygonVertex.mouseMove.${i}`);
+          
         };
 
         const onMouseUp = () => {
-          PerformanceTracker.start(`useMapDrawing.polygonVertex.mouseUp.${i}`);
+
           isDragging = false;
           if (!map.value) {
-            PerformanceTracker.end(`useMapDrawing.polygonVertex.mouseUp.${i}`);
+            
             return;
           }
           map.value.off('mousemove', onMouseMove);
@@ -2906,33 +2696,33 @@ export function useMapDrawing(): MapDrawingReturn {
           nextTick(() => {
             selectedShape.value = layer;
           });
-          PerformanceTracker.end(`useMapDrawing.polygonVertex.mouseUp.${i}`);
+          
         };
 
         map.value.on('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
-        PerformanceTracker.end(`useMapDrawing.polygonVertex.mousedown.${i}`);
+        
       });
     });
-    PerformanceTracker.end('useMapDrawing.updatePolygonControlPoints.createVertexPoints');
+    
 
     // Points milieux (bleu)
     const updateMidPoints = () => {
-      PerformanceTracker.start('useMapDrawing.updatePolygonMidPoints');
+
       const points = (layer.getLatLngs()[0] as L.LatLng[]);
       
       // Supprimer les anciens points milieux
-      PerformanceTracker.start('useMapDrawing.updatePolygonMidPoints.removeOld');
+
       activeControlPoints.slice(points.length + 1).forEach(point => {  // +1 pour le point central
         if (controlPointsGroup.value) {
           controlPointsGroup.value.removeLayer(point);
         }
       });
       activeControlPoints = activeControlPoints.slice(0, points.length + 1);  // +1 pour le point central
-      PerformanceTracker.end('useMapDrawing.updatePolygonMidPoints.removeOld');
+      
 
       // Créer tous les points milieux d'un coup pour améliorer les performances
-      PerformanceTracker.start('useMapDrawing.updatePolygonMidPoints.createNew');
+
       // Calculer tous les points milieux d'avance
       const midPoints = new Array(points.length);
       for (let i = 0; i < points.length; i++) {
@@ -2960,9 +2750,9 @@ export function useMapDrawing(): MapDrawingReturn {
         
         // Gestion de l'ajout de vertex
         midPointMarker.on('mousedown', (e: L.LeafletMouseEvent) => {
-          PerformanceTracker.start(`useMapDrawing.polygonMidPoint.mousedown.${i}`);
+
           if (!map.value) {
-            PerformanceTracker.end(`useMapDrawing.polygonMidPoint.mousedown.${i}`);
+            
             return;
           }
           L.DomEvent.stopPropagation(e);
@@ -3001,9 +2791,9 @@ export function useMapDrawing(): MapDrawingReturn {
           // Si on a bien trouvé le nouveau point, on va déplacer ce point spécifique
           if (newVertexMarker) {
             const onMouseMove = (e: L.LeafletMouseEvent) => {
-              PerformanceTracker.start(`useMapDrawing.polygonMidPoint.mouseMove.${i}`);
+
               if (!isDragging) {
-                PerformanceTracker.end(`useMapDrawing.polygonMidPoint.mouseMove.${i}`);
+                
                 return;
               }
               
@@ -3046,14 +2836,14 @@ export function useMapDrawing(): MapDrawingReturn {
                 midPoints[nextMidIndex].setLatLng(midPoint);
               }
               
-              PerformanceTracker.end(`useMapDrawing.polygonMidPoint.mouseMove.${i}`);
+              
           };
           
           const onMouseUp = () => {
-              PerformanceTracker.start(`useMapDrawing.polygonMidPoint.mouseUp.${i}`);
+
             isDragging = false;
               if (!map.value) {
-                PerformanceTracker.end(`useMapDrawing.polygonMidPoint.mouseUp.${i}`);
+                
                 return;
               }
             map.value.off('mousemove', onMouseMove);
@@ -3085,7 +2875,7 @@ export function useMapDrawing(): MapDrawingReturn {
                 selectedShape.value = layer;
               });
               
-              PerformanceTracker.end(`useMapDrawing.polygonMidPoint.mouseUp.${i}`);
+              
           };
           
           map.value.on('mousemove', onMouseMove);
@@ -3097,15 +2887,15 @@ export function useMapDrawing(): MapDrawingReturn {
             updatePolygonControlPoints(layer);
           }
           
-          PerformanceTracker.end(`useMapDrawing.polygonMidPoint.mousedown.${i}`);
+          
         });
       });
-      PerformanceTracker.end('useMapDrawing.updatePolygonMidPoints.createNew');
-      PerformanceTracker.end('useMapDrawing.updatePolygonMidPoints');
+      
+      
     };
 
     updateMidPoints();
-    PerformanceTracker.end('useMapDrawing.updatePolygonControlPoints');
+    
   };
 
   // Fonction pour mettre à jour les points de contrôle d'un demi-cercle
@@ -3340,9 +3130,9 @@ export function useMapDrawing(): MapDrawingReturn {
 
   // Fonction pour générer les points de contrôle temporaires
   const generateTempControlPoints = (layer: L.Layer) => {
-    PerformanceTracker.start('useMapDrawing.generateTempControlPoints');
+
     if (!map.value || !tempControlPointsGroup.value) {
-      PerformanceTracker.end('useMapDrawing.generateTempControlPoints');
+      
       return;
     }
 
@@ -3356,7 +3146,7 @@ export function useMapDrawing(): MapDrawingReturn {
     
     // Pas de points de contrôle temporaires pour TextRectangle
     if (layer instanceof TextRectangle) {
-      console.log('[generateTempControlPoints] Skipping control points for TextRectangle - use double click to edit');
+
       // Just add a simple hint to show it's hoverable
       if (layer.getCenter()) {
         const textHint = L.circleMarker(layer.getCenter(), {
@@ -3366,7 +3156,7 @@ export function useMapDrawing(): MapDrawingReturn {
         });
         tempControlPointsGroup.value.addLayer(textHint);
       }
-      PerformanceTracker.end('useMapDrawing.generateTempControlPoints');
+      
       return;
     }
 
@@ -3481,11 +3271,11 @@ export function useMapDrawing(): MapDrawingReturn {
         }
       }
     } else if (layer instanceof L.Polygon) {
-      PerformanceTracker.start('useMapDrawing.generateTempControlPoints.polygon');
+
       const points = (layer.getLatLngs()[0] as L.LatLng[]);
       
       // Point central temporaire (vert)
-      PerformanceTracker.start('useMapDrawing.generateTempControlPoints.polygon.center');
+
       let center: L.LatLng;
       try {
         if (typeof layer.getCenter === 'function') {
@@ -3508,32 +3298,32 @@ export function useMapDrawing(): MapDrawingReturn {
       } catch (error) {
         console.warn('Erreur lors du calcul du centre temporaire du polygone', error);
       }
-      PerformanceTracker.end('useMapDrawing.generateTempControlPoints.polygon.center');
+      
       
       // Points de sommet temporaires (rouge pour harmonisation)
-      PerformanceTracker.start('useMapDrawing.generateTempControlPoints.polygon.vertices');
+
       points.forEach(point => {
         const tempPoint = createControlPoint(point, '#DC2626');
         tempControlPointsGroup.value.addLayer(tempPoint);
       });
-      PerformanceTracker.end('useMapDrawing.generateTempControlPoints.polygon.vertices');
+      
 
       // Points milieux temporaires pour les segments
-      PerformanceTracker.start('useMapDrawing.generateTempControlPoints.polygon.midpoints');
+
       for (let i = 0; i < points.length; i++) {
         const nextPoint = points[(i + 1) % points.length];
         const midPoint = getMidPoint(points[i], nextPoint);
         const tempMidPoint = createControlPoint(midPoint, '#2563EB');
         tempControlPointsGroup.value.addLayer(tempMidPoint);
       }
-      PerformanceTracker.end('useMapDrawing.generateTempControlPoints.polygon.midpoints');
-      PerformanceTracker.end('useMapDrawing.generateTempControlPoints.polygon');
+      
+      
     }
 
     console.log('[generateTempControlPoints] Points temporaires générés', {
       count: tempControlPointsGroup.value.getLayers().length
     });
-    PerformanceTracker.end('useMapDrawing.generateTempControlPoints');
+    
   };
 
   onUnmounted(() => {

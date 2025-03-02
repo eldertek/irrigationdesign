@@ -299,6 +299,12 @@ class PlanViewSet(viewsets.ModelViewSet):
         formes_data = request.data.get('formes', [])
         connexions_data = request.data.get('connexions', [])
         annotations_data = request.data.get('annotations', [])
+        
+        # Récupérer les identifiants des éléments à supprimer
+        elements_to_delete = request.data.get('elementsToDelete', [])
+        
+        # Log pour debugging
+        print(f"Plan {pk} - Sauvegarde - Éléments: {len(formes_data)}, À supprimer: {len(elements_to_delete)}")
 
         try:
             # Supprimer les éléments existants si demandé
@@ -306,6 +312,15 @@ class PlanViewSet(viewsets.ModelViewSet):
                 plan.formes.all().delete()
                 plan.connexions.all().delete()
                 plan.annotations.all().delete()
+            
+            # Supprimer les éléments spécifiques demandés
+            if elements_to_delete:
+                # Sécuriser: ne supprimer que les éléments appartenant à ce plan
+                FormeGeometrique.objects.filter(
+                    id__in=elements_to_delete,
+                    plan=plan
+                ).delete()
+                print(f"Plan {pk} - {len(elements_to_delete)} éléments supprimés")
 
             # Créer/Mettre à jour les formes
             for forme_data in formes_data:
@@ -327,10 +342,18 @@ class PlanViewSet(viewsets.ModelViewSet):
                 
                 # Mettre à jour ou créer la forme
                 if forme_id:
-                    forme = get_object_or_404(FormeGeometrique, id=forme_id, plan=plan)
-                    forme.type_forme = type_forme
-                    forme.data = data
-                    forme.save()
+                    try:
+                        forme = FormeGeometrique.objects.get(id=forme_id, plan=plan)
+                        forme.type_forme = type_forme
+                        forme.data = data
+                        forme.save()
+                    except FormeGeometrique.DoesNotExist:
+                        # Si l'ID n'existe pas, créer une nouvelle forme
+                        FormeGeometrique.objects.create(
+                            plan=plan,
+                            type_forme=type_forme,
+                            data=data
+                        )
                 else:
                     FormeGeometrique.objects.create(
                         plan=plan,
@@ -361,6 +384,12 @@ class PlanViewSet(viewsets.ModelViewSet):
                 
                 serializer.is_valid(raise_exception=True)
                 serializer.save(plan=plan)
+
+            # Sauvegarder les préférences si elles sont fournies
+            preferences = request.data.get('preferences')
+            if preferences:
+                plan.preferences = preferences
+                plan.save(update_fields=['preferences'])
 
             # Forcer la mise à jour de la date de modification
             plan.touch()

@@ -1,7 +1,6 @@
 import L from 'leaflet';
 import { polygon, area, length, lineString } from '@turf/turf';
 import centroid from '@turf/centroid';
-import { PerformanceTracker } from './PerformanceTracker';
 
 /**
  * Classe Polygon personnalisée qui étend L.Polygon pour ajouter des fonctionnalités
@@ -14,7 +13,7 @@ export class Polygon extends L.Polygon {
     latlngs: L.LatLngExpression[] | L.LatLngExpression[][] | L.LatLngExpression[][][],
     options: L.PolylineOptions = {}
   ) {
-    PerformanceTracker.start('Polygon.constructor');
+
     super(latlngs, {
       ...options,
       pmIgnore: false,
@@ -31,33 +30,33 @@ export class Polygon extends L.Polygon {
     
     // Écouter uniquement les événements qui indiquent la fin d'une modification
     this.on('add', () => {
-      console.log('Polygon added to map, updating properties');
+
       this.updateProperties();
     });
-    PerformanceTracker.end('Polygon.constructor');
+
   }
 
   /**
    * Calcule et met à jour les propriétés du polygone
    */
   updateProperties(): void {
-    PerformanceTracker.start('Polygon.updateProperties');
+
     const latLngs = this.getLatLngs()[0] as L.LatLng[];
     
     if (!latLngs || latLngs.length < 3) {
       console.warn('Polygon has less than 3 points, cannot calculate properties');
-      PerformanceTracker.end('Polygon.updateProperties');
+
       return;
     }
     
     // Convertir les points en format GeoJSON pour turf
-    PerformanceTracker.start('Polygon.updateProperties.convertCoordinates');
+
     const coordinates = latLngs.map((ll: L.LatLng) => [ll.lng, ll.lat]);
     coordinates.push(coordinates[0]); // Fermer le polygone
-    PerformanceTracker.end('Polygon.updateProperties.convertCoordinates');
+
     
     try {
-      PerformanceTracker.start('Polygon.updateProperties.turf');
+
       const polygonFeature = polygon([coordinates]);
       const areaValue = area(polygonFeature);
       const perimeterValue = length(lineString([...coordinates]), { units: 'meters' });
@@ -65,9 +64,9 @@ export class Polygon extends L.Polygon {
       // Calculer le centroid
       const centroidPoint = centroid(polygonFeature);
       const center = L.latLng(centroidPoint.geometry.coordinates[1], centroidPoint.geometry.coordinates[0]);
-      PerformanceTracker.end('Polygon.updateProperties.turf');
+
       
-      PerformanceTracker.start('Polygon.updateProperties.assignProperties');
+
       this.properties = {
         ...this.properties,
         area: areaValue,
@@ -86,7 +85,7 @@ export class Polygon extends L.Polygon {
           dashArray: (this.options as any)?.dashArray || ''
         }
       };
-      PerformanceTracker.end('Polygon.updateProperties.assignProperties');
+
       
       // Émettre un événement pour notifier les changements
       this.fire('properties:updated', {
@@ -96,17 +95,17 @@ export class Polygon extends L.Polygon {
     } catch (error) {
       console.error('Failed to calculate polygon properties', error);
     }
-    PerformanceTracker.end('Polygon.updateProperties');
+
   }
 
   /**
    * Surcharge de la méthode setLatLngs pour mettre à jour les propriétés
    */
   setLatLngs(latlngs: L.LatLngExpression[] | L.LatLngExpression[][] | L.LatLngExpression[][][]): this {
-    PerformanceTracker.start('Polygon.setLatLngs');
+
     super.setLatLngs(latlngs);
     this.updateProperties();
-    PerformanceTracker.end('Polygon.setLatLngs');
+
     return this;
   }
 
@@ -114,12 +113,12 @@ export class Polygon extends L.Polygon {
    * Calcule les points milieu de chaque segment du polygone
    */
   getMidPoints(): L.LatLng[] {
-    PerformanceTracker.start('Polygon.getMidPoints');
+
     const latLngs = this.getLatLngs()[0] as L.LatLng[];
     const midPoints: L.LatLng[] = [];
     
     if (latLngs.length < 2) {
-      PerformanceTracker.end('Polygon.getMidPoints');
+
       return midPoints;
     }
     
@@ -134,7 +133,7 @@ export class Polygon extends L.Polygon {
       ));
     }
     
-    PerformanceTracker.end('Polygon.getMidPoints');
+
     return midPoints;
   }
 
@@ -144,7 +143,7 @@ export class Polygon extends L.Polygon {
    * @param newLatLng La nouvelle position du vertex
    */
   moveVertex(vertexIndex: number, newLatLng: L.LatLng): void {
-    PerformanceTracker.start('Polygon.moveVertex');
+
     const latLngs = this.getLatLngs()[0] as L.LatLng[];
     if (vertexIndex >= 0 && vertexIndex < latLngs.length) {
       latLngs[vertexIndex] = newLatLng;
@@ -152,7 +151,7 @@ export class Polygon extends L.Polygon {
       // Mettre à jour la géométrie sans déclencher updateProperties
       L.Polygon.prototype.setLatLngs.call(this, [latLngs]);
     }
-    PerformanceTracker.end('Polygon.moveVertex');
+
   }
 
   /**
@@ -161,7 +160,7 @@ export class Polygon extends L.Polygon {
    * @param newLatLng La position du nouveau vertex
    */
   addVertex(segmentIndex: number, newLatLng: L.LatLng): void {
-    PerformanceTracker.start('Polygon.addVertex');
+
     const latLngs = this.getLatLngs()[0] as L.LatLng[];
     if (segmentIndex >= 0 && segmentIndex < latLngs.length) {
       // Insérer le nouveau point
@@ -170,7 +169,7 @@ export class Polygon extends L.Polygon {
       // Mettre à jour la géométrie sans déclencher updateProperties
       L.Polygon.prototype.setLatLngs.call(this, [latLngs]);
     }
-    PerformanceTracker.end('Polygon.addVertex');
+
   }
 
   /**
@@ -178,7 +177,7 @@ export class Polygon extends L.Polygon {
    * @param deltaLatLng Le décalage à appliquer à tous les vertices
    */
   move(deltaLatLng: L.LatLng): this {
-    PerformanceTracker.start('Polygon.move');
+
     const latLngs = this.getLatLngs()[0] as L.LatLng[];
     
     // Créer un nouveau tableau avec les coordonnées déplacées
@@ -191,7 +190,7 @@ export class Polygon extends L.Polygon {
     
     // Mettre à jour la géométrie sans déclencher updateProperties
     L.Polygon.prototype.setLatLngs.call(this, [newLatLngs]);
-    PerformanceTracker.end('Polygon.move');
+
     return this;
   }
 
@@ -199,15 +198,15 @@ export class Polygon extends L.Polygon {
    * Calcule le barycentre du polygone (point pouvant servir pour déplacer la forme)
    */
   getCenter(): L.LatLng {
-    PerformanceTracker.start('Polygon.getCenter');
+
     const latLngs = this.getLatLngs()[0] as L.LatLng[];
     if (!latLngs || latLngs.length === 0) {
-        PerformanceTracker.end('Polygon.getCenter');
+
         return new L.LatLng(0, 0);
     }
     
     try {
-        PerformanceTracker.start('Polygon.getCenter.validate');
+
         // Vérifions si les coordonnées sont valides
         const validPoints = latLngs.filter(point => 
             point && typeof point.lat === 'number' && typeof point.lng === 'number' &&
@@ -217,13 +216,13 @@ export class Polygon extends L.Polygon {
         
         if (validPoints.length === 0) {
             console.warn('Aucun point valide dans le polygone pour calculer le centre');
-            PerformanceTracker.end('Polygon.getCenter.validate');
-            PerformanceTracker.end('Polygon.getCenter');
+
+
             return new L.LatLng(0, 0);
         }
-        PerformanceTracker.end('Polygon.getCenter.validate');
+
         
-        PerformanceTracker.start('Polygon.getCenter.turf');
+
         const coordinates = validPoints.map((ll: L.LatLng) => [ll.lng, ll.lat]);
         coordinates.push(coordinates[0]); // Fermer le polygone
         
@@ -240,13 +239,13 @@ export class Polygon extends L.Polygon {
             throw new Error('Centroid calculé invalide');
         }
         
-        PerformanceTracker.end('Polygon.getCenter.turf');
-        PerformanceTracker.end('Polygon.getCenter');
+
+
         return L.latLng(centerLat, centerLng);
     } catch (error) {
         console.warn('Erreur lors du calcul du centroïde avec turf.js, utilisation de la méthode simple', error);
         
-        PerformanceTracker.start('Polygon.getCenter.fallback');
+
         // Méthode alternative: moyenne des coordonnées valides
         let totalLat = 0, totalLng = 0, count = 0;
         
@@ -262,13 +261,13 @@ export class Polygon extends L.Polygon {
         
         if (count === 0) {
             console.error('Impossible de calculer un centre valide pour le polygone');
-            PerformanceTracker.end('Polygon.getCenter.fallback');
-            PerformanceTracker.end('Polygon.getCenter');
+
+
             return new L.LatLng(0, 0);
         }
         
-        PerformanceTracker.end('Polygon.getCenter.fallback');
-        PerformanceTracker.end('Polygon.getCenter');
+
+
         return new L.LatLng(totalLat / count, totalLng / count);
     }
   }
@@ -277,12 +276,12 @@ export class Polygon extends L.Polygon {
    * Retourne les distances entre les vertices consécutifs
    */
   getSegmentLengths(): number[] {
-    PerformanceTracker.start('Polygon.getSegmentLengths');
+
     const latLngs = this.getLatLngs()[0] as L.LatLng[];
     const distances: number[] = [];
     
     if (latLngs.length < 2) {
-      PerformanceTracker.end('Polygon.getSegmentLengths');
+
       return distances;
     }
     
@@ -293,7 +292,7 @@ export class Polygon extends L.Polygon {
       distances.push(p1.distanceTo(p2));
     }
     
-    PerformanceTracker.end('Polygon.getSegmentLengths');
+
     return distances;
   }
 } 

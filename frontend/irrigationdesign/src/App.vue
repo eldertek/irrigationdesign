@@ -4,7 +4,6 @@ import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import SearchBar from '@/components/SearchBar.vue'
-import { PerformanceTracker } from '@/utils/PerformanceTracker';
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -27,7 +26,7 @@ onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.has('perf')) {
     isPerformanceMode.value = true;
-    console.log('🔍 Mode performance activé - Cliquez sur le logo pour télécharger le rapport');
+
   }
 })
 
@@ -40,10 +39,10 @@ onBeforeUnmount(() => {
 async function downloadPerformanceReport() {
   if (!isPerformanceMode.value) return;
   
-  console.log('📊 Préparation du rapport de performance...');
+
   try {
     await PerformanceTracker.downloadReport();
-    console.log('📊 Rapport de performance traité avec succès');
+
   } catch (error) {
     console.error('Erreur lors du téléchargement du rapport:', error);
   }

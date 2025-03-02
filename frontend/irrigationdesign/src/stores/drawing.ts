@@ -119,14 +119,19 @@ export const useDrawingStore = defineStore('drawing', {
         const response = await api.get(`/plans/${planId}/`);
         const plan = response.data;
         
+        // Convertir les formes en éléments de dessin
         this.elements = plan.formes.map((forme: any) => ({
-          ...forme,
-          type_forme: forme.type_forme
+          id: forme.id,  // Assurer que l'ID est correctement copié
+          type_forme: forme.type_forme,
+          data: forme.data || {}
         }));
+        
+        console.log(`Plan ${planId} - Chargé ${this.elements.length} éléments`);
         
         this.currentPlanId = planId;
         this.unsavedChanges = false;
 
+        // Charger les préférences du plan
         if (plan.preferences) {
           if (plan.preferences.currentTool) {
             this.setCurrentTool(plan.preferences.currentTool);
@@ -142,6 +147,8 @@ export const useDrawingStore = defineStore('drawing', {
         if (this.selectedElement?.type_forme) {
           this.setCurrentTool(this.selectedElement.type_forme);
         }
+        
+        return this.elements;
       } catch (error) {
         console.error('Erreur lors du chargement des éléments:', error);
         this.error = 'Erreur lors du chargement des éléments du plan';
@@ -151,7 +158,7 @@ export const useDrawingStore = defineStore('drawing', {
       }
     },
 
-    async saveToPlan(planId?: number) {
+    async saveToPlan(planId?: number, options?: { elementsToDelete?: number[] }) {
       const irrigationStore = useIrrigationStore();
       this.loading = true;
       
@@ -166,10 +173,20 @@ export const useDrawingStore = defineStore('drawing', {
           type_forme: element.type_forme || this.lastUsedType
         }));
 
+        // Identifiants des éléments à supprimer (s'ils existent)
+        const elementsToDelete = options?.elementsToDelete || [];
+        
+        console.log('Store - Sauvegarde du plan:', {
+          planId: targetPlanId,
+          elementsCount: formesAvecType.length,
+          elementsToDeleteCount: elementsToDelete.length
+        });
+
         const response = await api.post(`/plans/${targetPlanId}/save_with_elements/`, {
           formes: formesAvecType,
           connexions: [],
           annotations: [],
+          elementsToDelete: elementsToDelete,
           preferences: {
             currentTool: this.currentTool,
             currentStyle: this.currentStyle,

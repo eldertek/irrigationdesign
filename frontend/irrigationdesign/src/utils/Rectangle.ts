@@ -28,7 +28,7 @@ export class Rectangle extends L.Rectangle {
     
     // Écouter uniquement les événements qui indiquent la fin d'une modification
     this.on('add', () => {
-      console.log('Rectangle added to map, updating properties');
+
       this.updateProperties();
     });
   }

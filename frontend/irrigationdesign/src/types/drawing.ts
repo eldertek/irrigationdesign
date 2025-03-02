@@ -37,9 +37,35 @@ export interface LineData extends BaseData {
   points: [number, number][];  // Array of [longitude, latitude]
 }
 
-export interface TextData extends BaseData {
-  position: [number, number];  // [longitude, latitude]
+// Interface pour le style de texte
+export interface TextStyle {
+  color?: string;
+  fillColor?: string;
+  fillOpacity?: number;
+  weight?: number;
+  opacity?: number;
+  fontSize?: string;
+  textColor?: string;
+  fontFamily?: string;
+  textAlign?: string;
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  bold?: boolean;
+  italic?: boolean;
+}
+
+// Mise à jour de l'interface TextData pour inclure un style complet
+export interface TextData {
+  position: [number, number]; // [longitude, latitude]
   content: string;
+  style?: TextStyle;
+  width?: number;
+  height?: number;
+  rotation?: number;
+  bounds?: {
+    southWest: [number, number];
+    northEast: [number, number];
+  };
 }
 
 export type ShapeData = CircleData | RectangleData | SemicircleData | LineData | TextData;

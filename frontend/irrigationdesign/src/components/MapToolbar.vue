@@ -23,6 +23,16 @@
         </div>
       </div>
       
+      <!-- Informations du plan actif -->
+      <div v-if="planName" class="border-l pl-2 flex-1">
+        <div class="flex items-center">
+          <div class="plan-info">
+            <h2 class="plan-name">{{ planName }}</h2>
+            <p v-if="planDescription" class="plan-description">{{ planDescription }}</p>
+          </div>
+        </div>
+      </div>
+      
       <!-- Outils de plan -->
       <div class="border-l pl-2">
         <div class="flex items-center space-x-1">
@@ -69,8 +79,39 @@
       
       <!-- Information de sauvegarde -->
       <div class="border-l pl-2 ml-auto">
-        <div class="text-xs text-gray-500 hidden lg:block">
-          Dernière sauvegarde : {{ lastSaveFormatted }}
+        <div 
+          class="text-xs hidden lg:flex items-center"
+          :class="{
+            'text-gray-500': !saveStatus,
+            'text-primary-600 font-medium': saveStatus === 'success',
+            'text-blue-600 font-medium': saveStatus === 'saving'
+          }"
+        >
+          <!-- Icône de chargement quand sauvegarde en cours -->
+          <svg v-if="saveStatus === 'saving'" class="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          
+          <!-- Icône de succès quand sauvegarde réussie -->
+          <svg v-if="saveStatus === 'success'" class="h-4 w-4 mr-2 text-primary-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+          </svg>
+          
+          <transition 
+            name="fade-slide" 
+            mode="out-in"
+          >
+            <span v-if="saveStatus === 'saving'" key="saving">
+              Sauvegarde en cours...
+            </span>
+            <span v-else-if="saveStatus === 'success'" key="success" class="save-success-text">
+              Sauvegarde réussie !
+            </span>
+            <span v-else key="default">
+              Dernière modification : {{ lastSaveFormatted }}
+            </span>
+          </transition>
         </div>
       </div>
     </div>
@@ -83,6 +124,11 @@
             <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
           </svg>
         </button>
+        
+        <!-- Nom du plan en version mobile -->
+        <div v-if="planName" class="truncate mx-2 text-sm font-medium">
+          {{ planName }}
+        </div>
         
         <div class="flex space-x-1">
           <button @click="createNewPlan" class="p-1 rounded border bg-white">
@@ -106,6 +152,12 @@
       <!-- Menu mobile -->
       <div v-if="showMobileMenu" class="mobile-menu mt-2 bg-white shadow-md rounded p-2 z-50">
         <div class="flex flex-col space-y-2">
+          <!-- Informations du plan -->
+          <div v-if="planName" class="flex flex-col pb-2 border-b">
+            <h3 class="text-sm font-semibold text-gray-800">{{ planName }}</h3>
+            <p v-if="planDescription" class="text-xs text-gray-600 mt-1">{{ planDescription }}</p>
+          </div>
+          
           <!-- Type de carte -->
           <div class="flex flex-col">
             <span class="text-xs font-medium text-gray-500 mb-1">Type de carte</span>
@@ -144,8 +196,39 @@
           </div>
           
           <!-- Information de sauvegarde -->
-          <div class="text-xs text-gray-500 text-center pt-1 border-t">
-            Dernière sauvegarde : {{ lastSaveFormatted }}
+          <div 
+            class="text-xs text-center pt-1 border-t flex items-center justify-center space-x-1"
+            :class="{
+              'text-gray-500': !saveStatus,
+              'text-primary-600 font-medium': saveStatus === 'success',
+              'text-blue-600 font-medium': saveStatus === 'saving'
+            }"
+          >
+            <!-- Icône de chargement quand sauvegarde en cours -->
+            <svg v-if="saveStatus === 'saving'" class="animate-spin h-3 w-3 mr-1 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            
+            <!-- Icône de succès quand sauvegarde réussie -->
+            <svg v-if="saveStatus === 'success'" class="h-3 w-3 mr-1 text-primary-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+            </svg>
+            
+            <transition 
+              name="fade-slide" 
+              mode="out-in"
+            >
+              <span v-if="saveStatus === 'saving'" key="saving">
+                Sauvegarde en cours...
+              </span>
+              <span v-else-if="saveStatus === 'success'" key="success" class="save-success-text">
+                Sauvegarde réussie !
+              </span>
+              <span v-else key="default">
+                Dernière modification : {{ lastSaveFormatted }}
+              </span>
+            </transition>
           </div>
         </div>
       </div>
@@ -154,7 +237,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 
 const emit = defineEmits<{
   (e: 'change-map-type', type: string): void;
@@ -167,17 +250,20 @@ const emit = defineEmits<{
 
 const props = defineProps<{
   lastSave?: Date;
+  planName?: string;
+  planDescription?: string;
+  saveStatus?: 'saving' | 'success' | null;
 }>();
 
 // État
-const selectedMapType = ref('standard');
+const selectedMapType = ref('Ville');
 const showMobileMenu = ref(false);
 
 // Types de carte disponibles
 const mapTypes = {
-  standard: 'Ville',
-  satellite: 'Satellite',
-  cadastre: 'Cadastre'
+  Ville: 'Ville',
+  Satellite: 'Satellite',
+  Cadastre: 'Cadastre'
 };
 
 // Formater la date de dernière sauvegarde
@@ -240,7 +326,7 @@ const closeMobileMenu = () => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 1000;
 }
 
 .dropdown {
@@ -323,11 +409,75 @@ const closeMobileMenu = () => {
   border-color: #d1d5db;
 }
 
+.plan-info {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.plan-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-description {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .mobile-menu {
   position: absolute;
   top: 100%;
   left: 0;
   right: 0;
   margin: 0 0.5rem;
+}
+
+/* Animations de transition */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.3s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.save-success-text {
+  position: relative;
+  display: inline-block;
+}
+
+.save-success-text::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.5s ease-out;
+  animation: underline-grow 0.5s forwards 0.2s;
+}
+
+@keyframes underline-grow {
+  0% { transform: scaleX(0); }
+  100% { transform: scaleX(1); }
 }
 </style> 

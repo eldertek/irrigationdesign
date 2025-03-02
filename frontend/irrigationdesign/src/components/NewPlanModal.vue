@@ -143,7 +143,7 @@ watch(() => planData.value.concessionnaire, async (newDealerId) => {
   // N'exécuter que si le modal est visible
   if (!props.modelValue) return;
   
-  console.log('[NewPlanModal] Concessionnaire changed:', newDealerId);
+
   if (newDealerId) {
     const dealer = dealers.value.find(d => d.id === newDealerId);
     if (dealer) {
@@ -194,13 +194,13 @@ const availableClients = computed(() => {
 
 // Fonction pour charger les concessionnaires
 async function loadDealers() {
-  console.log('[NewPlanModal] Loading dealers...');
+
   isLoadingDealers.value = true;
   try {
     const response = await api.get('/users/', {
       params: { role: 'CONCESSIONNAIRE' }
     });
-    console.log('[NewPlanModal] Dealers loaded:', response.data);
+
     dealers.value = response.data;
   } catch (error) {
     console.error('[NewPlanModal] Error loading dealers:', error);
@@ -211,7 +211,7 @@ async function loadDealers() {
 
 // Fonction pour charger les clients d'un concessionnaire
 async function loadDealerClients(dealerId: number) {
-  console.log('[NewPlanModal] Loading clients for dealer:', dealerId);
+
   isLoadingClients.value = true;
   try {
     const response = await api.get('/users/', {
@@ -220,7 +220,7 @@ async function loadDealerClients(dealerId: number) {
         concessionnaire: dealerId
       }
     });
-    console.log('[NewPlanModal] Clients loaded:', response.data);
+
     dealerClients.value = Array.isArray(response.data) ? response.data : [response.data];
   } catch (error) {
     console.error('[NewPlanModal] Error loading clients:', error);
@@ -235,7 +235,7 @@ async function selectDealer(dealer: UserDetails) {
   // N'exécuter que si le modal est visible
   if (!props.modelValue) return;
 
-  console.log('[NewPlanModal] Selecting dealer:', dealer);
+
   selectedDealer.value = dealer;
   planData.value.concessionnaire = dealer.id;
   isLoadingClients.value = true;
@@ -247,7 +247,7 @@ async function selectDealer(dealer: UserDetails) {
         concessionnaire: dealer.id
       }
     });
-    console.log('[NewPlanModal] Clients loaded:', response.data);
+
     dealerClients.value = Array.isArray(response.data) ? response.data : [response.data];
   } catch (error) {
     console.error('[NewPlanModal] Error loading clients:', error);
@@ -262,7 +262,7 @@ function selectClient(client: UserDetails) {
   // N'exécuter que si le modal est visible
   if (!props.modelValue) return;
 
-  console.log('[NewPlanModal] Client selected:', client);
+
   selectedClient.value = client;
   planData.value.client = client.id;
   emit('clientSelected', client);

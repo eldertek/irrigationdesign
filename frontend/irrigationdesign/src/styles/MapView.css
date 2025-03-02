@@ -609,3 +609,36 @@
 .leaflet-text-rectangle.rotating .leaflet-path-transform-rotation {
   animation: rotate 2s linear infinite;
 }
+
+/* Styles pour le TextRectangle SVG */
+.leaflet-text-rectangle-text {
+  pointer-events: none;
+  dominant-baseline: hanging;
+  white-space: pre-wrap;
+  overflow: visible;
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.5);
+}
+
+.leaflet-text-rectangle-text tspan {
+  dominant-baseline: hanging;
+}
+
+.leaflet-text-rectangle-editor {
+  background-color: white;
+  border: 2px solid #3388ff;
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+  font-family: 'Arial', sans-serif;
+  min-height: 20px;
+  outline: none;
+  z-index: 10000;
+}
+
+.leaflet-text-rectangle {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.leaflet-text-rectangle:hover {
+  filter: brightness(1.05);
+}

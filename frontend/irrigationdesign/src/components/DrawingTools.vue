@@ -70,8 +70,8 @@
             ></button>
           </div>
 
-          <!-- Contrôles de style compacts pour toutes les formes -->
-          <div class="style-controls">
+          <!-- Contrôles de style pour les formes standards (non TextRectangle) -->
+          <div v-if="localProperties.type !== 'TextRectangle'" class="style-controls">
             <div class="control-row">
               <span class="control-label">Contour</span>
               <div class="control-inputs">
@@ -132,8 +132,56 @@
             </div>
           </div>
 
-          <!-- Options spécifiques au TextRectangle - version compacte -->
-          <div v-if="selectedShape.properties?.type === 'TextRectangle'" class="text-controls">
+          <!-- Options spécifiques au TextRectangle -->
+          <div v-if="localProperties.type === 'TextRectangle'" class="text-controls">
+            <!-- Contour du rectangle avec texte -->
+            <div class="control-row">
+              <span class="control-label">Contour</span>
+              <div class="control-inputs">
+                <input
+                  type="color"
+                  v-model="strokeColor"
+                  class="color-input"
+                  @change="updateStyle({ strokeColor })"
+                  title="Couleur du contour"
+                />
+                <input
+                  type="range"
+                  v-model="strokeWidth"
+                  min="1"
+                  max="10"
+                  class="range-input"
+                  @change="updateStyle({ strokeWidth })"
+                  title="Épaisseur du contour"
+                />
+              </div>
+              </div>
+              
+            <!-- Remplissage du rectangle -->
+            <div class="control-row">
+              <span class="control-label">Remplir</span>
+              <div class="control-inputs">
+                <input
+                  type="color"
+                  v-model="fillColor"
+                  class="color-input"
+                  @change="updateStyle({ fillColor })"
+                  title="Couleur de remplissage"
+                />
+                <input
+                  type="range"
+                  v-model="fillOpacity"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  class="range-input"
+                  @change="updateStyle({ fillOpacity })"
+                  title="Opacité du remplissage"
+                />
+              </div>
+            </div>
+
+            <!-- Contrôles spécifiques au texte -->
             <div class="control-row">
               <span class="control-label">Texte</span>
               <div class="control-inputs">
@@ -158,8 +206,8 @@
                   <option value="24px">24px</option>
                 </select>
               </div>
-            </div>
-            
+              </div>
+              
             <div class="control-row">
               <span class="control-label">Fond</span>
               <div class="control-inputs">
@@ -181,55 +229,55 @@
                   title="Opacité du fond"
                 />
               </div>
-            </div>
-            
-            <!-- Police et alignement -->
+              </div>
+              
+              <!-- Police et alignement -->
             <div class="control-row">
               <span class="control-label">Police</span>
-              <select
-                v-model="fontFamily"
+                <select
+                  v-model="fontFamily"
                 class="select-input"
-                @change="updateTextStyle({ fontFamily })"
-              >
-                <option value="Arial, sans-serif">Arial</option>
+                  @change="updateTextStyle({ fontFamily })"
+                >
+                  <option value="Arial, sans-serif">Arial</option>
                 <option value="'Times New Roman', serif">Times</option>
                 <option value="'Courier New', monospace">Courier</option>
-                <option value="Georgia, serif">Georgia</option>
-                <option value="Verdana, sans-serif">Verdana</option>
-              </select>
-            </div>
-            
+                  <option value="Georgia, serif">Georgia</option>
+                  <option value="Verdana, sans-serif">Verdana</option>
+                </select>
+              </div>
+              
             <div class="control-row">
               <span class="control-label">Align.</span>
               <div class="button-group">
-                <button
-                  v-for="align in textAlignOptions"
-                  :key="align.value"
+                  <button
+                    v-for="align in textAlignOptions"
+                    :key="align.value"
                   class="align-button"
                   :class="{ active: textAlign === align.value }"
-                  @click="updateTextStyle({ textAlign: align.value })"
-                  :title="align.label"
-                >
-                  <span v-html="align.icon"></span>
-                </button>
+                    @click="updateTextStyle({ textAlign: align.value })"
+                    :title="align.label"
+                  >
+                    <span v-html="align.icon"></span>
+                  </button>
                 
-                <button
+                  <button
                   class="style-button"
                   :class="{ active: isBold }"
-                  @click="toggleBold"
-                  title="Gras"
-                >
-                  B
-                </button>
-                <button
+                    @click="toggleBold"
+                    title="Gras"
+                  >
+                    B
+                  </button>
+                  <button
                   class="style-button"
                   :class="{ active: isItalic }"
-                  @click="toggleItalic"
-                  title="Italique"
-                >
-                  I
-                </button>
-              </div>
+                    @click="toggleItalic"
+                    title="Italique"
+                  >
+                    I
+                  </button>
+                </div>
             </div>
           </div>
         </div>
@@ -256,7 +304,7 @@
           <div v-if="localProperties">
             <!-- Tableau compact des propriétés pour tous les types -->
             <div class="properties-grid">
-              <!-- Cercle -->
+            <!-- Cercle -->
               <template v-if="localProperties.type === 'Circle'">
                 <span class="property-label">Rayon :</span>
                 <span class="property-value">{{ formatMeasure(localProperties.radius || 0) }}</span>
@@ -264,7 +312,7 @@
                 <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
               </template>
 
-              <!-- Rectangle -->
+            <!-- Rectangle -->
               <template v-else-if="localProperties.type === 'Rectangle'">
                 <span class="property-label">Largeur :</span>
                 <span class="property-value">{{ formatMeasure(localProperties.width || 0) }}</span>
@@ -274,7 +322,7 @@
                 <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
               </template>
 
-              <!-- Demi-cercle -->
+            <!-- Demi-cercle -->
               <template v-else-if="localProperties.type === 'Semicircle'">
                 <span class="property-label">Rayon :</span>
                 <span class="property-value">{{ formatMeasure(localProperties.radius || 0) }}</span>
@@ -284,13 +332,13 @@
                 <span class="property-value">{{ formatAngle(localProperties.openingAngle || 0) }}</span>
               </template>
 
-              <!-- Ligne -->
+            <!-- Ligne -->
               <template v-else-if="localProperties.type === 'Line'">
                 <span class="property-label">Longueur :</span>
                 <span class="property-value">{{ formatMeasure(localProperties.length || 0) }}</span>
               </template>
 
-              <!-- Polygone -->
+            <!-- Polygone -->
               <template v-else-if="localProperties.type === 'Polygon'">
                 <span class="property-label">Surface :</span>
                 <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
@@ -298,7 +346,7 @@
                 <span class="property-value">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
               </template>
 
-              <!-- Rectangle avec texte -->
+            <!-- Rectangle avec texte -->
               <template v-else-if="localProperties.type === 'TextRectangle'">
                 <span class="property-label">Largeur :</span>
                 <span class="property-value">{{ formatMeasure(localProperties.width || 0) }}</span>
@@ -311,8 +359,8 @@
                 <span class="property-label col-span-2">Texte :</span>
                 <span class="property-value col-span-2 truncate">{{ localProperties.text || 'Aucun texte' }}</span>
               </template>
-            </div>
-          </div>
+              </div>
+              </div>
           <div v-else class="no-properties">
             Aucune propriété disponible
           </div>
@@ -420,7 +468,7 @@ watch(
 watch(
   () => props.selectedShape?.properties,
   (newProperties) => {
-    console.log('[DrawingTools] Changement détecté directement dans les propriétés de la forme', newProperties);
+
     if (newProperties && props.selectedShape) {
       // Mise à jour proactive des propriétés locales
       localProperties.value = { ...newProperties };
@@ -443,16 +491,15 @@ watch(
 );
 
 // Icônes pour les outils (SVG)
-const getToolIcon = (toolType: string): string => {
+const getToolIcon = (toolType: string) => {
   const icons: Record<string, string> = {
     'Circle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /></svg>',
-    'Semicircle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0110 10H2a10 10 0 0110-10z" /></svg>',
-    'Rectangle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" /></svg>',
-    'Polygon': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l9 7-3 11H6L3 9z" /></svg>',
+    'Semicircle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12a10 10 0 0 1 20 0" /></svg>',
+    'Rectangle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /></svg>',
+    'Polygon': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 7-3 9H6l-3-9 9-7z" /></svg>',
+    'delete': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>',
     'Line': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 19l18-14" /></svg>',
-    'TextRectangle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" /><path d="M9 8h6m-3 0v8" /></svg>',
-    'drag': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 8l-4 4 4 4m-8-4h16" /></svg>',
-    'Text': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>',
+    'TextRectangle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" /><path d="M9 8h6m-3 0v8" /></svg>'
   };
   
   return icons[toolType] || '';
@@ -465,7 +512,6 @@ const drawingTools = [
   { type: 'Polygon', label: 'Polygone' },
   { type: 'Line', label: 'Ligne' },
   { type: 'TextRectangle', label: 'Texte' },
-  { type: 'drag', label: 'Déplacer' },
   { type: 'delete', label: 'Supprimer' }
 ];
 
@@ -524,7 +570,7 @@ const showFillOptions = computed(() => {
     selectedShape: props.selectedShape
   });
   if (!shapeType) return false;
-  return ['Circle', 'Rectangle', 'Polygon', 'Semicircle', 'TextRectangle'].includes(shapeType);
+  return ['Circle', 'Rectangle', 'Polygon', 'Semicircle'].includes(shapeType);
 });
 
 // Fonction pour basculer l'état des sections
@@ -543,12 +589,12 @@ const getDashArray = (style: string): string => {
 
 const selectPresetColor = (color: string) => {
   strokeColor.value = color;
-  if (showFillOptions.value) {
+  if (showFillOptions.value || localProperties.value?.type === 'TextRectangle') {
     fillColor.value = color;
   }
   updateStyle({
     strokeColor: color,
-    fillColor: showFillOptions.value ? color : undefined
+    fillColor: (showFillOptions.value || localProperties.value?.type === 'TextRectangle') ? color : undefined
   });
 };
 
@@ -647,6 +693,7 @@ const formatAngle = (angle: number): string => {
   z-index: 10;
   transition: width 0.3s;
   overflow-y: auto;
+  margin-top: 50px; /* Ajout d'une marge en haut pour éviter le chevauchement avec MapToolbar */
 }
 
 .sidebar-header {

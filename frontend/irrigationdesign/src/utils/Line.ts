@@ -1,7 +1,6 @@
 import L from 'leaflet';
 import { lineString, length } from '@turf/turf';
 import along from '@turf/along';
-import { PerformanceTracker } from './PerformanceTracker';
 
 /**
  * Custom Line class that extends L.Polyline to add specific
@@ -37,7 +36,7 @@ export class Line extends L.Polyline {
     
     // Listen only to events that indicate the end of a modification
     this.on('add', () => {
-      console.log('Line added to map, updating properties');
+
       this.updateProperties();
     });
   }
@@ -46,13 +45,13 @@ export class Line extends L.Polyline {
    * Calculates and updates line properties
    */
   updateProperties(): void {
-    PerformanceTracker.start('Line.updateProperties');
+
     
     const latLngs = this.getLatLngs() as L.LatLng[];
     
     if (!latLngs || latLngs.length < 2) {
       console.warn('Line has less than 2 points, cannot calculate properties');
-      PerformanceTracker.end('Line.updateProperties');
+
       return;
     }
     
@@ -60,16 +59,16 @@ export class Line extends L.Polyline {
     const coordinates = latLngs.map((ll: L.LatLng) => [ll.lng, ll.lat]);
     
     try {
-      PerformanceTracker.start('Line.updateProperties.turf');
+
       const line = lineString(coordinates);
       const lengthValue = length(line, { units: 'meters' });
-      PerformanceTracker.end('Line.updateProperties.turf');
+
       
       // Calculate the center (midpoint) of the line
       // For multi-segment lines, find a point at half the total length
       let center: L.LatLng;
       
-      PerformanceTracker.start('Line.updateProperties.centerCalculation');
+
       if (latLngs.length === 2) {
         // Simple midpoint for single-segment lines
         center = L.latLng(
@@ -81,7 +80,7 @@ export class Line extends L.Polyline {
         const alongPoint = along(line, lengthValue / 2, { units: 'meters' });
         center = L.latLng(alongPoint.geometry.coordinates[1], alongPoint.geometry.coordinates[0]);
       }
-      PerformanceTracker.end('Line.updateProperties.centerCalculation');
+
       
       // Default influence width (for area calculation)
       const influenceWidth = 10; // 10 meters by default
@@ -119,7 +118,7 @@ export class Line extends L.Polyline {
     } catch (error) {
       console.error('Failed to calculate line properties', error);
     } finally {
-      PerformanceTracker.end('Line.updateProperties');
+
     }
   }
 
@@ -145,11 +144,11 @@ export class Line extends L.Polyline {
    * Calculate midpoints of each segment of the line
    */
   getMidPoints(): L.LatLng[] {
-    PerformanceTracker.start('Line.getMidPoints');
+
     
     // Return cached midpoints if available and valid
     if (!this.needsUpdate && this.cachedProperties.midPoints) {
-      PerformanceTracker.end('Line.getMidPoints');
+
       return this.cachedProperties.midPoints;
     }
     
@@ -157,7 +156,7 @@ export class Line extends L.Polyline {
     const midPoints: L.LatLng[] = [];
     
     if (latLngs.length < 2) {
-      PerformanceTracker.end('Line.getMidPoints');
+
       return midPoints;
     }
     
@@ -181,7 +180,7 @@ export class Line extends L.Polyline {
     // Cache the result
     this.cachedProperties.midPoints = midPoints;
     
-    PerformanceTracker.end('Line.getMidPoints');
+
     return midPoints;
   }
 
@@ -189,11 +188,11 @@ export class Line extends L.Polyline {
    * Get a specific midpoint by segment index
    */
   getMidPointAt(segmentIndex: number): L.LatLng | null {
-    PerformanceTracker.start('Line.getMidPointAt');
+
     const latLngs = this.getLatLngs() as L.LatLng[];
     
     if (segmentIndex < 0 || segmentIndex >= latLngs.length - 1 || latLngs.length < 2) {
-      PerformanceTracker.end('Line.getMidPointAt');
+
       return null;
     }
     
@@ -204,7 +203,7 @@ export class Line extends L.Polyline {
     
     if (!p1 || !p2) {
       console.warn('Points invalides pour calcul du midpoint au segment', segmentIndex);
-      PerformanceTracker.end('Line.getMidPointAt');
+
       return null;
     }
     
@@ -213,7 +212,7 @@ export class Line extends L.Polyline {
       (p1.lng + p2.lng) / 2
     );
     
-    PerformanceTracker.end('Line.getMidPointAt');
+
     return midPoint;
   }
 
@@ -224,7 +223,7 @@ export class Line extends L.Polyline {
    * @param updateProps Whether to update properties (default: false)
    */
   moveVertex(vertexIndex: number, newLatLng: L.LatLng, updateProps: boolean = false): void {
-    PerformanceTracker.start('Line.moveVertex');
+
     const latLngs = this.getLatLngs() as L.LatLng[];
     if (vertexIndex >= 0 && vertexIndex < latLngs.length) {
       latLngs[vertexIndex] = newLatLng;
@@ -246,7 +245,7 @@ export class Line extends L.Polyline {
         this.updateProperties();
       }
     }
-    PerformanceTracker.end('Line.moveVertex');
+
   }
 
   /**
@@ -256,7 +255,7 @@ export class Line extends L.Polyline {
    * @param updateProps Whether to update properties (default: false)
    */
   addVertex(segmentIndex: number, newLatLng: L.LatLng, updateProps: boolean = false): void {
-    PerformanceTracker.start('Line.addVertex');
+
     const latLngs = this.getLatLngs() as L.LatLng[];
     if (segmentIndex >= 0 && segmentIndex < latLngs.length - 1) {
       // Insert the new point
@@ -279,7 +278,7 @@ export class Line extends L.Polyline {
         this.updateProperties();
       }
     }
-    PerformanceTracker.end('Line.addVertex');
+
   }
 
   /**
@@ -288,7 +287,7 @@ export class Line extends L.Polyline {
    * @param updateProps Whether to update properties (default: true)
    */
   move(deltaLatLng: L.LatLng, updateProps: boolean = true): this {
-    PerformanceTracker.start('Line.move');
+
     const latLngs = this.getLatLngs() as L.LatLng[];
     
     // Create a new array with moved coordinates
@@ -316,7 +315,7 @@ export class Line extends L.Polyline {
       this.updateProperties();
     }
     
-    PerformanceTracker.end('Line.move');
+
     return this;
   }
 
@@ -324,11 +323,11 @@ export class Line extends L.Polyline {
    * Calculate the center of the line (can be used for moving the shape)
    */
   getCenter(): L.LatLng {
-    PerformanceTracker.start('Line.getCenter');
+
     
     // Return cached center if available and valid
     if (!this.needsUpdate && this.cachedProperties.center) {
-      PerformanceTracker.end('Line.getCenter');
+
       return this.cachedProperties.center;
     }
     
@@ -336,13 +335,13 @@ export class Line extends L.Polyline {
     
     if (latLngs.length < 2) {
       const result = latLngs[0] || new L.LatLng(0, 0);
-      PerformanceTracker.end('Line.getCenter');
+
       return result;
     }
     
     try {
       // Use turf.js for more accurate center calculation (point at half distance)
-      PerformanceTracker.start('Line.getCenter.turf');
+
       const coordinates = latLngs.map((ll: L.LatLng) => [ll.lng, ll.lat]);
       const line = lineString(coordinates);
       const lengthValue = length(line, { units: 'meters' });
@@ -352,8 +351,8 @@ export class Line extends L.Polyline {
       // Cache the result
       this.cachedProperties.center = result;
       
-      PerformanceTracker.end('Line.getCenter.turf');
-      PerformanceTracker.end('Line.getCenter');
+
+
       return result;
     } catch (error) {
       console.warn('Error calculating line center with turf.js, using simple method', error);
@@ -366,7 +365,7 @@ export class Line extends L.Polyline {
       // Cache the result
       this.cachedProperties.center = result;
       
-      PerformanceTracker.end('Line.getCenter');
+
       return result;
     }
   }
@@ -375,11 +374,11 @@ export class Line extends L.Polyline {
    * Return distances between consecutive vertices
    */
   getSegmentLengths(): number[] {
-    PerformanceTracker.start('Line.getSegmentLengths');
+
     
     // Return cached segment lengths if available and valid
     if (!this.needsUpdate && this.cachedProperties.segmentLengths) {
-      PerformanceTracker.end('Line.getSegmentLengths');
+
       return this.cachedProperties.segmentLengths;
     }
     
@@ -387,7 +386,7 @@ export class Line extends L.Polyline {
     const distances: number[] = [];
     
     if (latLngs.length < 2) {
-      PerformanceTracker.end('Line.getSegmentLengths');
+
       return distances;
     }
     
@@ -401,7 +400,7 @@ export class Line extends L.Polyline {
     // Cache the result
     this.cachedProperties.segmentLengths = distances;
     
-    PerformanceTracker.end('Line.getSegmentLengths');
+
     return distances;
   }
   
@@ -409,11 +408,11 @@ export class Line extends L.Polyline {
    * Get the length of a specific segment
    */
   getSegmentLengthAt(segmentIndex: number): number {
-    PerformanceTracker.start('Line.getSegmentLengthAt');
+
     const latLngs = this.getLatLngs() as L.LatLng[];
     
     if (segmentIndex < 0 || segmentIndex >= latLngs.length - 1 || latLngs.length < 2) {
-      PerformanceTracker.end('Line.getSegmentLengthAt');
+
       return 0;
     }
     
@@ -421,7 +420,7 @@ export class Line extends L.Polyline {
     const p2 = latLngs[segmentIndex + 1];
     const distance = p1.distanceTo(p2);
     
-    PerformanceTracker.end('Line.getSegmentLengthAt');
+
     return distance;
   }
   
@@ -430,12 +429,12 @@ export class Line extends L.Polyline {
    * @param vertexIndex The index of the vertex
    */
   getLengthToVertex(vertexIndex: number): number {
-    PerformanceTracker.start('Line.getLengthToVertex');
+
     const latLngs = this.getLatLngs() as L.LatLng[];
     let length = 0;
     
     if (vertexIndex <= 0 || latLngs.length < 2) {
-      PerformanceTracker.end('Line.getLengthToVertex');
+
       return 0;
     }
     
@@ -443,7 +442,7 @@ export class Line extends L.Polyline {
       length += latLngs[i].distanceTo(latLngs[i + 1]);
     }
     
-    PerformanceTracker.end('Line.getLengthToVertex');
+
     return length;
   }
   
