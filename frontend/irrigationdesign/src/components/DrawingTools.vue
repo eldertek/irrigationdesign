@@ -279,6 +279,22 @@
                   </button>
                 </div>
             </div>
+            
+            <!-- Ajout d'un switch pour le scaling du texte -->
+            <div class="control-row">
+              <span class="control-label">Échelle</span>
+              <div class="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  id="text-scaling" 
+                  v-model="fixedPhysicalSize"
+                  @change="updateTextStyle({ fixedPhysicalSize })"
+                />
+                <label for="text-scaling" class="switch-label" :title="fixedPhysicalSize ? 'Taille fixe sur le terrain' : 'Taille fixe à l\'écran'">
+                  {{ fixedPhysicalSize ? 'Terrain' : 'Écran' }}
+                </label>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -421,18 +437,67 @@ const emit = defineEmits<{
 // Variable locale réactive pour les propriétés
 const localProperties = ref<ShapeProperties | null>(null);
 
-// Watcher pour synchroniser les propriétés locales
+// Debounce function to limit updates
+const debounce = (fn: Function, delay: number) => {
+  let timeout: number | null = null;
+  return (...args: any[]) => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+    timeout = window.setTimeout(() => {
+      fn(...args);
+      timeout = null;
+    }, delay);
+  };
+};
+
+// Flag to prevent unnecessary update loops
+let isUpdatingFromProps = false;
+
+// Helper function to determine if two objects are deeply equal
+const isEqual = (obj1: any, obj2: any): boolean => {
+  if (obj1 === obj2) return true;
+  if (obj1 === null || obj2 === null) return false;
+  if (typeof obj1 !== 'object' || typeof obj2 !== 'object') return obj1 === obj2;
+  
+  const keys1 = Object.keys(obj1);
+  const keys2 = Object.keys(obj2);
+  
+  if (keys1.length !== keys2.length) return false;
+  
+  for (const key of keys1) {
+    if (!keys2.includes(key)) return false;
+    if (!isEqual(obj1[key], obj2[key])) return false;
+  }
+  
+  return true;
+};
+
+// Optimized watcher to reduce cascading updates
 watch(
   () => props.selectedShape,
-  (newShape) => {
+  (newShape, oldShape) => {
+    if (!newShape) {
+      localProperties.value = null;
+      return;
+    }
+    
+    // Skip if there's no meaningful change to avoid loops
+    if (oldShape && newShape.properties && oldShape.properties &&
+        isEqual(newShape.properties, oldShape.properties)) {
+      return;
+    }
+    
     console.log('[DrawingTools] Changement de forme sélectionnée', {
       newShape,
       properties: newShape?.properties
     });
+    
     if (newShape) {
+      isUpdatingFromProps = true;
       localProperties.value = { ...newShape.properties };
       
-      // Si c'est un TextRectangle, initialiser les propriétés de style de texte
+      // If c'est un TextRectangle, initialiser les propriétés de style de texte
       if (newShape.properties?.type === 'TextRectangle') {
         const style = newShape.properties?.style || {};
         textColor.value = style.textColor || '#000000';
@@ -444,6 +509,7 @@ watch(
         isBold.value = style.bold || false;
         isItalic.value = style.italic || false;
       }
+      isUpdatingFromProps = false;
     } else {
       localProperties.value = null;
     }
@@ -451,43 +517,26 @@ watch(
   { deep: true, immediate: true }
 );
 
-// Watcher pour détecter les changements dans les propriétés locales
+// Debounced handler for property changes to reduce log spam
+const handlePropertyChange = debounce((newProperties: any, oldProperties: any) => {
+  if (isUpdatingFromProps) return;
+  
+  console.log('[DrawingTools] Changement détecté dans localProperties', {
+    newProperties,
+    oldProperties,
+    selectedShape: props.selectedShape
+  });
+}, 300); // Debounce 300ms
+
+// Optimized watcher for local properties
 watch(
   () => localProperties.value,
   (newProperties, oldProperties) => {
-    console.log('[DrawingTools] Changement détecté dans localProperties', {
-      newProperties,
-      oldProperties,
-      selectedShape: props.selectedShape
-    });
-  },
-  { deep: true }
-);
-
-// Watcher plus spécifique pour détecter les changements dans les propriétés de la forme sélectionnée
-watch(
-  () => props.selectedShape?.properties,
-  (newProperties) => {
-
-    if (newProperties && props.selectedShape) {
-      // Mise à jour proactive des propriétés locales
-      localProperties.value = { ...newProperties };
-      
-      // Si c'est un TextRectangle, mettre à jour les styles
-      if (newProperties.type === 'TextRectangle' && newProperties.style) {
-        const style = newProperties.style;
-        textColor.value = style.textColor || '#000000';
-        fontSize.value = style.fontSize || '14px';
-        textBackgroundColor.value = style.backgroundColor || '#FFFFFF';
-        textBackgroundOpacity.value = style.backgroundOpacity || 1;
-        fontFamily.value = style.fontFamily || 'Arial, sans-serif';
-        textAlign.value = style.textAlign || 'center';
-        isBold.value = style.bold || false;
-        isItalic.value = style.italic || false;
-      }
+    if (newProperties && oldProperties && !isEqual(newProperties, oldProperties)) {
+      handlePropertyChange(newProperties, oldProperties);
     }
   },
-  { deep: true, immediate: true }
+  { deep: true }
 );
 
 // Icônes pour les outils (SVG)
@@ -556,6 +605,7 @@ const fontFamily = ref('Arial, sans-serif');
 const textAlign = ref('center');
 const isBold = ref(false);
 const isItalic = ref(false);
+const fixedPhysicalSize = ref(false);
 
 // Ajouter l'état pour les sections collapsables
 const sectionsCollapsed = ref({
@@ -776,6 +826,7 @@ const formatAngle = (angle: number): string => {
   padding: 10px;
   flex: 1;
   overflow-y: auto;
+  max-height: calc(100vh - 200px); /* Ensure it doesn't overflow the viewport */
 }
 
 .sidebar-section {
@@ -812,6 +863,21 @@ const formatAngle = (angle: number): string => {
 .section-content {
   padding: 10px;
   background-color: white;
+  max-height: 350px; /* Add max height to ensure it's scrollable */
+  overflow-y: auto; /* Make it scrollable when content overflows */
+}
+
+/* Specific styles for text controls to ensure they're visible */
+.text-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 10px; /* Add padding to ensure last items are visible */
+}
+
+/* Ensure the style section expands when TextRectangle is selected */
+.sidebar-section:has(.text-controls) .section-content {
+  min-height: 250px;
 }
 
 .color-grid {
@@ -960,4 +1026,57 @@ const formatAngle = (angle: number): string => {
   transform: rotate(180deg);
 }
 
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-label {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #e2e8f0;
+  border-radius: 12px;
+  transition: .4s;
+  text-align: center;
+  line-height: 24px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.switch-label:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: .4s;
+}
+
+input:checked + .switch-label {
+  background-color: #3b82f6;
+  color: white;
+}
+
+input:checked + .switch-label:before {
+  transform: translateX(calc(100% - 6px));
+}
+
+input:focus + .switch-label {
+  box-shadow: 0 0 1px #3b82f6;
+}
 </style> 

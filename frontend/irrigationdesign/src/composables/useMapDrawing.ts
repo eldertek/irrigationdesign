@@ -890,48 +890,65 @@ export function useMapDrawing(): MapDrawingReturn {
 
               
               // Look for Rectangle layers with the same bounds
-              const duplicateRectangles = allLayers.filter((otherLayer: L.Layer) => {
-                // Skip if it's the same layer or not a Rectangle
-                if (otherLayer === layer || !(otherLayer instanceof L.Rectangle)) {
+              const duplicateRectangles = allLayers.filter((otherLayer: any) => {
+                // Skip if it's the same layer
+                if (otherLayer === layer) {
                   return false;
                 }
                 
-                // Check if it's a TextRectangle by looking at its properties
-                // Using as any to bypass TypeScript's strict type checking
-                if ((otherLayer as any).properties && (otherLayer as any).properties.type === 'TextRectangle') {
+                // Skip if it's not a Rectangle
+                if (!(otherLayer instanceof L.Rectangle)) {
+                  return false;
+                }
+                
+                // Skip if it's already a TextRectangle
+                if (otherLayer.properties && otherLayer.properties.type === 'TextRectangle') {
                   return false;
                 }
                 
                 // Compare bounds to see if it's a duplicate
-                const otherBounds = (otherLayer as L.Rectangle).getBounds();
-                const isSameBounds = 
-                  Math.abs(otherBounds.getNorth() - textRectBounds.getNorth()) < 1e-6 &&
-                  Math.abs(otherBounds.getSouth() - textRectBounds.getSouth()) < 1e-6 &&
-                  Math.abs(otherBounds.getEast() - textRectBounds.getEast()) < 1e-6 &&
-                  Math.abs(otherBounds.getWest() - textRectBounds.getWest()) < 1e-6;
+                try {
+                  const otherBounds = otherLayer.getBounds();
+                  const textRectBounds = layer.getBounds();
                   
-                console.log('[TextRectangle] Comparing with Rectangle:', {
-                  id: (otherLayer as any)._leaflet_id,
-                  bounds: otherBounds.toBBoxString(),
-                  isSameBounds: isSameBounds
-                });
-                
-                return isSameBounds;
+                  // Use a more precise tolerance for bounds comparison
+                  const tolerance = 1e-8;
+                  const isSameBounds = 
+                    Math.abs(otherBounds.getNorth() - textRectBounds.getNorth()) < tolerance &&
+                    Math.abs(otherBounds.getSouth() - textRectBounds.getSouth()) < tolerance &&
+                    Math.abs(otherBounds.getEast() - textRectBounds.getEast()) < tolerance &&
+                    Math.abs(otherBounds.getWest() - textRectBounds.getWest()) < tolerance;
+                    
+                  if (isSameBounds) {
+                    console.log('[TextRectangle] Found duplicate Rectangle:', {
+                      id: otherLayer._leaflet_id,
+                      bounds: otherBounds.toBBoxString()
+                    });
+                  }
+                  
+                  return isSameBounds;
+                } catch (error) {
+                  console.error('[TextRectangle] Error comparing bounds:', error);
+                  return false;
+                }
               });
               
               // Remove any found duplicates
               if (duplicateRectangles.length > 0) {
-                console.warn(`[TextRectangle] Found ${duplicateRectangles.length} duplicate rectangle(s) with TextRectangle, removing...`);
-                duplicateRectangles.forEach((duplicate: L.Layer) => {
-
-                  featureGroup.value?.removeLayer(duplicate);
-                  if (map.value) {
-                    map.value.removeLayer(duplicate);
-                  }
-                });
-
-              } else {
-
+                console.warn(`[TextRectangle] ALERT: ${duplicateRectangles.length} rectangles already exist with the same bounds!`);
+                
+                // Need to delay removal to avoid conflicts with current operation
+                setTimeout(() => {
+                  duplicateRectangles.forEach((duplicate: L.Layer) => {
+                    try {
+                      if (featureGroup.value && featureGroup.value.hasLayer(duplicate)) {
+                        featureGroup.value.removeLayer(duplicate);
+                      }
+                    } catch (error) {
+                      console.error('[TextRectangle] Error removing duplicate:', error);
+                    }
+                  });
+                }, 100);
               }
             }
           } catch (e) {

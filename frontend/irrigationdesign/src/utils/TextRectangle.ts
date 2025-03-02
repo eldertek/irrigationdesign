@@ -10,6 +10,7 @@ export interface TextRectangleOptions extends L.PolylineOptions {
   backgroundOpacity?: number;
   bold?: boolean;
   italic?: boolean;
+  fixedPhysicalSize?: boolean;
 }
 
 interface TextRectangleProperties {
@@ -32,6 +33,7 @@ interface TextRectangleProperties {
     textAlign?: string;
     bold?: boolean;
     italic?: boolean;
+    fixedPhysicalSize?: boolean;
   };
 }
 
@@ -89,7 +91,8 @@ export class TextRectangle extends L.Rectangle {
         fontFamily: mergedOptions.fontFamily || 'Arial, sans-serif',
         textAlign: mergedOptions.textAlign || 'center',
         bold: mergedOptions.bold || false,
-        italic: mergedOptions.italic || false
+        italic: mergedOptions.italic || false,
+        fixedPhysicalSize: mergedOptions.fixedPhysicalSize || false
       }
     };
 
@@ -116,10 +119,17 @@ export class TextRectangle extends L.Rectangle {
       super.onAdd(map);
     this._textRedraw();
     this.updateProperties();
+    
+    // Add zoom event listeners
+    map.on('zoomend', this._onZoomEnd);
+    
     return this;
   }
 
   onRemove(map: L.Map): this {
+    if (map) {
+      map.off('zoomend', this._onZoomEnd);
+    }
     this._cleanupEditableDiv();
     this._removeTextNode();
     this._map = null;
@@ -252,12 +262,6 @@ export class TextRectangle extends L.Rectangle {
       textNode.style.fontWeight = this.properties.style.bold ? 'bold' : 'normal';
       textNode.style.fontStyle = this.properties.style.italic ? 'italic' : 'normal';
       
-      // Calculate font scale based on zoom level
-      const defaultZoom = 15;
-      const currentZoom = this._map.getZoom();
-      const zoomOffset = currentZoom - defaultZoom;
-      this._fontScale = Math.max(0.5, Math.min(2.0, Math.pow(1.2, zoomOffset)));
-      
       // Get the bounds and position
       const bounds = this.getBounds();
       const nw = bounds.getNorthWest();
@@ -284,9 +288,42 @@ export class TextRectangle extends L.Rectangle {
           `rotate(${this.properties.rotation}, ${center.x}, ${center.y})`);
       }
       
-      // Calculate font size based on scale
-      const baseFontSize = parseInt(this.properties.style.fontSize || '14px') * this._fontScale;
-      const lineHeight = baseFontSize * 1.2; // 1.2em line height
+      // Extract base font size without 'px' and convert to number
+      const baseSizeStr = this.properties.style.fontSize || '14px';
+      const baseSizeNum = parseInt(baseSizeStr.replace('px', ''));
+      
+      // Calculate font size based on scaling mode
+      let scaledFontSize = baseSizeNum;
+      
+      if (this.properties.style.fixedPhysicalSize) {
+        // If set to fixed physical size, calculate size based on map dimensions
+        // This makes text appear the same size on the ground regardless of zoom
+        const center = bounds.getCenter();
+        const zoom = this._map.getZoom();
+        
+        // Calculate a scale based on width of the rectangle in pixels vs meters
+        const width = this.properties.width;
+        if (width > 0) {
+          const pixelWidth = sePoint.x - nwPoint.x;
+          // Scale the font based on physical width
+          const scaleFactor = pixelWidth / width;
+          scaledFontSize = Math.max(10, Math.min(48, baseSizeNum * scaleFactor * 0.2));
+        } else {
+          // Fallback calculation
+          const metersPerPixel = 40075016.686 * Math.abs(Math.cos(center.lat * Math.PI / 180)) / Math.pow(2, zoom + 8);
+          scaledFontSize = Math.max(10, Math.min(48, baseSizeNum / metersPerPixel * 2.5));
+        }
+      } else {
+        // Standard behavior - scale with zoom level logarithmically
+        const currentZoom = this._map.getZoom();
+        const defaultZoom = 15;
+        const zoomOffset = currentZoom - defaultZoom;
+        this._fontScale = Math.max(0.5, Math.min(2.5, 1 + (zoomOffset * 0.15)));
+        scaledFontSize = baseSizeNum * this._fontScale;
+      }
+      
+      // Apply the calculated font size
+      const lineHeight = scaledFontSize * 1.2; // 1.2em line height
       
       // Split text by newlines and process each line
       const lines = text.replace(/ /g, '\u00A0').split(/\n|\r\n?/);
@@ -295,7 +332,7 @@ export class TextRectangle extends L.Rectangle {
         const tspan = L.SVG.create('tspan');
         tspan.setAttribute('x', textX.toString());
         tspan.setAttribute('dy', index === 0 ? '0' : lineHeight + 'px');
-        tspan.style.fontSize = baseFontSize + 'px';
+        tspan.style.fontSize = scaledFontSize + 'px';
         
         // Handle text alignment
         const textAlign = this.properties.style.textAlign || 'left';
@@ -475,5 +512,10 @@ export class TextRectangle extends L.Rectangle {
       this._editableDiv = null;
       this._isEditing = false;
     }
+  }
+
+  private _onZoomEnd = (): void => {
+    // Redraw text when zoom ends to ensure proper scaling
+    this._textRedraw();
   }
 } 
