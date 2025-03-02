@@ -73,120 +73,66 @@
         </div>
       </div>
 
-      <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
-      
-      <!-- Barre d'outils principale -->
-        <div v-if="currentPlan && !isGeneratingSynthesis" class="absolute bottom-6 left-6 z-[1000]">
-        <!-- Sélecteur de type de carte -->
-        <div class="bg-white rounded-lg shadow-lg p-3 mb-3">
-          <h2 class="text-sm font-semibold text-gray-700 mb-2">Type de carte</h2>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              v-for="name in Object.keys(baseMaps) as Array<keyof typeof baseMaps>"
-              :key="name"
-              @click="changeBaseMap(name)"
-              class="px-3 py-2 text-sm rounded-md transition-colors duration-200"
-              :class="{
-                'bg-primary-600 text-white': currentBaseMap === name,
-                'bg-gray-100 text-gray-700 hover:bg-gray-200': currentBaseMap !== name
-              }"
-            >
-              {{ name }}
-            </button>
-          </div>
+      <!-- Conteneur de la carte avec positionnement relatif -->
+      <div class="relative h-full w-full overflow-hidden">
+        <!-- La carte Leaflet -->
+        <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
+        
+        <!-- Barre d'outils principale -->
+        <div v-if="currentPlan && !isGeneratingSynthesis" class="absolute top-0 left-0 right-0 z-[1000]">
+          <MapToolbar 
+            :last-save="currentPlan?.date_modification ? new Date(currentPlan.date_modification) : undefined"
+            @change-map-type="changeBaseMap"
+            @create-new-plan="showNewPlanModal = true"
+            @load-plan="showLoadPlanModal = true"
+            @save-plan="savePlan"
+            @adjust-view="handleAdjustView"
+            @generate-summary="generateSynthesis"
+          />
         </div>
-
-        <!-- Boutons de gestion des plans -->
-        <div class="bg-white rounded-lg shadow-lg p-3 space-y-2">
-          <div class="flex flex-col mb-2">
-            <h1 class="text-xl font-bold text-gray-800 mb-1">
-              {{ currentPlan?.nom || 'Aucun plan chargé' }}
-            </h1>
-            <span v-if="currentPlan?.description" class="text-sm text-gray-500">
-              {{ currentPlan.description }}
-            </span>
-          </div>
-          <div class="grid grid-cols-1 gap-2">
-            <button
-              @click="showNewPlanModal = true"
-              class="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
-            >
-              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-              </svg>
-              Nouveau plan
-            </button>
-            <button
-              @click="showLoadPlanModal = true"
-              class="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200"
-            >
-              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-              </svg>
-              Charger un plan
-            </button>
-            <button
-              v-if="currentPlan"
-              @click="savePlan"
-              class="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200"
-              :disabled="saving"
-            >
-              <svg v-if="!saving" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
-              </svg>
-              <svg v-else class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              {{ saving ? 'Sauvegarde...' : 'Enregistrer' }}
-            </button>
-            <!-- Bouton d'ajustement de la vue -->
-            <button
-              @click="handleAdjustView"
-              class="flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200"
-            >
-              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-              </svg>
-              Ajuster la vue
-            </button>
-              <button
-                @click="generateSynthesis"
-                class="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200"
-              >
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                Générer synthèse
-            </button>
-          </div>
-          <!-- Indicateur de dernière sauvegarde -->
-          <div v-if="currentPlan?.date_modification" class="text-xs text-gray-500 mt-2">
-            Dernière sauvegarde : {{ formatLastSaved(currentPlan.date_modification) }}
-          </div>
-        </div>
-      </div>
-
-      <!-- Notification de sauvegarde réussie -->
-      <div v-if="showSaveSuccess" 
-           class="fixed bottom-6 right-6 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-lg z-[2000] flex items-center transform transition-all duration-300 ease-in-out"
-           role="alert">
-        <svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-        </svg>
-        <span class="font-medium">Plan sauvegardé avec succès</span>
-      </div>
-
-      <!-- Outils de dessin -->
-        <div v-if="currentPlan && !isGeneratingSynthesis" class="drawing-tools-container absolute top-4 right-4 z-[1000]">
-        <DrawingTools
-          :current-tool="currentTool"
+        
+        <!-- Panneau latéral d'outils de dessin -->
+        <DrawingTools 
+          v-if="currentPlan && !isGeneratingSynthesis" 
+          :current-tool="currentTool" 
           :selected-shape="selectedShape"
           @tool-change="setDrawingTool"
           @style-update="updateShapeStyle"
           @properties-update="updateShapeProperties"
           @delete-shape="deleteSelectedShape"
         />
+        
+        <!-- Interface de synthèse -->
+        <div v-if="isGeneratingSynthesis" class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-50">
+          <div class="text-center">
+            <div class="mb-4">
+              <svg class="animate-spin h-10 w-10 mx-auto text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <p class="text-lg font-medium text-gray-900">Génération de la synthèse en cours...</p>
+            <p class="text-sm text-gray-500 mt-2">Veuillez patienter pendant que nous analysons votre plan.</p>
+          </div>
+        </div>
+
+        <!-- Message de succès pour la sauvegarde -->
+        <div 
+          v-if="showSaveSuccess" 
+          class="absolute top-20 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-md transition-opacity duration-500 ease-in-out"
+          :class="{ 'opacity-100': showSaveSuccess, 'opacity-0': !showSaveSuccess }"
+        >
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <p class="text-sm">Plan sauvegardé avec succès !</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Modal Nouveau Plan -->
@@ -446,6 +392,7 @@ import type { LatLngTuple } from 'leaflet';
 import * as L from 'leaflet';
 import 'leaflet-simple-map-screenshoter';
 import DrawingTools from '../components/DrawingTools.vue';
+import MapToolbar from '../components/MapToolbar.vue';
 import { useMapDrawing } from '../composables/useMapDrawing';
 import { useMapState } from '../composables/useMapState';
 import { useIrrigationStore } from '@/stores/irrigation';
@@ -467,12 +414,12 @@ const shapes = ref<any[]>([]);
 
 const {
   currentTool,
-    selectedShape: selectedLeafletShape,
+  selectedShape: selectedLeafletShape,
   map,
   initMap: initDrawing,
   setDrawingTool,
   updateShapeStyle,
-  updateShapeProperties: updateShapeProps,
+  updateShapeProperties: updatePropertiesFromDestruct,
   featureGroup,
   adjustView,
   clearActiveControlPoints,
@@ -528,14 +475,14 @@ const filteredClients = computed(() => {
   return [];
 });
 
-  // Add computed property to transform Leaflet Layer to ShapeType
-  const selectedShape = computed((): ShapeType | null => {
-    if (!selectedLeafletShape.value) return null;
-    return {
-      type: selectedLeafletShape.value.properties?.type || 'unknown',
-      properties: selectedLeafletShape.value.properties || {},
-      layer: selectedLeafletShape.value
-    };
+// Computed property to transform Leaflet Layer to ShapeType
+const selectedShape = computed((): ShapeType | null => {
+  if (!selectedLeafletShape.value) return null;
+  return {
+    type: selectedLeafletShape.value.properties?.type || 'unknown',
+    properties: selectedLeafletShape.value.properties || {},
+    layer: selectedLeafletShape.value
+  };
 });
 
 // Fonction pour sauvegarder la position dans les cookies
@@ -677,7 +624,6 @@ onBeforeUnmount(() => {
   }
 });
 
-  // Modifier la fonction loadPlan
 async function loadPlan(planId: number) {
   try {
     clearMap();
@@ -696,69 +642,69 @@ async function loadPlan(planId: number) {
         drawingStore.getCurrentElements.forEach(element => {
           if (!featureGroup.value || !element.data) return;
 
-            let layer: L.Layer | null = null;
+          let layer: L.Layer | null = null;
           const { style = {}, ...otherData } = element.data;
 
           switch (element.type_forme) {
-              case 'CERCLE': {
-                const circleData = otherData as CircleData;
-                if (circleData.center && circleData.radius) {
-              layer = L.circle(
-                    [circleData.center[1], circleData.center[0]],
-                    { ...style, radius: circleData.radius }
-                  );
-                }
-              break;
+            case 'CERCLE': {
+              const circleData = otherData as CircleData;
+              if (circleData.center && circleData.radius) {
+                layer = L.circle(
+                  [circleData.center[1], circleData.center[0]],
+                  { ...style, radius: circleData.radius }
+                );
               }
+              break;
+            }
 
-              case 'RECTANGLE': {
-                const rectData = otherData as RectangleData;
-                if (rectData.bounds) {
-              layer = L.rectangle([
-                    [rectData.bounds.southWest[1], rectData.bounds.southWest[0]],
-                    [rectData.bounds.northEast[1], rectData.bounds.northEast[0]]
-              ], style);
-                }
-              break;
+            case 'RECTANGLE': {
+              const rectData = otherData as RectangleData;
+              if (rectData.bounds) {
+                layer = L.rectangle([
+                  [rectData.bounds.southWest[1], rectData.bounds.southWest[0]],
+                  [rectData.bounds.northEast[1], rectData.bounds.northEast[0]]
+                ], style);
               }
+              break;
+            }
 
-              case 'DEMI_CERCLE': {
-                const semiData = otherData as SemicircleData;
-                if (semiData.center && semiData.radius) {
-              layer = new CircleArc(
-                    L.latLng(semiData.center[1], semiData.center[0]),
-                    semiData.radius,
-                    semiData.startAngle,
-                    semiData.endAngle,
-                style
-              );
-                }
-              break;
+            case 'DEMI_CERCLE': {
+              const semiData = otherData as SemicircleData;
+              if (semiData.center && semiData.radius) {
+                layer = new CircleArc(
+                  L.latLng(semiData.center[1], semiData.center[0]),
+                  semiData.radius,
+                  semiData.startAngle,
+                  semiData.endAngle,
+                  style
+                );
               }
+              break;
+            }
 
-              case 'LIGNE': {
-                const lineData = otherData as LineData;
-                if (lineData.points) {
-                  const points = lineData.points.map(p => L.latLng(p[1], p[0]));
-                  layer = L.polyline(points, style);
-                }
-              break;
+            case 'LIGNE': {
+              const lineData = otherData as LineData;
+              if (lineData.points) {
+                const points = lineData.points.map(p => L.latLng(p[1], p[0]));
+                layer = L.polyline(points, style);
               }
+              break;
+            }
 
-              case 'TEXTE': {
-                const textData = otherData as TextData;
-                if (textData.position && textData.content) {
-              const textIcon = L.divIcon({
-                    html: `<div class="text-annotation" style="font-size: ${style.fontSize || '14px'}">${textData.content}</div>`,
-                className: 'text-container'
-              });
-                  layer = L.marker([textData.position[1], textData.position[0]], {
-                icon: textIcon,
-                ...style
-              });
-                }
-              break;
+            case 'TEXTE': {
+              const textData = otherData as TextData;
+              if (textData.position && textData.content) {
+                const textIcon = L.divIcon({
+                  html: `<div class="text-annotation" style="font-size: ${style.fontSize || '14px'}">${textData.content}</div>`,
+                  className: 'text-container'
+                });
+                layer = L.marker([textData.position[1], textData.position[0]], {
+                  icon: textIcon,
+                  ...style
+                });
               }
+              break;
+            }
           }
 
           if (layer) {
@@ -768,7 +714,7 @@ async function loadPlan(planId: number) {
               ...otherData
             };
 
-              featureGroup.value?.addLayer(layer);
+            featureGroup.value?.addLayer(layer);
 
             shapes.value.push({
               id: element.id,
@@ -777,8 +723,8 @@ async function loadPlan(planId: number) {
               properties: layer.properties
             });
 
-              if (otherData.rotation && typeof (layer as any).setRotation === 'function') {
-                (layer as any).setRotation(otherData.rotation);
+            if (otherData.rotation && typeof (layer as any).setRotation === 'function') {
+              (layer as any).setRotation(otherData.rotation);
             }
           }
         });
@@ -900,7 +846,7 @@ onUnmounted(() => {
 
 // Fonction pour mettre à jour les propriétés d'une forme
 function updateShapeProperties(properties: any) {
-  updateShapeProps(properties);
+  updatePropertiesFromDestruct(properties);
 }
 
 // Fonction pour formater la date de dernière sauvegarde
@@ -930,17 +876,22 @@ function formatLastSaved(date: string): string {
   }
 }
 
-// Ajouter la méthode adjustView dans les méthodes du composant
+// Handlers pour les intégrations avec MapToolbar
 const handleAdjustView = () => {
-  adjustView();
+  if (featureGroup.value) {
+    adjustView();
+  }
 };
+
+// La méthode generateSynthesis est déjà définie plus bas dans le composant et sera utilisée par MapToolbar
+// via l'événement @generate-summary="generateSynthesis"
 
 // Fonction pour supprimer la forme sélectionnée
 const deleteSelectedShape = () => {
-    if (selectedLeafletShape.value && featureGroup.value) {
+  if (selectedLeafletShape.value && featureGroup.value) {
     setDrawingTool('');  // Ceci va nettoyer les points de contrôle
-      featureGroup.value.removeLayer(selectedLeafletShape.value as L.Layer);
-      selectedLeafletShape.value = null;
+    featureGroup.value.removeLayer(selectedLeafletShape.value as L.Layer);
+    selectedLeafletShape.value = null;
   }
 };
 

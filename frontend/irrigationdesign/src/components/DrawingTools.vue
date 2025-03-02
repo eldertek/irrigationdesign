@@ -1,50 +1,54 @@
 <!-- DrawingTools.vue -->
 <template>
-  <div class="drawing-tools">
-    <!-- Outils de dessin -->
-    <div class="mb-4">
-      <div class="grid grid-cols-2 gap-2">
+  <div class="drawing-tools-sidebar">
+    <!-- Header avec titre -->
+    <div class="sidebar-header">
+      <h3 class="sidebar-title">Outils</h3>
+    </div>
+
+    <!-- Outils de dessin - version compacte avec icônes -->
+    <div class="tools-section">
+      <div class="tools-grid">
         <button
           v-for="tool in drawingTools.filter(t => t.type !== 'delete')"
           :key="tool.type"
-          class="flex items-center justify-center p-2 rounded border"
-          :class="{
-            'bg-blue-50 border-blue-200': currentTool === tool.type,
-            'hover:bg-gray-50 border-gray-200': currentTool !== tool.type
-          }"
+          class="tool-button"
+          :class="{ active: currentTool === tool.type }"
           @click="$emit('tool-change', tool.type)"
+          :title="tool.label"
         >
-          <span class="text-sm">{{ tool.label }}</span>
+          <span class="icon" v-html="getToolIcon(tool.type)"></span>
         </button>
       </div>
       
       <!-- Bouton de suppression -->
       <button
         v-if="selectedShape"
-        class="w-full mt-2 flex items-center justify-center p-2 rounded border border-red-500 bg-red-50 hover:bg-red-100 text-red-700 transition-colors duration-200"
-        :class="{
-          'bg-red-100 border-red-600': currentTool === 'delete'
-        }"
+        class="delete-button"
+        :class="{ active: currentTool === 'delete' }"
         @click="$emit('delete-shape')"
+        title="Supprimer la forme"
       >
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
         </svg>
-        <span class="text-sm font-medium">Supprimer la forme</span>
       </button>
     </div>
 
+    <!-- Séparateur -->
+    <div class="sidebar-divider"></div>
+
     <!-- Sections collapsables pour les formes sélectionnées -->
-    <div v-if="selectedShape && localProperties" class="space-y-2">
+    <div v-if="selectedShape && localProperties" class="properties-container">
       <!-- Style - Section collapsable -->
-      <div class="border rounded overflow-hidden">
+      <div class="sidebar-section">
         <button 
-          class="w-full px-3 py-2 flex justify-between items-center bg-gray-50 hover:bg-gray-100"
+          class="section-header"
           @click="toggleSection('style')"
         >
-          <span class="font-medium">Style</span>
+          <span class="section-title">Style</span>
           <svg 
-            class="w-5 h-5 transform transition-transform"
+            class="section-icon"
             :class="{ 'rotate-180': !sectionsCollapsed.style }"
             fill="none" 
             stroke="currentColor" 
@@ -53,46 +57,49 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        <div v-show="!sectionsCollapsed.style" class="p-3 space-y-3">
-          <!-- Couleurs prédéfinies -->
-          <div class="grid grid-cols-6 gap-2">
+        <div v-show="!sectionsCollapsed.style" class="section-content">
+          <!-- Couleurs prédéfinies - compact -->
+          <div class="color-grid">
             <button
               v-for="color in predefinedColors"
               :key="color"
-              class="w-6 h-6 rounded-full border hover:scale-110 transition-transform"
+              class="color-button"
               :style="{ backgroundColor: color }"
               @click="selectPresetColor(color)"
+              :title="color"
             ></button>
           </div>
 
-          <!-- Contrôles de style compacts -->
-          <div class="space-y-2">
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-gray-500">Contour</span>
-              <input
-                type="color"
-                v-model="strokeColor"
-                class="w-6 h-6"
-                @change="updateStyle({ strokeColor })"
-                title="Couleur du contour"
-              />
-              <input
-                type="range"
-                v-model="strokeWidth"
-                min="1"
-                max="10"
-                class="flex-1"
-                @change="updateStyle({ strokeWidth })"
-                title="Épaisseur du contour"
-              />
+          <!-- Contrôles de style compacts pour toutes les formes -->
+          <div class="style-controls">
+            <div class="control-row">
+              <span class="control-label">Contour</span>
+              <div class="control-inputs">
+                <input
+                  type="color"
+                  v-model="strokeColor"
+                  class="color-input"
+                  @change="updateStyle({ strokeColor })"
+                  title="Couleur du contour"
+                />
+                <input
+                  type="range"
+                  v-model="strokeWidth"
+                  min="1"
+                  max="10"
+                  class="range-input"
+                  @change="updateStyle({ strokeWidth })"
+                  title="Épaisseur du contour"
+                />
+              </div>
             </div>
 
             <!-- Style de trait -->
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-gray-500">Style</span>
+            <div class="control-row">
+              <span class="control-label">Style</span>
               <select
                 v-model="strokeStyle"
-                class="flex-1 text-sm border rounded px-1 py-0.5"
+                class="select-input"
                 @change="updateStyle({ strokeStyle })"
               >
                 <option v-for="style in strokeStyles" :key="style.value" :value="style.value">
@@ -101,39 +108,142 @@
               </select>
             </div>
 
-            <div v-if="showFillOptions" class="flex items-center gap-2">
-              <span class="text-xs text-gray-500">Remplissage</span>
-              <input
-                type="color"
-                v-model="fillColor"
-                class="w-6 h-6"
-                @change="updateStyle({ fillColor })"
-                title="Couleur de remplissage"
-              />
-              <input
-                type="range"
-                v-model="fillOpacity"
-                min="0"
-                max="1"
-                step="0.1"
-                class="flex-1"
-                @change="updateStyle({ fillOpacity })"
-                title="Opacité du remplissage"
-              />
+            <div v-if="showFillOptions" class="control-row">
+              <span class="control-label">Remplir</span>
+              <div class="control-inputs">
+                <input
+                  type="color"
+                  v-model="fillColor"
+                  class="color-input"
+                  @change="updateStyle({ fillColor })"
+                  title="Couleur de remplissage"
+                />
+                <input
+                  type="range"
+                  v-model="fillOpacity"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  class="range-input"
+                  @change="updateStyle({ fillOpacity })"
+                  title="Opacité du remplissage"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Options spécifiques au TextRectangle - version compacte -->
+          <div v-if="selectedShape.properties?.type === 'TextRectangle'" class="text-controls">
+            <div class="control-row">
+              <span class="control-label">Texte</span>
+              <div class="control-inputs">
+                <input
+                  type="color"
+                  v-model="textColor"
+                  class="color-input"
+                  @change="updateTextStyle({ textColor })"
+                  title="Couleur du texte"
+                />
+                <select
+                  v-model="fontSize"
+                  class="select-input"
+                  @change="updateTextStyle({ fontSize })"
+                >
+                  <option value="10px">10px</option>
+                  <option value="12px">12px</option>
+                  <option value="14px">14px</option>
+                  <option value="16px">16px</option>
+                  <option value="18px">18px</option>
+                  <option value="20px">20px</option>
+                  <option value="24px">24px</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="control-row">
+              <span class="control-label">Fond</span>
+              <div class="control-inputs">
+                <input
+                  type="color"
+                  v-model="textBackgroundColor"
+                  class="color-input"
+                  @change="updateTextStyle({ backgroundColor: textBackgroundColor })"
+                  title="Couleur de fond"
+                />
+                <input
+                  type="range"
+                  v-model="textBackgroundOpacity"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  class="range-input"
+                  @change="updateTextStyle({ backgroundOpacity: textBackgroundOpacity })"
+                  title="Opacité du fond"
+                />
+              </div>
+            </div>
+            
+            <!-- Police et alignement -->
+            <div class="control-row">
+              <span class="control-label">Police</span>
+              <select
+                v-model="fontFamily"
+                class="select-input"
+                @change="updateTextStyle({ fontFamily })"
+              >
+                <option value="Arial, sans-serif">Arial</option>
+                <option value="'Times New Roman', serif">Times</option>
+                <option value="'Courier New', monospace">Courier</option>
+                <option value="Georgia, serif">Georgia</option>
+                <option value="Verdana, sans-serif">Verdana</option>
+              </select>
+            </div>
+            
+            <div class="control-row">
+              <span class="control-label">Align.</span>
+              <div class="button-group">
+                <button
+                  v-for="align in textAlignOptions"
+                  :key="align.value"
+                  class="align-button"
+                  :class="{ active: textAlign === align.value }"
+                  @click="updateTextStyle({ textAlign: align.value })"
+                  :title="align.label"
+                >
+                  <span v-html="align.icon"></span>
+                </button>
+                
+                <button
+                  class="style-button"
+                  :class="{ active: isBold }"
+                  @click="toggleBold"
+                  title="Gras"
+                >
+                  B
+                </button>
+                <button
+                  class="style-button"
+                  :class="{ active: isItalic }"
+                  @click="toggleItalic"
+                  title="Italique"
+                >
+                  I
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
       
       <!-- Propriétés - Section collapsable -->
-      <div class="border rounded overflow-hidden mt-4">
+      <div class="sidebar-section">
         <button 
-          class="w-full px-3 py-2 flex justify-between items-center bg-gray-50 hover:bg-gray-100"
+          class="section-header"
           @click="toggleSection('properties')"
         >
-          <span class="font-medium">Propriétés</span>
+          <span class="section-title">Propriétés</span>
           <svg 
-            class="w-5 h-5 transform transition-transform"
+            class="section-icon"
             :class="{ 'rotate-180': !sectionsCollapsed.properties }"
             fill="none" 
             stroke="currentColor" 
@@ -142,117 +252,68 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        <div v-show="!sectionsCollapsed.properties" class="p-3 space-y-2 text-sm">
+        <div v-show="!sectionsCollapsed.properties" class="section-content">
           <div v-if="localProperties">
-            <!-- Cercle -->
-            <div v-if="localProperties.type === 'Circle'" class="space-y-1">
-              <div class="flex justify-between">
-                <span class="text-gray-600">Rayon :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.radius || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Diamètre :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.diameter || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Surface :</span>
-                <span class="font-medium">{{ formatArea(localProperties.area || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Périmètre :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
-              </div>
-            </div>
+            <!-- Tableau compact des propriétés pour tous les types -->
+            <div class="properties-grid">
+              <!-- Cercle -->
+              <template v-if="localProperties.type === 'Circle'">
+                <span class="property-label">Rayon :</span>
+                <span class="property-value">{{ formatMeasure(localProperties.radius || 0) }}</span>
+                <span class="property-label">Surface :</span>
+                <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
+              </template>
 
-            <!-- Rectangle -->
-            <div v-else-if="localProperties.type === 'Rectangle'" class="space-y-1">
-              <div class="flex justify-between">
-                <span class="text-gray-600">Largeur :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.width || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Hauteur :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.height || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Surface :</span>
-                <span class="font-medium">{{ formatArea(localProperties.area || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Périmètre :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
-              </div>
-            </div>
+              <!-- Rectangle -->
+              <template v-else-if="localProperties.type === 'Rectangle'">
+                <span class="property-label">Largeur :</span>
+                <span class="property-value">{{ formatMeasure(localProperties.width || 0) }}</span>
+                <span class="property-label">Hauteur :</span>
+                <span class="property-value">{{ formatMeasure(localProperties.height || 0) }}</span>
+                <span class="property-label">Surface :</span>
+                <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
+              </template>
 
-            <!-- Demi-cercle -->
-            <div v-else-if="localProperties.type === 'Semicircle'" class="space-y-1">
-              <div class="flex justify-between">
-                <span class="text-gray-600">Rayon :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.radius || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Surface :</span>
-                <span class="font-medium">{{ formatArea(localProperties.area || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Périmètre :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Longueur d'arc :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.arcLength || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Angle d'ouverture :</span>
-                <span class="font-medium">{{ formatAngle(localProperties.openingAngle || 0) }}</span>
-              </div>
-            </div>
+              <!-- Demi-cercle -->
+              <template v-else-if="localProperties.type === 'Semicircle'">
+                <span class="property-label">Rayon :</span>
+                <span class="property-value">{{ formatMeasure(localProperties.radius || 0) }}</span>
+                <span class="property-label">Surface :</span>
+                <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
+                <span class="property-label">Angle :</span>
+                <span class="property-value">{{ formatAngle(localProperties.openingAngle || 0) }}</span>
+              </template>
 
-            <!-- Ligne -->
-            <div v-else-if="localProperties.type === 'Line'" class="space-y-1">
-              <div class="flex justify-between">
-                <span class="text-gray-600">Longueur :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.length || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Surface d'influence :</span>
-                <span class="font-medium">{{ formatArea(localProperties.surfaceInfluence || 0) }}</span>
-              </div>
-            </div>
+              <!-- Ligne -->
+              <template v-else-if="localProperties.type === 'Line'">
+                <span class="property-label">Longueur :</span>
+                <span class="property-value">{{ formatMeasure(localProperties.length || 0) }}</span>
+              </template>
 
-            <!-- Polygone -->
-            <div v-else-if="localProperties.type === 'Polygon'" class="space-y-1">
-              <div class="flex justify-between">
-                <span class="text-gray-600">Surface :</span>
-                <span class="font-medium">{{ formatArea(localProperties.area || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Périmètre :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
-              </div>
-            </div>
+              <!-- Polygone -->
+              <template v-else-if="localProperties.type === 'Polygon'">
+                <span class="property-label">Surface :</span>
+                <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
+                <span class="property-label">Périmètre :</span>
+                <span class="property-value">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
+              </template>
 
-            <!-- Rectangle avec texte -->
-            <div v-else-if="localProperties.type === 'TextRectangle'" class="space-y-1">
-              <div class="flex justify-between">
-                <span class="text-gray-600">Largeur :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.width || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Hauteur :</span>
-                <span class="font-medium">{{ formatMeasure(localProperties.height || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Surface :</span>
-                <span class="font-medium">{{ formatArea(localProperties.area || 0) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Rotation :</span>
-                <span class="font-medium">{{ formatAngle(localProperties.rotation || 0) }}</span>
-              </div>
+              <!-- Rectangle avec texte -->
+              <template v-else-if="localProperties.type === 'TextRectangle'">
+                <span class="property-label">Largeur :</span>
+                <span class="property-value">{{ formatMeasure(localProperties.width || 0) }}</span>
+                <span class="property-label">Hauteur :</span>
+                <span class="property-value">{{ formatMeasure(localProperties.height || 0) }}</span>
+                <span class="property-label">Surface :</span>
+                <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
+                <span class="property-label">Rotation :</span>
+                <span class="property-value">{{ formatAngle(localProperties.rotation || 0) }}</span>
+                <span class="property-label col-span-2">Texte :</span>
+                <span class="property-value col-span-2 truncate">{{ localProperties.text || 'Aucun texte' }}</span>
+              </template>
             </div>
           </div>
-          <div v-else class="text-gray-500 text-center">
+          <div v-else class="no-properties">
             Aucune propriété disponible
           </div>
         </div>
@@ -295,6 +356,7 @@ interface ShapeProperties {
   surfaceInfluence?: number;
   style?: any;
   rotation?: number;
+  text?: string;
 }
 
 const props = defineProps<{
@@ -321,6 +383,19 @@ watch(
     });
     if (newShape) {
       localProperties.value = { ...newShape.properties };
+      
+      // Si c'est un TextRectangle, initialiser les propriétés de style de texte
+      if (newShape.properties?.type === 'TextRectangle') {
+        const style = newShape.properties?.style || {};
+        textColor.value = style.textColor || '#000000';
+        fontSize.value = style.fontSize || '14px';
+        textBackgroundColor.value = style.backgroundColor || '#FFFFFF';
+        textBackgroundOpacity.value = style.backgroundOpacity || 1;
+        fontFamily.value = style.fontFamily || 'Arial, sans-serif';
+        textAlign.value = style.textAlign || 'center';
+        isBold.value = style.bold || false;
+        isItalic.value = style.italic || false;
+      }
     } else {
       localProperties.value = null;
     }
@@ -349,10 +424,39 @@ watch(
     if (newProperties && props.selectedShape) {
       // Mise à jour proactive des propriétés locales
       localProperties.value = { ...newProperties };
+      
+      // Si c'est un TextRectangle, mettre à jour les styles
+      if (newProperties.type === 'TextRectangle' && newProperties.style) {
+        const style = newProperties.style;
+        textColor.value = style.textColor || '#000000';
+        fontSize.value = style.fontSize || '14px';
+        textBackgroundColor.value = style.backgroundColor || '#FFFFFF';
+        textBackgroundOpacity.value = style.backgroundOpacity || 1;
+        fontFamily.value = style.fontFamily || 'Arial, sans-serif';
+        textAlign.value = style.textAlign || 'center';
+        isBold.value = style.bold || false;
+        isItalic.value = style.italic || false;
+      }
     }
   },
   { deep: true, immediate: true }
 );
+
+// Icônes pour les outils (SVG)
+const getToolIcon = (toolType: string): string => {
+  const icons: Record<string, string> = {
+    'Circle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /></svg>',
+    'Semicircle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0110 10H2a10 10 0 0110-10z" /></svg>',
+    'Rectangle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" /></svg>',
+    'Polygon': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l9 7-3 11H6L3 9z" /></svg>',
+    'Line': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 19l18-14" /></svg>',
+    'TextRectangle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" /><path d="M9 8h6m-3 0v8" /></svg>',
+    'drag': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 8l-4 4 4 4m-8-4h16" /></svg>',
+    'Text': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>',
+  };
+  
+  return icons[toolType] || '';
+};
 
 const drawingTools = [
   { type: 'Circle', label: 'Cercle' },
@@ -361,6 +465,7 @@ const drawingTools = [
   { type: 'Polygon', label: 'Polygone' },
   { type: 'Line', label: 'Ligne' },
   { type: 'TextRectangle', label: 'Texte' },
+  { type: 'drag', label: 'Déplacer' },
   { type: 'delete', label: 'Supprimer' }
 ];
 
@@ -382,12 +487,29 @@ const strokeStyles = [
   { value: 'dashdot', label: 'Tiret-point' }
 ];
 
+// Options d'alignement de texte
+const textAlignOptions = [
+  { value: 'left', label: 'Aligné à gauche', icon: '&#8678;' },
+  { value: 'center', label: 'Centré', icon: '&#8645;' },
+  { value: 'right', label: 'Aligné à droite', icon: '&#8680;' }
+];
+
 // Style
 const fillColor = ref('#3B82F6');
 const fillOpacity = ref(0.2);
 const strokeColor = ref('#2563EB');
 const strokeWidth = ref(2);
 const strokeStyle = ref('solid');
+
+// Styles spécifiques au texte
+const textColor = ref('#000000');
+const fontSize = ref('14px');
+const textBackgroundColor = ref('#FFFFFF');
+const textBackgroundOpacity = ref(1);
+const fontFamily = ref('Arial, sans-serif');
+const textAlign = ref('center');
+const isBold = ref(false);
+const isItalic = ref(false);
 
 // Ajouter l'état pour les sections collapsables
 const sectionsCollapsed = ref({
@@ -402,7 +524,7 @@ const showFillOptions = computed(() => {
     selectedShape: props.selectedShape
   });
   if (!shapeType) return false;
-  return ['Circle', 'Rectangle', 'Polygon', 'Semicircle'].includes(shapeType);
+  return ['Circle', 'Rectangle', 'Polygon', 'Semicircle', 'TextRectangle'].includes(shapeType);
 });
 
 // Fonction pour basculer l'état des sections
@@ -459,6 +581,25 @@ const updateStyle = (style: any) => {
   emit('style-update', updatedStyle);
 };
 
+// Fonction spécifique pour mettre à jour le style du texte
+const updateTextStyle = (style: any) => {
+  if (props.selectedShape?.properties?.type !== 'TextRectangle') return;
+  
+  // Si on met à jour les propriétés de texte, on les envoie au parent
+  emit('style-update', { ...style }); 
+};
+
+// Fonctions pour le texte
+const toggleBold = () => {
+  isBold.value = !isBold.value;
+  updateTextStyle({ bold: isBold.value });
+};
+
+const toggleItalic = () => {
+  isItalic.value = !isItalic.value;
+  updateTextStyle({ italic: isItalic.value });
+};
+
 // Ajouter les traductions des types
 const typeTranslations = {
   'Circle': 'Cercle',
@@ -466,6 +607,7 @@ const typeTranslations = {
   'Polygon': 'Polygone',
   'Line': 'Ligne',
   'Semicircle': 'Demi-cercle',
+  'TextRectangle': 'Rectangle avec texte',
   'unknown': 'Inconnu'
 } as const;
 
@@ -492,68 +634,283 @@ const formatAngle = (angle: number): string => {
 </script>
 
 <style scoped>
-.drawing-tools {
-  max-height: calc(100vh - 100px);
+.drawing-tools-sidebar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 250px;
+  height: 100%;
+  background-color: white;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  transition: width 0.3s;
   overflow-y: auto;
-  padding-right: 8px;
 }
 
-/* Personnaliser la scrollbar */
-.drawing-tools::-webkit-scrollbar {
-  width: 4px;
+.sidebar-header {
+  padding: 10px;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.drawing-tools::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 2px;
+.sidebar-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #334155;
+  margin: 0;
 }
 
-.drawing-tools::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 2px;
+.tools-section {
+  padding: 10px;
 }
 
-.drawing-tools::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.tool-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background-color: white;
+  color: #475569;
+  transition: all 0.2s;
+}
+
+.tool-button:hover {
+  background-color: #f1f5f9;
+}
+
+.tool-button.active {
+  background-color: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0284c7;
+}
+
+.delete-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 5px;
+  padding: 5px;
+  width: 100%;
+  border-radius: 4px;
+  border: 1px solid #f87171;
+  background-color: #fee2e2;
+  color: #ef4444;
+  transition: all 0.2s;
+}
+
+.delete-button:hover {
+  background-color: #fecaca;
+}
+
+.delete-button.active {
+  background-color: #fca5a5;
+}
+
+.sidebar-divider {
+  height: 1px;
+  background-color: #e2e8f0;
+  margin: 0 10px;
+}
+
+.properties-container {
+  padding: 10px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  margin-bottom: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  background-color: #f8fafc;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #334155;
+}
+
+.section-icon {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s;
+}
+
+.section-content {
+  padding: 10px;
+  background-color: white;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.color-button {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.color-button:hover {
+  transform: scale(1.2);
+}
+
+.style-controls, .text-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-label {
+  width: 60px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.control-inputs {
+  display: flex;
+  flex: 1;
+  gap: 5px;
+  align-items: center;
+}
+
+.color-input {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+}
+
+.range-input {
+  flex: 1;
+  height: 4px;
+}
+
+.select-input {
+  width: 100%;
+  padding: 2px 5px;
+  font-size: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 3px;
+  background-color: white;
+}
+
+.button-group {
+  display: flex;
+  border: 1px solid #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.align-button, .style-button {
+  padding: 2px 6px;
+  font-size: 12px;
+  background-color: white;
+  border: none;
+  border-right: 1px solid #e2e8f0;
+}
+
+.align-button:last-child, .style-button:last-child {
+  border-right: none;
+}
+
+.align-button.active, .style-button.active {
+  background-color: #e0f2fe;
+  color: #0284c7;
+}
+
+.properties-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.property-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.property-value {
+  font-size: 12px;
+  font-weight: 500;
+  color: #334155;
+  text-align: right;
+}
+
+.no-properties {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
+  padding: 10px 0;
+}
+
+/* Pour les écrans plus petits */
+@media (max-width: 640px) {
+  .drawing-tools-sidebar {
+    width: 200px;
+  }
+  
+  .sidebar-title {
+    font-size: 14px;
+  }
+  
+  .tool-button, .color-button {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .control-label {
+    width: 50px;
+    font-size: 10px;
+  }
+  
+  .property-label, .property-value {
+    font-size: 10px;
+  }
 }
 
 /* Animations */
-.transform {
-  transition: transform 0.2s ease-in-out;
+.rotate-180 {
+  transform: rotate(180deg);
 }
 
-/* Style pour les sections collapsables */
-.border {
-  border-color: #e5e7eb;
-}
-
-.rounded {
-  border-radius: 0.375rem;
-}
-
-/* Hover effects */
-button:not(:disabled):hover {
-  transition: all 0.2s ease-in-out;
-}
-
-input[type="range"] {
-  height: 4px;
-  background: #e5e7eb;
-  border-radius: 2px;
-  outline: none;
-}
-
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
-  background: #3b82f6;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-}
-
-input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-}
 </style> 
