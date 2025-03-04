@@ -1,13 +1,11 @@
 import L from 'leaflet';
 import * as turf from '@turf/turf';
-
 /**
  * Classe Rectangle personnalisée qui étend L.Rectangle pour ajouter des fonctionnalités
  * spécifiques à notre application.
  */
 export class Rectangle extends L.Rectangle {
   properties: any;
-
   constructor(
     bounds: L.LatLngBoundsExpression,
     options: L.PolylineOptions = {}
@@ -17,22 +15,17 @@ export class Rectangle extends L.Rectangle {
       pmIgnore: false,
       interactive: true
     });
-    
     this.properties = {
       type: 'Rectangle',
       style: options || {}
     };
-    
     // Initialiser les propriétés au moment de la création
     this.updateProperties();
-    
     // Écouter uniquement les événements qui indiquent la fin d'une modification
     this.on('add', () => {
-
       this.updateProperties();
     });
   }
-
   /**
    * Calcule et met à jour les propriétés du rectangle
    */
@@ -40,11 +33,9 @@ export class Rectangle extends L.Rectangle {
     const bounds = this.getBounds();
     const ne = bounds.getNorthEast();
     const sw = bounds.getSouthWest();
-    
     // Utiliser turf.js pour calculer les distances en mètres
     const width = turf.distance([sw.lng, sw.lat], [ne.lng, sw.lat], { units: 'meters' });
     const height = turf.distance([sw.lng, sw.lat], [sw.lng, ne.lat], { units: 'meters' });
-    
     this.properties = {
       ...this.properties,
       width: width,
@@ -71,14 +62,12 @@ export class Rectangle extends L.Rectangle {
         dashArray: (this.options as any)?.dashArray || ''
       }
     };
-    
     // Émettre un événement pour notifier les changements
     this.fire('properties:updated', {
       shape: this,
       properties: this.properties
     });
   }
-
   /**
    * Surcharge de la méthode setBounds pour mettre à jour les propriétés
    */
@@ -87,7 +76,6 @@ export class Rectangle extends L.Rectangle {
     this.updateProperties();
     return this;
   }
-
   /**
    * Calcule les points milieu de chaque côté du rectangle
    */
@@ -97,7 +85,6 @@ export class Rectangle extends L.Rectangle {
     const ne = bounds.getNorthEast();
     const se = bounds.getSouthEast();
     const sw = bounds.getSouthWest();
-    
     // Points milieu des côtés
     return [
       L.latLng((nw.lat + ne.lat) / 2, (nw.lng + ne.lng) / 2), // Milieu haut
@@ -106,7 +93,6 @@ export class Rectangle extends L.Rectangle {
       L.latLng((nw.lat + sw.lat) / 2, (nw.lng + sw.lng) / 2)  // Milieu gauche
     ];
   }
-
   /**
    * Calcule les dimensions du rectangle
    */
@@ -114,13 +100,10 @@ export class Rectangle extends L.Rectangle {
     const bounds = this.getBounds();
     const ne = bounds.getNorthEast();
     const sw = bounds.getSouthWest();
-    
     const width = turf.distance([sw.lng, sw.lat], [ne.lng, sw.lat], { units: 'meters' });
     const height = turf.distance([sw.lng, sw.lat], [sw.lng, ne.lat], { units: 'meters' });
-    
     return { width, height };
   }
-
   /**
    * Redimensionne le rectangle depuis un point de contrôle de coin
    * @param cornerIndex Index du coin (0: NW, 1: NE, 2: SE, 3: SW)
@@ -134,17 +117,14 @@ export class Rectangle extends L.Rectangle {
       bounds.getSouthEast(),
       bounds.getSouthWest()
     ];
-    
     // L'index opposé est (index + 2) % 4
     const oppositeIndex = (cornerIndex + 2) % 4;
     const oppositeCorner = corners[oppositeIndex];
-    
     // Créer de nouvelles limites en gardant le coin opposé fixe
     // sans déclencher la mise à jour des propriétés
     const newBounds = L.latLngBounds(oppositeCorner, newLatLng);
     L.Rectangle.prototype.setBounds.call(this, newBounds);
   }
-
   /**
    * Redimensionne le rectangle depuis un point de contrôle de côté
    * @param sideIndex Index du côté (0: haut, 1: droite, 2: bas, 3: gauche)
@@ -155,9 +135,7 @@ export class Rectangle extends L.Rectangle {
     const nw = bounds.getNorthWest();
     const se = bounds.getSouthEast();
     const sw = bounds.getSouthWest();
-    
     let newBounds;
-    
     switch (sideIndex) {
       case 0: // Haut - ne déplacer que la latitude
         newBounds = L.latLngBounds(
@@ -184,7 +162,6 @@ export class Rectangle extends L.Rectangle {
         );
         break;
     }
-    
     if (newBounds) {
       // Appliquer les nouvelles limites sans déclencher la mise à jour des propriétés
       L.Rectangle.prototype.setBounds.call(this, newBounds);
@@ -192,7 +169,6 @@ export class Rectangle extends L.Rectangle {
       this.updateProperties();
     }
   }
-  
   /**
    * Déplace le rectangle depuis un point de contrôle central
    * @param newLatLng Nouvelle position du centre
@@ -200,18 +176,14 @@ export class Rectangle extends L.Rectangle {
   moveFromCenter(newLatLng: L.LatLng): void {
     const bounds = this.getBounds();
     const currentCenter = bounds.getCenter();
-    
     // Calculer le déplacement
     const dx = newLatLng.lng - currentCenter.lng;
     const dy = newLatLng.lat - currentCenter.lat;
-    
     // Déplacer tous les coins
     const nw = bounds.getNorthWest();
     const se = bounds.getSouthEast();
-    
     const newNW = L.latLng(nw.lat + dy, nw.lng + dx);
     const newSE = L.latLng(se.lat + dy, se.lng + dx);
-    
     // Appliquer les nouvelles limites sans déclencher la mise à jour des propriétés
     L.Rectangle.prototype.setBounds.call(this, L.latLngBounds(newNW, newSE));
   }

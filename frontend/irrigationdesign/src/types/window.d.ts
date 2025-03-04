@@ -6,17 +6,14 @@ interface User {
   dealer?: number;
   dealer_name?: string;
 }
-
 interface InitialState {
   path: string;
   isAuthenticated: boolean;
   user: User | null;
 }
-
 declare global {
   interface Window {
     INITIAL_STATE: InitialState;
   }
 }
-
 export {}; 

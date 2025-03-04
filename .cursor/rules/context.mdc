@@ -1,0 +1,270 @@
+---
+description: Contexte de développement pour le projet IrrigationDesignI
+globs: 
+alwaysApply: true
+---
+# Analyse Préalable Exhaustive
+
+## Principe
+
+Avant de rédiger toute solution de code, l'IA doit effectuer une analyse approfondie des fichiers pertinents liés au problème posé par l'utilisateur. Cette analyse s'appuie sur le contexte du projet IrrigationDesign et ses structures spécifiques.
+
+## Méthode d'analyse
+
+### 1. Identification des composants concernés
+
+À partir des informations transmises par l'utilisateur ou du contexte, identifier:
+- Les modules fonctionnels touchés (frontend/backend)
+- Les sous-systèmes concernés (ex: authentification, plans, dessin, etc.)
+- Les fichiers potentiellement impliqués dans le problème
+
+### 2. Exploration structurée
+
+Explorer les fichiers selon la hiérarchie:
+1. **Fichiers directement mentionnés** par l'utilisateur
+2. **Fichiers dépendants** qui pourraient être affectés:
+   - Pour les composants Vue: leurs parents et enfants
+   - Pour les modèles Django: modèles liés et serializers
+   - Pour les stores Pinia: autres stores interdépendants
+3. **Fichiers de services/utilitaires** potentiellement impliqués
+
+### 3. Analyse technique approfondie
+
+Pour chaque fichier pertinent:
+- Examiner la structure et les patterns utilisés
+- Identifier les interfaces/API exposées
+- Repérer les interactions avec d'autres composants
+- Détecter les potentiels points de défaillance ou d'amélioration
+
+### 4. Cartographie des relations
+
+Établir les relations entre les différents fichiers:
+- Dépendances entre composants frontend
+- Relations entre modèles backend
+- Flux de données entre client et serveur
+- Interactions avec les bibliothèques tierces (Leaflet, Turf.js, etc.)
+
+## Structure spécifique à considérer
+
+### Frontend (Vue 3 + TypeScript)
+- Composition API et stores Pinia
+- Composants réutilisables et vues
+- Composables pour la logique complexe
+- Types et interfaces TypeScript
+
+### Backend (Django + GeoDjango)
+- Modèles et relations de données
+- API REST et serializers
+- Gestion des permissions
+- Fonctions spécifiques de GeoDjango
+
+## Livrables de l'analyse
+
+Avant de proposer une solution, l'IA doit présenter:
+1. **Synthèse des fichiers analysés** et leurs rôles
+2. **Points clés identifiés** pertinents au problème
+3. **Contraintes techniques** à respecter
+4. **Approche recommandée** avec justification
+5. **S'assurer** de ne casser aucune fonctionnalités
+
+## Application de la règle
+
+Cette analyse préalable doit être effectuée de manière concise mais exhaustive, en respectant les principes de DRY et en exploitant au maximum les connaissances du contexte projet.
+
+Lorsque l'analyse est terminée, la solution proposée devra spécifiquement:
+- S'intégrer harmonieusement avec les composants existants
+- Respecter les conventions du projet (nommage, structure)
+- Optimiser la maintenabilité et la lisibilité
+- Suivre les principes de concision demandés dans les instructions personnalisées 
+
+# IrrigationDesign - Contextualisation du Projet
+
+> **IMPORTANT**: Ce fichier de contexte doit être actualisé régulièrement pour maintenir une compréhension à jour du projet. Lorsque des changements significatifs sont apportés à la structure du projet, aux modèles, ou aux fonctionnalités, veuillez mettre à jour ce document pour refléter ces modifications.
+
+## Architecture Globale
+
+Le projet IrrigationDesign est une application Vue 3 avec TypeScript qui permet de concevoir des plans d'irrigation. L'architecture est structurée en:
+
+- **Frontend**: Vue 3 avec Composition API, TypeScript, Pinia et TailwindCSS
+- **Backend**: Django avec Django REST Framework et GeoDjango
+- **Base de données**: PostgreSQL avec extension PostGIS pour les données géospatiales
+- **Authentification**: Système JWT personnalisé avec tokens et refresh tokens
+
+### Technologies Frontend
+- **Vue 3** avec **Composition API** et TypeScript
+- **Pinia** pour la gestion d'état
+- **Vue Router** pour la navigation
+- **TailwindCSS** pour les styles
+- **Leaflet** pour l'affichage et l'interaction avec les cartes
+- **Turf.js** pour les calculs géospatiaux côté client
+
+### Technologies Backend
+- **Django** comme framework principal
+- **Django REST Framework** pour l'API REST
+- **GeoDjango** pour la gestion des données géospatiales
+- **JWT** (JSON Web Tokens) pour l'authentification
+- **PostgreSQL/PostGIS** pour le stockage de données
+
+## Structure Détaillée du Projet
+
+### Frontend (frontend/irrigationdesign/src/)
+- **components/**: Composants réutilisables
+  - `SearchBar.vue` - Recherche d'adresses
+  - `MapToolbar.vue` - Outils d'édition de carte
+  - Autres composants d'interface
+- **views/**: Pages de l'application
+  - `MapView.vue` - Vue principale pour éditer les plans
+  - `PlansView.vue` - Liste des plans
+  - `UserListView.vue` - Gestion des utilisateurs (admin)
+  - `ClientListView.vue` - Gestion des clients (concessionnaire)
+- **stores/**: Gestion d'état avec Pinia
+  - `auth.ts` - Authentification et utilisateur
+  - `drawing.ts` - État du dessin et outils
+  - `irrigation.ts` - Données d'irrigation
+- **types/**: Définitions TypeScript
+  - `user.ts` - Interfaces pour les utilisateurs
+  - `drawing.ts` - Types pour les éléments de dessin
+  - `leaflet.d.ts` - Types pour l'intégration Leaflet
+- **composables/**: Logique réutilisable
+  - `useMapState.ts` - Gestion d'état de la carte
+  - `useMapDrawing.ts` - Logique de dessin sur la carte
+- **services/**: Communications avec l'API
+  - `api.ts` - Client Axios configuré pour les requêtes API
+
+### Backend (racine du projet)
+- **irrigation_design/**: Configuration principale Django
+  - `settings.py` - Configuration globale
+  - `urls.py` - Routes principales
+- **authentication/**: Module d'authentification
+  - `models.py` - Modèle Utilisateur personnalisé
+  - `views.py` - Vues d'authentification
+  - `middleware.py` - Middleware JWT
+- **plans/**: Module de gestion des plans
+  - `models.py` - Modèles de données pour les plans d'irrigation
+- **api/**: API REST
+  - `views.py` - ViewSets et endpoints
+  - `serializers.py` - Sérialisation des données
+  - `permissions.py` - Contrôle d'accès
+
+## Modèles de Données Principaux
+
+### Utilisateurs (authentication/models.py)
+- `Utilisateur`: Étend `AbstractUser` de Django
+  - Rôles: ADMIN, CONCESSIONNAIRE, UTILISATEUR
+  - Relations hiérarchiques: Concessionnaires -> Clients
+
+### Plans d'Irrigation (plans/models.py)
+- `Plan`: Plan d'irrigation complet
+  - Propriétés: nom, description, dates
+  - Relations: createur, concessionnaire, client
+  - Contenu: preferences, elements (JSON)
+- `FormeGeometrique`: Formes sur le plan
+  - Types: RECTANGLE, CERCLE, DEMI_CERCLE, LIGNE, TEXTE
+  - Données spécifiques stockées en JSON
+- `Connexion`: Liens entre formes
+  - Géométrie LineString (GeoDjango)
+- `TexteAnnotation`: Textes sur le plan
+
+## Flux d'Authentification
+
+L'application utilise un système d'authentification JWT personnalisé:
+- Tokens stockés dans les cookies HTTP-only
+- Refresh automatique des tokens expirés via intercepteur Axios
+- Middleware Django côté serveur pour validation
+- Routes protégées par rôle (admin, concessionnaire, client)
+- Hiérarchie d'accès: les concessionnaires peuvent voir leurs clients, les admins peuvent tout voir
+
+## Gestion des Permissions
+
+- **Administrateurs**: Accès complet à toutes les ressources
+- **Concessionnaires**:
+  - Gestion de leurs clients
+  - Création et édition de plans
+  - Accès aux plans de leurs clients
+- **Clients**:
+  - Accès uniquement à leurs propres plans
+  - Possibilité de consulter et modifier leurs plans
+
+## Fonctionnalités Clés
+
+### Conception d'Irrigation
+- Dessin de formes (cercles, rectangles, lignes, demi-cercles)
+- Ajout de texte et annotations
+- Calcul automatisé des besoins en eau et matériel
+- Gestion des couches (layers) pour organisation
+
+### Gestion des Plans
+- Sauvegarde/chargement des plans
+- Partage entre concessionnaires et clients
+- Génération de rapports et synthèses
+- Versionning des modifications
+
+### Recherche Géographique
+- Recherche d'adresses via OpenStreetMap
+- Affichage d'imagerie satellite
+- Positionnement précis des éléments d'irrigation
+
+### Administration
+- Gestion complète des utilisateurs
+- Attribution des clients aux concessionnaires
+- Statistiques d'utilisation
+
+## Conventions de Code
+
+### Frontend
+- Composants Vue en Single-File Components (SFC) avec `<script setup lang="ts">`
+- TypeScript strict pour le typage
+- CSS Tailwind avec directives `@apply` dans `<style lang="postcss">`
+- Responsive design (desktop/mobile) avec classes conditionnelles
+- État global dans Pinia, état local dans `ref`/`reactive`
+
+### Backend
+- API RESTful avec ViewSets Django
+- Serializers pour validation et transformation des données
+- Permissions au niveau des vues et des objets
+- Modèles avec validation et méthodes utilitaires
+
+### Conventions de Nommage
+- PascalCase pour les composants Vue et les types TypeScript
+- camelCase pour les variables/méthodes JavaScript/TypeScript
+- snake_case pour les variables/méthodes Python
+- SCREAMING_SNAKE_CASE pour constantes
+
+## Workflow de Développement
+
+- Branche `main` pour production
+- Branche `dev` pour développement
+- Tests unitaires avec Vitest (frontend) et pytest (backend)
+- Vérification de types TypeScript
+- Déploiement sur serveur Linux avec Docker
+
+## Workflows Applicatifs Spécifiques
+
+### Processus de Création d'un Plan d'Irrigation
+
+1. **Initialisation**:
+   - Création d'un nouveau plan (nom, description)
+   - Attribution à un client (si l'utilisateur est un concessionnaire)
+   - Sélection d'une localisation initiale
+
+2. **Conception**:
+   - Positionnement des éléments sur la carte (bâtiments, zones à irriguer)
+   - Dessin des formes (rectangles, cercles, lignes) représentant les zones à irriguer
+   - Mesure des surfaces et distances
+   - Annotation avec du texte
+
+3. **Paramétrage**:
+   - Configuration des propriétés d'irrigation pour chaque zone
+   - Définition du type de sol et des besoins en eau des plantes
+   - Sélection des équipements d'irrigation (asperseurs, tuyaux, etc.)
+
+4. **Calcul et Optimisation**:
+   - Calcul automatique des besoins en eau
+   - Dimensionnement des équipements
+   - Optimisation de la couverture d'arrosage
+   - Estimation des coûts
+
+5. **Finalisation**:
+   - Génération du rapport de synthèse
+   - Sauvegarde et partage
+   - Attribution au client final

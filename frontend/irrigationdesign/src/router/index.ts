@@ -6,7 +6,6 @@ import MapView from '../views/MapView.vue'
 import UserListView from '@/views/UserListView.vue'
 import PlansView from '../views/PlansView.vue'
 import ClientListView from '../views/ClientListView.vue'
-
 const router = createRouter({
   history: createWebHistory('/'),
   routes: [
@@ -95,18 +94,15 @@ const router = createRouter({
     }
   ]
 })
-
 // Navigation guard
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-  
   // Ajouter un log pour déboguer
   console.log('Route:', to.path, 'Auth state:', {
     initialized: authStore.initialized,
     isAuthenticated: authStore.isAuthenticated,
     user: authStore.user
   })
-  
   // Vérifier l'état initial au premier chargement
   if (!authStore.initialized) {
     try {
@@ -115,29 +111,24 @@ router.beforeEach(async (to, from, next) => {
       console.error('Error initializing auth store:', error)
     }
   }
-
   const isAuthenticated = authStore.isAuthenticated
   const mustChangePassword = authStore.user?.must_change_password
   const userType = authStore.user?.user_type
-
   // Si la route nécessite une authentification et que l'utilisateur n'est pas authentifié
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')
     return
   }
-
   // Si l'utilisateur doit changer son mot de passe
   if (isAuthenticated && mustChangePassword && to.name !== 'changePassword') {
     next({ name: 'changePassword' })
     return
   }
-
   // Si l'utilisateur est sur la route de changement de mot de passe mais n'a pas besoin de le changer
   if (to.name === 'changePassword' && !mustChangePassword) {
     next({ name: 'home' })
     return
   }
-
   // Vérification des rôles autorisés
   if (to.meta.allowedRoles && userType) {
     const allowedRoles = to.meta.allowedRoles as string[]
@@ -146,14 +137,11 @@ router.beforeEach(async (to, from, next) => {
       return
     }
   }
-
   // Si l'utilisateur est authentifié et essaie d'accéder à une route guest
   if (to.meta.requiresGuest && isAuthenticated) {
     next({ name: 'home' })
     return
   }
-
   next()
 })
-
 export default router

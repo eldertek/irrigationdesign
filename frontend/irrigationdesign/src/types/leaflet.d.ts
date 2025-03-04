@@ -1,6 +1,5 @@
 import L from 'leaflet';
 import '@geoman-io/leaflet-geoman-free';
-
 declare module 'leaflet' {
   interface Layer {
     properties?: any;
@@ -8,13 +7,11 @@ declare module 'leaflet' {
     _map?: L.Map | undefined;
     _textLayer?: L.Marker;
   }
-  
   interface Map {
     pm: PMMap;
     dragging: any;
     getZoom(): number;
   }
-
   interface DivIcon {
     options: {
       html: string;
@@ -22,14 +19,12 @@ declare module 'leaflet' {
       iconSize: [number | null, number | null];
     }
   }
-
   interface MarkerOptions {
     icon: L.DivIcon;
     draggable?: boolean;
     pmIgnore?: boolean;
   }
 }
-
 export interface TextStyle {
   fontSize: string;
   color: string;
@@ -56,7 +51,6 @@ export interface TextStyle {
   overflow?: string;
   textShadow?: string;
 }
-
 export interface TextProperties {
   type: 'text';
   text: string;
@@ -65,12 +59,10 @@ export interface TextProperties {
   physicalHeight: number;
   _textLayer?: L.Marker;
 }
-
 export interface TextRectangle extends L.Rectangle {
   properties: TextProperties;
   _textLayer?: L.Marker;
 }
-
 export interface TextMarker extends L.Marker {
   properties: TextProperties;
   getElement(): HTMLElement | undefined;

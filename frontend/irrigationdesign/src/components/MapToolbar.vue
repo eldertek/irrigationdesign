@@ -237,10 +237,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 
 const emit = defineEmits<{
-  (e: 'change-map-type', type: string): void;
+  (e: 'change-map-type', type: 'Ville' | 'Satellite' | 'Cadastre'): void;
   (e: 'create-new-plan'): void;
   (e: 'load-plan'): void;
   (e: 'save-plan'): void;
@@ -256,11 +256,11 @@ const props = defineProps<{
 }>();
 
 // État
-const selectedMapType = ref('Ville');
+const selectedMapType = ref<'Ville' | 'Satellite' | 'Cadastre'>('Ville');
 const showMobileMenu = ref(false);
 
 // Types de carte disponibles
-const mapTypes = {
+const mapTypes: Record<'Ville' | 'Satellite' | 'Cadastre', string> = {
   Ville: 'Ville',
   Satellite: 'Satellite',
   Cadastre: 'Cadastre'
@@ -281,7 +281,7 @@ const lastSaveFormatted = computed(() => {
 });
 
 // Méthodes
-const changeMapType = (type: string) => {
+const changeMapType = (type: 'Ville' | 'Satellite' | 'Cadastre') => {
   selectedMapType.value = type;
   emit('change-map-type', type);
   closeMobileMenu();

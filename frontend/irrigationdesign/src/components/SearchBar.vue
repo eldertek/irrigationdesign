@@ -11,7 +11,7 @@
     <!-- Résultats de la recherche -->
     <div 
       v-if="searchResults.length > 0" 
-      class="absolute w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto z-[1001]"
+      class="search-results w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
     >
       <div
         v-for="result in searchResults"
@@ -29,8 +29,15 @@
 import { ref } from 'vue'
 import debounce from 'lodash/debounce'
 
+interface SearchResult {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+}
+
 const searchQuery = ref('')
-const searchResults = ref([])
+const searchResults = ref<SearchResult[]>([])
 const emit = defineEmits(['select-location'])
 
 const searchAddress = debounce(async (query: string) => {
@@ -65,13 +72,14 @@ function selectAddress(result: any) {
 }
 </script>
 
-<style scoped>
+<style>
 .relative {
   position: relative;
-  z-index: 1002; /* Plus élevé que la carte et les autres éléments */
+  z-index: 1002;
 }
 
-.z-[1001] {
+.search-results {
+  position: absolute;
   z-index: 1001;
 }
 </style> 

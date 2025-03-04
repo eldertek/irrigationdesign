@@ -1,5 +1,4 @@
 import * as L from 'leaflet';
-
 /**
  * Interface d'options étendues pour TextRectangle
  */

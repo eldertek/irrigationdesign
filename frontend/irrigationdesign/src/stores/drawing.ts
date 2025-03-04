@@ -3,7 +3,6 @@ import api from '@/services/api';
 import { useAuthStore } from './auth';
 import { useIrrigationStore } from './irrigation';
 import type { DrawingElement } from '@/types/drawing';
-
 interface DrawingState {
   currentPlanId: number | null;
   elements: DrawingElement[];
@@ -21,7 +20,6 @@ interface DrawingState {
   };
   lastUsedType: string | null;
 }
-
 export const useDrawingStore = defineStore('drawing', {
   state: (): DrawingState => ({
     currentPlanId: null,
@@ -40,7 +38,6 @@ export const useDrawingStore = defineStore('drawing', {
     },
     lastUsedType: null
   }),
-
   getters: {
     hasUnsavedChanges: (state) => state.unsavedChanges,
     getCurrentElements: (state) => state.elements,
@@ -49,7 +46,6 @@ export const useDrawingStore = defineStore('drawing', {
     getCurrentStyle: (state) => state.currentStyle,
     getLastUsedType: (state) => state.lastUsedType
   },
-
   actions: {
     setCurrentPlan(planId: number | null) {
       this.currentPlanId = planId;
@@ -57,7 +53,6 @@ export const useDrawingStore = defineStore('drawing', {
         this.clearElements();
       }
     },
-
     clearCurrentPlan() {
       this.currentPlanId = null;
       this.elements = [];
@@ -66,13 +61,11 @@ export const useDrawingStore = defineStore('drawing', {
       this.loading = false;
       this.error = null;
     },
-
     clearElements() {
       this.elements = [];
       this.selectedElement = null;
       this.unsavedChanges = false;
     },
-
     addElement(element: DrawingElement) {
       if (!element.type_forme && this.lastUsedType) {
         element.type_forme = this.lastUsedType;
@@ -80,7 +73,6 @@ export const useDrawingStore = defineStore('drawing', {
       this.elements.push(element);
       this.unsavedChanges = true;
     },
-
     updateElement(element: DrawingElement) {
       const index = this.elements.findIndex(e => e.id === element.id);
       if (index !== -1) {
@@ -89,7 +81,6 @@ export const useDrawingStore = defineStore('drawing', {
         this.unsavedChanges = true;
       }
     },
-
     removeElement(elementId: number) {
       const index = this.elements.findIndex(e => e.id === elementId);
       if (index !== -1) {
@@ -97,40 +88,32 @@ export const useDrawingStore = defineStore('drawing', {
         this.unsavedChanges = true;
       }
     },
-
     selectElement(element: DrawingElement | null) {
       this.selectedElement = element;
     },
-
     setCurrentTool(tool: string) {
       this.currentTool = tool;
       if (['CERCLE', 'RECTANGLE', 'DEMI_CERCLE', 'LIGNE', 'TEXTE'].includes(tool)) {
         this.lastUsedType = tool;
       }
     },
-
     setCurrentStyle(style: Partial<DrawingState['currentStyle']>) {
       this.currentStyle = { ...this.currentStyle, ...style };
     },
-
     async loadPlanElements(planId: number) {
       this.loading = true;
       try {
         const response = await api.get(`/plans/${planId}/`);
         const plan = response.data;
-        
         // Convertir les formes en éléments de dessin
         this.elements = plan.formes.map((forme: any) => ({
           id: forme.id,  // Assurer que l'ID est correctement copié
           type_forme: forme.type_forme,
           data: forme.data || {}
         }));
-        
         console.log(`Plan ${planId} - Chargé ${this.elements.length} éléments`);
-        
         this.currentPlanId = planId;
         this.unsavedChanges = false;
-
         // Charger les préférences du plan
         if (plan.preferences) {
           if (plan.preferences.currentTool) {
@@ -143,11 +126,9 @@ export const useDrawingStore = defineStore('drawing', {
             this.lastUsedType = plan.preferences.lastUsedType;
           }
         }
-
         if (this.selectedElement?.type_forme) {
           this.setCurrentTool(this.selectedElement.type_forme);
         }
-        
         return this.elements;
       } catch (error) {
         console.error('Erreur lors du chargement des éléments:', error);
@@ -157,31 +138,25 @@ export const useDrawingStore = defineStore('drawing', {
         this.loading = false;
       }
     },
-
     async saveToPlan(planId?: number, options?: { elementsToDelete?: number[] }) {
       const irrigationStore = useIrrigationStore();
       this.loading = true;
-      
       try {
         const targetPlanId = planId || this.currentPlanId;
         if (!targetPlanId) {
           throw new Error('Aucun plan sélectionné pour la sauvegarde');
         }
-
         const formesAvecType = this.elements.map(element => ({
           ...element,
           type_forme: element.type_forme || this.lastUsedType
         }));
-
         // Identifiants des éléments à supprimer (s'ils existent)
         const elementsToDelete = options?.elementsToDelete || [];
-        
         console.log('Store - Sauvegarde du plan:', {
           planId: targetPlanId,
           elementsCount: formesAvecType.length,
           elementsToDeleteCount: elementsToDelete.length
         });
-
         const response = await api.post(`/plans/${targetPlanId}/save_with_elements/`, {
           formes: formesAvecType,
           connexions: [],
@@ -193,15 +168,12 @@ export const useDrawingStore = defineStore('drawing', {
             lastUsedType: this.lastUsedType
           }
         });
-
         this.elements = response.data.formes.map((forme: any) => ({
           ...forme,
           type_forme: forme.type_forme
         }));
-        
         this.unsavedChanges = false;
         return response.data;
-
       } catch (error) {
         console.error('Erreur lors de la sauvegarde:', error);
         this.error = 'Erreur lors de la sauvegarde du plan';

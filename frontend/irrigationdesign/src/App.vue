@@ -10,7 +10,6 @@ const authStore = useAuthStore()
 const showProfileMenu = ref(false)
 const showMobileMenu = ref(false)
 const isSmallScreen = ref(false)
-const isPerformanceMode = ref(false);
 
 // Fonction pour détecter la taille de l'écran
 function checkScreenSize() {
@@ -21,32 +20,12 @@ function checkScreenSize() {
 onMounted(() => {
   checkScreenSize()
   window.addEventListener('resize', checkScreenSize)
-  
-  // Vérifier si le mode performance est activé via l'URL
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.has('perf')) {
-    isPerformanceMode.value = true;
-
-  }
 })
 
 // Nettoyer l'écouteur d'événement
 onBeforeUnmount(() => {
   window.removeEventListener('resize', checkScreenSize)
 })
-
-// Fonction pour télécharger le rapport de performance
-async function downloadPerformanceReport() {
-  if (!isPerformanceMode.value) return;
-  
-
-  try {
-    await PerformanceTracker.downloadReport();
-
-  } catch (error) {
-    console.error('Erreur lors du téléchargement du rapport:', error);
-  }
-}
 
 // Données utilisateur depuis le store d'authentification
 const userName = computed(() => {
@@ -188,23 +167,9 @@ watch(pageTitle, (newTitle) => {
             <router-link 
               to="/" 
               class="text-xl font-semibold text-primary-600 truncate"
-              @click.prevent="isPerformanceMode ? downloadPerformanceReport() : $router.push('/')"
-              :class="{ 'cursor-download': isPerformanceMode }"
             >
-              <span class="md:inline hidden">
-                <span v-if="isPerformanceMode" class="inline-flex items-center">
-                  IrrigationDesign
-                  <span class="ml-1 bg-red-100 text-red-800 text-xs px-1.5 py-0.5 rounded-full">PERF</span>
-                </span>
-                <span v-else>IrrigationDesign</span>
-              </span>
-              <span class="md:hidden inline">
-                <span v-if="isPerformanceMode" class="inline-flex items-center">
-                  ID 
-                  <span class="ml-1 bg-red-100 text-red-800 text-xs px-1 py-0.5 rounded-full">PERF</span>
-                </span>
-                <span v-else>ID</span>
-              </span>
+              <span class="md:inline hidden">IrrigationDesign</span>
+              <span class="md:hidden inline">ID</span>
             </router-link>
             
             <div class="hidden md:flex space-x-6">
@@ -390,24 +355,5 @@ body {
 
 #app {
   @apply h-screen overflow-hidden;
-}
-
-.cursor-download {
-  cursor: pointer;
-  position: relative;
-}
-
-.cursor-download:hover::after {
-  content: 'Télécharger le rapport de performance';
-  position: absolute;
-  top: 100%;
-  left: 0;
-  background: #333;
-  color: white;
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  white-space: nowrap;
-  z-index: 1000;
 }
 </style>
