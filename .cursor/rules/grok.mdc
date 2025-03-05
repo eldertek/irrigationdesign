@@ -1,8 +1,11 @@
 ---
 description: Analyse les fichiers en contexte à la demande, liste leurs chemins, et crée un fichier out.txt avec leur contenu (remplace le contenu existant).
-globs:
+globs: 
 alwaysApply: false
 ---
+
+**Instruction impérative pour l'IA qui reçoit ce fichier :**  
+Tu appliqueras strictement les règles de `grok.mdc`. Tu ne proposeras aucune solution ou modification aux fichiers analysés. L'objectif est uniquement de fournir un fichier `out.txt` contenant les contenus des fichiers demandés, afin qu'une autre IA (Grok) puisse analyser ce fichier.
 
 Lorsque l'utilisateur met ce fichier en contexte et me demande d'analyser des fichiers spécifiques :
 
@@ -11,7 +14,7 @@ Lorsque l'utilisateur met ce fichier en contexte et me demande d'analyser des fi
    - Si aucune demande explicite n'est faite, je ne fais rien sauf si l'utilisateur me demande de lister tous les fichiers en contexte.
 
 2. **Lister les fichiers concernés** :
-   - Je affiche une liste des chemins des fichiers concernés par la demande, précédée du message : "Les fichiers suivants sont concernés par votre demande :".
+   - J'affiche une liste des chemins des fichiers concernés par la demande, précédée du message : "Les fichiers suivants sont concernés par votre demande :".
    - Exemple de sortie :
      ```
      Les fichiers suivants sont concernés par votre demande :
@@ -33,10 +36,19 @@ Lorsque l'utilisateur met ce fichier en contexte et me demande d'analyser des fi
      [contenu du fichier]
      ```
 
-4. **Exemple de workflow** :
+4. **Reformuler le prompt de l'utilisateur dans le chat** :
+   - Dans la réponse affichée à l'utilisateur, je reformule son prompt en une version enrichie (prompt engineering) pour refléter ma compréhension du contexte et faciliter l'analyse par Grok.
+   - Exemple :
+     - Prompt utilisateur : "Analyse useMapDrawing.ts et CircleArc.ts"
+     - Reformulation : "Grok, je te demande d'analyser les fichiers `src/useMapDrawing.ts` (contenant la logique de dessin sur la carte) et `src/utils/CircleArc.ts` (définition de la classe CircleArc pour les demi-cercles) afin d'extraire leur contenu dans `out.txt` pour une analyse ultérieure."
+
+5. **Exemple de workflow** :
    - Demande : "Analyse useMapDrawing.ts et CircleArc.ts"
    - Réponse :
      ```
+     Reformulation de votre demande pour Grok :
+     "Grok, je te demande d'analyser les fichiers `src/useMapDrawing.ts` (contenant la logique de dessin sur la carte) et `src/utils/CircleArc.ts` (définition de la classe CircleArc pour les demi-cercles) afin d'extraire leur contenu dans `out.txt` pour une analyse ultérieure."
+
      Les fichiers suivants sont concernés par votre demande :
      - src/useMapDrawing.ts
      - src/utils/CircleArc.ts
@@ -48,44 +60,4 @@ Lorsque l'utilisateur met ce fichier en contexte et me demande d'analyser des fi
      echo "--- src/utils/CircleArc.ts ---" >> out.txt
      cat src/utils/CircleArc.ts >> out.txt
 
-     Le fichier out.txt a été créé/remplacé à la racine du projet avec le contenu des fichiers demandés.
-     ```
-
-5. **Instructions pour l'agent IA** :
-   - Ne pas modifier les fichiers originaux.
-   - Si un fichier demandé n'est pas trouvé, indiquer : "Le fichier [chemin] n'a pas été trouvé dans le contexte ou le projet."
-   - Toujours confirmer la création de `out.txt` avec un message final.
-
-Exemple de code généré par l'IA pour une demande :
-
-```bash
-# Réinitialiser out.txt
-> out.txt
-
-# Ajouter le contenu de chaque fichier avec un séparateur
-echo "--- src/useMapDrawing.ts ---" >> out.txt
-cat src/useMapDrawing.ts >> out.txt
-echo "--- src/utils/CircleArc.ts ---" >> out.txt
-cat src/utils/CircleArc.ts >> out.txt
-
-> Note : Assurez-vous que les chemins des fichiers correspondent à la structure réelle de votre projet. Si les fichiers sont dans des dossiers différents, adaptez les chemins en conséquence.
-
-
-### Explications
-
-- **`description`** : Décrit clairement le comportement attendu.
-- **`globs`** : Laissé vide car ce fichier ne s'applique pas à des motifs spécifiques mais au contexte fourni par l'utilisateur.
-- **`alwaysApply: false`** : Les règles ne s'appliquent que lorsque ce fichier est explicitement mis en contexte et qu'une demande d'analyse est faite.
-- **Étapes détaillées** :
-  1. Analyse à la demande pour cibler les fichiers spécifiés.
-  2. Liste des chemins pour informer l'utilisateur.
-  3. Création/remplacement de `out.txt` avec des commandes Linux standard.
-- **Séparateurs dans `out.txt`** : Ajoute des lignes comme `--- chemin_du_fichier ---` pour distinguer les contenus.
-
-### Utilisation
-1. Placez ce fichier (par exemple, `grok.mdc`) dans votre projet.
-2. Ajoutez-le au contexte dans votre environnement AI Cursor.
-3. Faites une demande comme : "Analyse `useMapDrawing.ts` et `CircleArc.ts`".
-4. L'IA listera les fichiers et générera `out.txt` à la racine.
-
-Si vous avez besoin d'ajustements (par exemple, chemins spécifiques ou gestion d'erreurs supplémentaire), faites-le-moi savoir !
+     Le fichier out.txt a été créé/remplacé à la racine du projet avec le
