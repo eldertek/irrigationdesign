@@ -622,34 +622,31 @@ onBeforeUnmount(() => {
   }
 });
 
-async function loadPlan(planId: number) {
+// Fonction pour nettoyer la carte
+function clearMap() {
+  if (featureGroup.value) {
+    featureGroup.value.clearLayers();
+  }
+  shapes.value = [];
+  clearActiveControlPoints();
+  selectedLeafletShape.value = null;
+  currentTool.value = '';
+}
+
+// Fonction pour rafraîchir la carte avec un nouveau plan
+async function refreshMapWithPlan(planId: number) {
   try {
+    // Nettoyer la carte actuelle
     clearMap();
     
-    console.log(`Tentative de chargement du plan ${planId}...`);
-    
-    // Utiliser d'abord getPlanById pour vérifier si le plan existe dans le store
-    const plan = irrigationStore.getPlanById(planId);
-    
-    // Si le plan n'existe pas dans le store, vérifier avec l'API
-    if (!plan) {
-      try {
-        // Vérifier si le plan existe via une requête directe
-        await api.get(`/plans/${planId}/`);
-      } catch (error: any) {
-        // Si le plan n'existe pas (404), effacer l'ID du localStorage
-        if (error.response?.status === 404) {
-          console.warn(`Plan ${planId} non trouvé - Suppression de la référence du localStorage`);
-          localStorage.removeItem('lastPlanId');
-        }
-        throw error; // Propager l'erreur pour le traitement en amont
-      }
-    }
-    
+    // Charger les éléments du plan
     await drawingStore.loadPlanElements(planId);
+    
+    // Récupérer le plan depuis le store
     const loadedPlan = irrigationStore.getPlanById(planId);
     
     if (loadedPlan) {
+      // Mettre à jour le plan courant
       currentPlan.value = loadedPlan;
       irrigationStore.setCurrentPlan(loadedPlan);
       drawingStore.setCurrentPlan(loadedPlan.id);
@@ -657,6 +654,7 @@ async function loadPlan(planId: number) {
       // Mettre à jour l'ID du dernier plan consulté
       localStorage.setItem('lastPlanId', loadedPlan.id.toString());
 
+      // Ajouter les formes à la carte
       if (map.value && featureGroup.value) {
         drawingStore.getCurrentElements.forEach(element => {
           if (!featureGroup.value || !element.data) return;
@@ -850,9 +848,40 @@ async function loadPlan(planId: number) {
     
     showLoadPlanModal.value = false;
   } catch (error) {
+    console.error('Erreur lors du rafraîchissement de la carte:', error);
+    throw error;
+  }
+}
+
+// Modifier la fonction loadPlan pour utiliser refreshMapWithPlan
+async function loadPlan(planId: number) {
+  try {
+    console.log(`Tentative de chargement du plan ${planId}...`);
+    
+    // Vérifier si le plan existe dans le store
+    const plan = irrigationStore.getPlanById(planId);
+    
+    // Si le plan n'existe pas dans le store, vérifier avec l'API
+    if (!plan) {
+      try {
+        await api.get(`/plans/${planId}/`);
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          console.warn(`Plan ${planId} non trouvé - Suppression de la référence du localStorage`);
+          localStorage.removeItem('lastPlanId');
+        }
+        throw error;
+      }
+    }
+    
+    // Rafraîchir la carte avec le nouveau plan
+    await refreshMapWithPlan(planId);
+    
+    showLoadPlanModal.value = false;
+    console.log(`Plan ${planId} chargé avec succès avec ${drawingStore.getCurrentElements.length} formes`);
+  } catch (error) {
     console.error('Erreur lors du chargement du plan:', error);
-    // Afficher une notification d'erreur à l'utilisateur
-    // ...
+    throw error;
   }
 }
 
@@ -1303,14 +1332,6 @@ watch(selectedDealer, async (newDealer) => {
 function clearLastPlan() {
   localStorage.removeItem('lastPlanId');
 }
-
-  // Fonction pour nettoyer la carte
-  function clearMap() {
-    if (featureGroup.value) {
-      featureGroup.value.clearLayers();
-    }
-    shapes.value = [];
-  }
 
   // Fonction pour formater les mesures
   function formatMeasure(value: number, unit: string = 'm'): string {

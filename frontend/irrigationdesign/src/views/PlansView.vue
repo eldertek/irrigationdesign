@@ -607,14 +607,16 @@ async function createPlan() {
 async function editPlan(plan: LocalPlan) {
   try {
     // Définir le plan courant dans le store
-    irrigationStore.setCurrentPlan(plan)
-    // Charger les éléments du plan via le store de dessin
-    await drawingStore.loadPlanElements(plan.id)
+    irrigationStore.setCurrentPlan(plan);
+    
+    // Sauvegarder l'ID du plan dans localStorage pour la persistance
+    localStorage.setItem('lastPlanId', plan.id.toString());
+    
     // Rediriger vers la vue carte
-    router.push('/')
+    router.push('/');
   } catch (error) {
-    console.error('Erreur lors du chargement du plan:', error)
-    alert('Une erreur est survenue lors du chargement du plan')
+    console.error('Erreur lors du chargement du plan:', error);
+    alert('Une erreur est survenue lors du chargement du plan');
   }
 }
 
