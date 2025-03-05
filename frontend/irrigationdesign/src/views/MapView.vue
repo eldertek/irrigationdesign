@@ -1074,7 +1074,18 @@ async function savePlan() {
     drawingStore.elements = elements;
     
     // Passer les éléments à supprimer au store
-    await drawingStore.saveToPlan(currentPlan.value.id, { elementsToDelete });
+    const updatedPlan = await drawingStore.saveToPlan(currentPlan.value.id, { elementsToDelete });
+    
+    // Mettre à jour le plan courant avec les nouvelles données, y compris la date de modification
+    if (updatedPlan && currentPlan.value?.id) {
+      const planId = currentPlan.value.id;
+      currentPlan.value = {
+        ...currentPlan.value,
+        ...updatedPlan
+      };
+      // Forcer la mise à jour du plan dans le store irrigation
+      irrigationStore.updatePlanDetails(planId, updatedPlan);
+    }
     
     // Changer l'état à "success"
     saveStatus.value = 'success';
@@ -1364,15 +1375,20 @@ function clearLastPlan() {
 
   async function generateSynthesis() {
     if (!currentPlan.value || !map.value || !featureGroup.value) {
-
       return;
     }
 
     try {
+      // Sauvegarder automatiquement le plan avant de générer la synthèse
+      console.log('Sauvegarde automatique avant génération de la synthèse...');
+      await savePlan();
+
+      // Attendre un court instant pour s'assurer que la sauvegarde est bien prise en compte
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       isGeneratingSynthesis.value = true;
 
-      // Utiliser directement les détails du plan
+      // Utiliser directement les détails du plan mis à jour
       const concessionnaireDetails = currentPlan.value.concessionnaire_details;
       const clientDetails = currentPlan.value.client_details;
 
@@ -1668,10 +1684,11 @@ function clearLastPlan() {
 
     } catch (error) {
       console.error('[generateSynthesis] Erreur:', error);
+      alert('Une erreur est survenue lors de la génération de la synthèse. Veuillez réessayer.');
     } finally {
       isGeneratingSynthesis.value = false;
     }
-}
+  }
 </script>
 
 <style>

@@ -376,18 +376,18 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useIrrigationStore } from '@/stores/irrigation'
 import { useAuthStore, formatUserName } from '@/stores/auth'
-import { useDrawingStore } from '@/stores/drawing'
 import type { Plan as StorePlan } from '@/stores/irrigation'
 import api from '@/services/api'
 import NewPlanModal from '@/components/NewPlanModal.vue'
 
 interface LocalUser {
   id: number
+  username: string
   first_name: string
   last_name: string
   email: string
   company_name?: string
-  role?: string
+  role: string
   concessionnaire?: number | null
 }
 
@@ -401,7 +401,6 @@ interface LocalPlan extends Omit<StorePlan, 'client' | 'concessionnaire'> {
 const router = useRouter()
 const irrigationStore = useIrrigationStore()
 const authStore = useAuthStore()
-const drawingStore = useDrawingStore()
 
 const plans = ref<LocalPlan[]>([])
 const dealers = ref<LocalUser[]>([])
@@ -468,26 +467,6 @@ const filteredPlans = computed(() => {
     }
   });
 });
-
-const myPlans = computed(() => {
-  return plans.value.filter(plan => plan.createur.id === authStore.user?.id)
-})
-
-const otherPlans = computed(() => {
-  return plans.value.filter(plan => {
-    if (authStore.isAdmin) {
-      // Admin voit tous les plans sauf les siens
-      return plan.createur.id !== authStore.user?.id
-    } else if (authStore.isDealer) {
-      // Concessionnaire voit les plans où il est assigné comme concessionnaire
-      return plan.concessionnaire === authStore.user?.id
-    } else {
-      // Client voit les plans où il est assigné comme client
-      return plan.client === authStore.user?.id
-    }
-  })
-})
-
 // Computed properties pour le filtrage des plans
 const plansList = computed(() => {
   if (authStore.isAdmin) {
@@ -559,51 +538,6 @@ function openNewPlanModal() {
     client: null
   }
 }
-
-async function createPlan() {
-  try {
-    if (!newPlan.value.nom.trim()) {
-      throw new Error('Le nom du plan est requis')
-    }
-
-    // Vérifier que le client est sélectionné pour les concessionnaires
-    if (authStore.isDealer && !newPlan.value.client) {
-      throw new Error('Vous devez sélectionner un client')
-    }
-
-    // Vérifier s'il y a un plan courant avec des changements non sauvegardés
-    if (irrigationStore.currentPlan?.id && irrigationStore.hasUnsavedChanges) {
-      if (confirm('Voulez-vous sauvegarder les modifications du plan actuel avant d\'en créer un nouveau ?')) {
-        await irrigationStore.savePlan(irrigationStore.currentPlan.id)
-      }
-      irrigationStore.clearCurrentPlan()
-    }
-
-    const planData = {
-      nom: newPlan.value.nom.trim(),
-      description: newPlan.value.description.trim(),
-      client: newPlan.value.client,
-      // Le concessionnaire est géré automatiquement côté serveur
-      concessionnaire: authStore.isDealer ? authStore.user?.id : null
-    }
-
-    console.log('Sending plan data:', planData)
-    
-    // Créer le nouveau plan
-    const newPlanData = await irrigationStore.createPlan(planData)
-    
-    showNewPlanModal.value = false
-    await loadPlans()
-
-    // Définir le nouveau plan comme plan courant et rediriger vers l'éditeur
-    irrigationStore.setCurrentPlan(newPlanData)
-    router.push('/')
-  } catch (error: any) {
-    console.error('Erreur lors de la création du plan:', error)
-    error.value = error.response?.data?.detail || error.message || 'Une erreur est survenue lors de la création du plan'
-  }
-}
-
 async function editPlan(plan: LocalPlan) {
   try {
     // Définir le plan courant dans le store
@@ -751,30 +685,6 @@ function canDeletePlan(plan: LocalPlan): boolean {
   if (user.user_type === 'dealer') return plan.concessionnaire === user.id
   return plan.client === user.id || plan.createur.id === user.id
 }
-
-// Computed property pour obtenir les informations des utilisateurs
-const userDetails = computed(() => {
-  const users = new Map<number, LocalUser>()
-  
-  plans.value.forEach(plan => {
-    if (plan.createur) users.set(plan.createur.id, plan.createur)
-    if (plan.concessionnaire_details) {
-      users.set(plan.concessionnaire_details.id, plan.concessionnaire_details)
-    }
-    if (plan.client_details) {
-      users.set(plan.client_details.id, plan.client_details)
-    }
-  })
-  
-  return users
-})
-
-// Fonction pour obtenir les détails d'un utilisateur
-function getUserDetails(userId: number | null): LocalUser | null {
-  if (!userId) return null
-  return userDetails.value.get(userId) || null
-}
-
 // Ajouter la fonction de callback
 async function onPlanCreated(planId: number) {
   await loadPlans();
