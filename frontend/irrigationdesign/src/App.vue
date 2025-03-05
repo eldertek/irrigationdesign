@@ -160,6 +160,7 @@ watch(pageTitle, (newTitle) => {
 
 <template>
   <div class="h-screen flex flex-col">
+    <!-- NavToolbar -->
     <header v-if="isAuthenticated" class="bg-white shadow-sm z-[2000]">
       <nav class="mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 items-center justify-between">
@@ -312,7 +313,9 @@ watch(pageTitle, (newTitle) => {
         </div>
       </nav>
     </header>
-    <main class="flex-1 overflow-auto">
+
+    <!-- Main content -->
+    <main class="flex-1 flex flex-col overflow-hidden">
       <div
         v-if="isSmallScreen && $route.path === '/'"
         class="fixed inset-0 bg-white z-[2001] flex flex-col items-center justify-center p-6 text-center"

@@ -1,19 +1,19 @@
 <!-- DrawingTools.vue -->
 <template>
-  <div class="drawing-tools-sidebar">
+  <div class="h-full flex flex-col bg-white overflow-y-auto">
     <!-- Header avec titre -->
-    <div class="sidebar-header">
-      <h3 class="sidebar-title">Outils</h3>
+    <div class="p-3 bg-gray-50 border-b border-gray-200">
+      <h3 class="text-sm font-semibold text-gray-700">Outils de dessin</h3>
     </div>
 
     <!-- Outils de dessin - version compacte avec icônes -->
-    <div class="tools-section">
-      <div class="tools-grid">
+    <div class="p-3 border-b border-gray-200">
+      <div class="grid grid-cols-4 gap-1">
         <button
           v-for="tool in drawingTools.filter(t => t.type !== 'delete')"
           :key="tool.type"
-          class="tool-button"
-          :class="{ active: currentTool === tool.type }"
+          class="flex items-center justify-center p-2 rounded border"
+          :class="{ 'bg-blue-50 border-blue-200 text-blue-700': currentTool === tool.type }"
           @click="$emit('tool-change', tool.type)"
           :title="tool.label"
         >
@@ -24,31 +24,28 @@
       <!-- Bouton de suppression -->
       <button
         v-if="selectedShape"
-        class="delete-button"
-        :class="{ active: currentTool === 'delete' }"
+        class="w-full mt-2 p-2 rounded border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+        :class="{ 'bg-red-100': currentTool === 'delete' }"
         @click="$emit('delete-shape')"
         title="Supprimer la forme"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
         </svg>
       </button>
     </div>
 
-    <!-- Séparateur -->
-    <div class="sidebar-divider"></div>
-
     <!-- Sections collapsables pour les formes sélectionnées -->
-    <div v-if="selectedShape && localProperties" class="properties-container">
+    <div v-if="selectedShape && localProperties" class="flex-1 overflow-y-auto">
       <!-- Style - Section collapsable -->
-      <div class="sidebar-section">
+      <div class="p-3 border-b border-gray-200">
         <button 
-          class="section-header"
+          class="flex items-center justify-between w-full text-sm font-semibold text-gray-700"
           @click="toggleSection('style')"
         >
-          <span class="section-title">Style</span>
+          <span>Style</span>
           <svg 
-            class="section-icon"
+            class="w-4 h-4"
             :class="{ 'rotate-180': !sectionsCollapsed.style }"
             fill="none" 
             stroke="currentColor" 
@@ -57,232 +54,236 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        <div v-show="!sectionsCollapsed.style" class="section-content">
-          <!-- Couleurs prédéfinies - compact -->
-          <div class="color-grid">
-            <button
-              v-for="color in predefinedColors"
-              :key="color"
-              class="color-button"
-              :style="{ backgroundColor: color }"
-              @click="selectPresetColor(color)"
-              :title="color"
-            ></button>
+      </div>
+      <div v-show="!sectionsCollapsed.style" class="p-3">
+        <!-- Couleurs prédéfinies - compact -->
+        <div class="grid grid-cols-6 gap-2 mb-4">
+          <button
+            v-for="color in predefinedColors"
+            :key="color"
+            class="w-8 h-8 rounded-full"
+            :style="{ backgroundColor: color }"
+            @click="selectPresetColor(color)"
+            :title="color"
+          ></button>
+        </div>
+
+        <!-- Contrôles de style pour les formes standards (non TextRectangle) -->
+        <div v-if="localProperties.type !== 'TextRectangle'" class="space-y-4">
+          <div class="flex items-center gap-4">
+            <span class="w-20 text-sm font-semibold text-gray-700">Contour</span>
+            <div class="flex items-center gap-2">
+              <input
+                type="color"
+                v-model="strokeColor"
+                class="w-16 h-8 rounded border"
+                @change="updateStyle({ strokeColor })"
+                title="Couleur du contour"
+              />
+              <input
+                type="range"
+                v-model="strokeWidth"
+                min="1"
+                max="10"
+                class="w-16 h-2 rounded-md"
+                @change="updateStyle({ strokeWidth })"
+                title="Épaisseur du contour"
+              />
+            </div>
           </div>
 
-          <!-- Contrôles de style pour les formes standards (non TextRectangle) -->
-          <div v-if="localProperties.type !== 'TextRectangle'" class="style-controls">
-            <div class="control-row">
-              <span class="control-label">Contour</span>
-              <div class="control-inputs">
-                <input
-                  type="color"
-                  v-model="strokeColor"
-                  class="color-input"
-                  @change="updateStyle({ strokeColor })"
-                  title="Couleur du contour"
-                />
-                <input
-                  type="range"
-                  v-model="strokeWidth"
-                  min="1"
-                  max="10"
-                  class="range-input"
-                  @change="updateStyle({ strokeWidth })"
-                  title="Épaisseur du contour"
-                />
-              </div>
-            </div>
+          <!-- Style de trait -->
+          <div class="flex items-center gap-4">
+            <span class="w-20 text-sm font-semibold text-gray-700">Style</span>
+            <select
+              v-model="strokeStyle"
+              class="w-full rounded border"
+              @change="updateStyle({ strokeStyle })"
+            >
+              <option v-for="style in strokeStyles" :key="style.value" :value="style.value">
+                {{ style.label }}
+              </option>
+            </select>
+          </div>
 
-            <!-- Style de trait -->
-            <div class="control-row">
-              <span class="control-label">Style</span>
+          <div v-if="showFillOptions" class="flex items-center gap-4">
+            <span class="w-20 text-sm font-semibold text-gray-700">Remplir</span>
+            <div class="flex items-center gap-2">
+              <input
+                type="color"
+                v-model="fillColor"
+                class="w-16 h-8 rounded border"
+                @change="updateStyle({ fillColor })"
+                title="Couleur de remplissage"
+              />
+              <input
+                type="range"
+                v-model="fillOpacity"
+                min="0"
+                max="1"
+                step="0.1"
+                class="w-16 h-2 rounded-md"
+                @change="updateStyle({ fillOpacity })"
+                title="Opacité du remplissage"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Options spécifiques au TextRectangle -->
+        <div v-if="localProperties.type === 'TextRectangle'" class="space-y-4">
+          <!-- Contour du rectangle avec texte -->
+          <div class="flex items-center gap-4">
+            <span class="w-20 text-sm font-semibold text-gray-700">Contour</span>
+            <div class="flex items-center gap-2">
+              <input
+                type="color"
+                v-model="strokeColor"
+                class="w-16 h-8 rounded border"
+                @change="updateStyle({ strokeColor })"
+                title="Couleur du contour"
+              />
+              <input
+                type="range"
+                v-model="strokeWidth"
+                min="1"
+                max="10"
+                class="w-16 h-2 rounded-md"
+                @change="updateStyle({ strokeWidth })"
+                title="Épaisseur du contour"
+              />
+            </div>
+          </div>
+          
+          <!-- Remplissage du rectangle -->
+          <div class="flex items-center gap-4">
+            <span class="w-20 text-sm font-semibold text-gray-700">Remplir</span>
+            <div class="flex items-center gap-2">
+              <input
+                type="color"
+                v-model="fillColor"
+                class="w-16 h-8 rounded border"
+                @change="updateStyle({ fillColor })"
+                title="Couleur de remplissage"
+              />
+              <input
+                type="range"
+                v-model="fillOpacity"
+                min="0"
+                max="1"
+                step="0.1"
+                class="w-16 h-2 rounded-md"
+                @change="updateStyle({ fillOpacity })"
+                title="Opacité du remplissage"
+              />
+            </div>
+          </div>
+
+          <!-- Contrôles spécifiques au texte -->
+          <div class="flex items-center gap-4">
+            <span class="w-20 text-sm font-semibold text-gray-700">Texte</span>
+            <div class="flex items-center gap-2">
+              <input
+                type="color"
+                v-model="textColor"
+                class="w-16 h-8 rounded border"
+                @change="updateTextStyle({ textColor })"
+                title="Couleur du texte"
+              />
               <select
-                v-model="strokeStyle"
-                class="select-input"
-                @change="updateStyle({ strokeStyle })"
+                v-model="fontSize"
+                class="w-full rounded border"
+                @change="updateTextStyle({ fontSize })"
               >
-                <option v-for="style in strokeStyles" :key="style.value" :value="style.value">
-                  {{ style.label }}
-                </option>
+                <option value="10px">10px</option>
+                <option value="12px">12px</option>
+                <option value="14px">14px</option>
+                <option value="16px">16px</option>
+                <option value="18px">18px</option>
+                <option value="20px">20px</option>
+                <option value="24px">24px</option>
               </select>
             </div>
-
-            <div v-if="showFillOptions" class="control-row">
-              <span class="control-label">Remplir</span>
-              <div class="control-inputs">
-                <input
-                  type="color"
-                  v-model="fillColor"
-                  class="color-input"
-                  @change="updateStyle({ fillColor })"
-                  title="Couleur de remplissage"
-                />
-                <input
-                  type="range"
-                  v-model="fillOpacity"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  class="range-input"
-                  @change="updateStyle({ fillOpacity })"
-                  title="Opacité du remplissage"
-                />
-              </div>
+          </div>
+          
+          <div class="flex items-center gap-4">
+            <span class="w-20 text-sm font-semibold text-gray-700">Fond</span>
+            <div class="flex items-center gap-2">
+              <input
+                type="color"
+                v-model="textBackgroundColor"
+                class="w-16 h-8 rounded border"
+                @change="updateTextStyle({ backgroundColor: textBackgroundColor })"
+                title="Couleur de fond"
+              />
+              <input
+                type="range"
+                v-model="textBackgroundOpacity"
+                min="0"
+                max="1"
+                step="0.1"
+                class="w-16 h-2 rounded-md"
+                @change="updateTextStyle({ backgroundOpacity: textBackgroundOpacity })"
+                title="Opacité du fond"
+              />
             </div>
           </div>
-
-          <!-- Options spécifiques au TextRectangle -->
-          <div v-if="localProperties.type === 'TextRectangle'" class="text-controls">
-            <!-- Contour du rectangle avec texte -->
-            <div class="control-row">
-              <span class="control-label">Contour</span>
-              <div class="control-inputs">
-                <input
-                  type="color"
-                  v-model="strokeColor"
-                  class="color-input"
-                  @change="updateStyle({ strokeColor })"
-                  title="Couleur du contour"
-                />
-                <input
-                  type="range"
-                  v-model="strokeWidth"
-                  min="1"
-                  max="10"
-                  class="range-input"
-                  @change="updateStyle({ strokeWidth })"
-                  title="Épaisseur du contour"
-                />
-              </div>
-              </div>
-              
-            <!-- Remplissage du rectangle -->
-            <div class="control-row">
-              <span class="control-label">Remplir</span>
-              <div class="control-inputs">
-                <input
-                  type="color"
-                  v-model="fillColor"
-                  class="color-input"
-                  @change="updateStyle({ fillColor })"
-                  title="Couleur de remplissage"
-                />
-                <input
-                  type="range"
-                  v-model="fillOpacity"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  class="range-input"
-                  @change="updateStyle({ fillOpacity })"
-                  title="Opacité du remplissage"
-                />
-              </div>
-            </div>
-
-            <!-- Contrôles spécifiques au texte -->
-            <div class="control-row">
-              <span class="control-label">Texte</span>
-              <div class="control-inputs">
-                <input
-                  type="color"
-                  v-model="textColor"
-                  class="color-input"
-                  @change="updateTextStyle({ textColor })"
-                  title="Couleur du texte"
-                />
-                <select
-                  v-model="fontSize"
-                  class="select-input"
-                  @change="updateTextStyle({ fontSize })"
-                >
-                  <option value="10px">10px</option>
-                  <option value="12px">12px</option>
-                  <option value="14px">14px</option>
-                  <option value="16px">16px</option>
-                  <option value="18px">18px</option>
-                  <option value="20px">20px</option>
-                  <option value="24px">24px</option>
-                </select>
-              </div>
-              </div>
-              
-            <div class="control-row">
-              <span class="control-label">Fond</span>
-              <div class="control-inputs">
-                <input
-                  type="color"
-                  v-model="textBackgroundColor"
-                  class="color-input"
-                  @change="updateTextStyle({ backgroundColor: textBackgroundColor })"
-                  title="Couleur de fond"
-                />
-                <input
-                  type="range"
-                  v-model="textBackgroundOpacity"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  class="range-input"
-                  @change="updateTextStyle({ backgroundOpacity: textBackgroundOpacity })"
-                  title="Opacité du fond"
-                />
-              </div>
-              </div>
-              
-              <!-- Police et alignement -->
-            <div class="control-row">
-              <span class="control-label">Police</span>
-                <select
-                  v-model="fontFamily"
-                class="select-input"
-                  @change="updateTextStyle({ fontFamily })"
-                >
-                  <option value="Arial, sans-serif">Arial</option>
+          
+          <!-- Police et alignement -->
+          <div class="flex items-center gap-4">
+            <span class="w-20 text-sm font-semibold text-gray-700">Police</span>
+            <div class="flex items-center gap-2">
+              <select
+                v-model="fontFamily"
+                class="w-full rounded border"
+                @change="updateTextStyle({ fontFamily })"
+              >
+                <option value="Arial, sans-serif">Arial</option>
                 <option value="'Times New Roman', serif">Times</option>
                 <option value="'Courier New', monospace">Courier</option>
-                  <option value="Georgia, serif">Georgia</option>
-                  <option value="Verdana, sans-serif">Verdana</option>
-                </select>
-              </div>
-              
-            <div class="control-row">
-              <span class="control-label">Align.</span>
-              <div class="button-group">
-                  <button
-                    v-for="align in textAlignOptions"
-                    :key="align.value"
-                  class="align-button"
-                  :class="{ active: textAlign === align.value }"
-                    @click="updateTextStyle({ textAlign: align.value })"
-                    :title="align.label"
-                  >
-                    <span v-html="align.icon"></span>
-                  </button>
-                
-                  <button
-                  class="style-button"
-                  :class="{ active: isBold }"
-                    @click="toggleBold"
-                    title="Gras"
-                  >
-                    B
-                  </button>
-                  <button
-                  class="style-button"
-                  :class="{ active: isItalic }"
-                    @click="toggleItalic"
-                    title="Italique"
-                  >
-                    I
-                  </button>
-                </div>
+                <option value="Georgia, serif">Georgia</option>
+                <option value="Verdana, sans-serif">Verdana</option>
+              </select>
             </div>
-            
-            <!-- Ajout d'un switch pour le scaling du texte -->
-            <div class="control-row">
-              <span class="control-label">Échelle</span>
+          </div>
+          
+          <div class="flex items-center gap-4">
+            <span class="w-20 text-sm font-semibold text-gray-700">Align.</span>
+            <div class="flex items-center gap-2">
+              <button
+                v-for="align in textAlignOptions"
+                :key="align.value"
+                class="flex items-center justify-center p-2 rounded border"
+                :class="{ 'bg-blue-50 border-blue-200 text-blue-700': textAlign === align.value }"
+                @click="updateTextStyle({ textAlign: align.value })"
+                :title="align.label"
+              >
+                <span v-html="align.icon"></span>
+              </button>
+              
+              <button
+                class="flex items-center justify-center p-2 rounded border"
+                :class="{ 'bg-blue-50 border-blue-200 text-blue-700': isBold }"
+                @click="toggleBold"
+                title="Gras"
+              >
+                B
+              </button>
+              <button
+                class="flex items-center justify-center p-2 rounded border"
+                :class="{ 'bg-blue-50 border-blue-200 text-blue-700': isItalic }"
+                @click="toggleItalic"
+                title="Italique"
+              >
+                I
+              </button>
+            </div>
+          </div>
+          
+          <!-- Ajout d'un switch pour le scaling du texte -->
+          <div class="flex items-center gap-4">
+            <span class="w-20 text-sm font-semibold text-gray-700">Échelle</span>
+            <div class="flex items-center gap-2">
               <div class="toggle-switch">
                 <input 
                   type="checkbox" 
@@ -290,7 +291,7 @@
                   v-model="fixedPhysicalSize"
                   @change="updateTextStyle({ fixedPhysicalSize })"
                 />
-                <label for="text-scaling" class="switch-label" :title="fixedPhysicalSize ? 'Taille fixe sur le terrain' : 'Taille fixe à l\'écran'">
+                <label for="text-scaling" class="text-sm text-gray-700" :title="fixedPhysicalSize ? 'Taille fixe sur le terrain' : 'Taille fixe à l\'écran'">
                   {{ fixedPhysicalSize ? 'Terrain' : 'Écran' }}
                 </label>
               </div>
@@ -298,88 +299,88 @@
           </div>
         </div>
       </div>
-      
-      <!-- Propriétés - Section collapsable -->
-      <div class="sidebar-section">
-        <button 
-          class="section-header"
-          @click="toggleSection('properties')"
+    </div>
+
+    <!-- Propriétés - Section collapsable -->
+    <div v-if="selectedShape && localProperties" class="p-3 border-t border-gray-200">
+      <button 
+        class="flex items-center justify-between w-full text-sm font-semibold text-gray-700"
+        @click="toggleSection('properties')"
+      >
+        <span>Propriétés</span>
+        <svg 
+          class="w-4 h-4"
+          :class="{ 'rotate-180': !sectionsCollapsed.properties }"
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
         >
-          <span class="section-title">Propriétés</span>
-          <svg 
-            class="section-icon"
-            :class="{ 'rotate-180': !sectionsCollapsed.properties }"
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        <div v-show="!sectionsCollapsed.properties" class="section-content">
-          <div v-if="localProperties">
-            <!-- Tableau compact des propriétés pour tous les types -->
-            <div class="properties-grid">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      <div v-show="!sectionsCollapsed.properties" class="mt-3">
+        <div v-if="localProperties">
+          <!-- Tableau compact des propriétés pour tous les types -->
+          <div class="grid grid-cols-2 gap-4">
             <!-- Cercle -->
-              <template v-if="localProperties.type === 'Circle'">
-                <span class="property-label">Rayon :</span>
-                <span class="property-value">{{ formatMeasure(localProperties.radius || 0) }}</span>
-                <span class="property-label">Surface :</span>
-                <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
-              </template>
+            <template v-if="localProperties.type === 'Circle'">
+              <span class="text-sm font-semibold text-gray-700">Rayon :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.radius || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Surface :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatArea(localProperties.area || 0) }}</span>
+            </template>
 
             <!-- Rectangle -->
-              <template v-else-if="localProperties.type === 'Rectangle'">
-                <span class="property-label">Largeur :</span>
-                <span class="property-value">{{ formatMeasure(localProperties.width || 0) }}</span>
-                <span class="property-label">Hauteur :</span>
-                <span class="property-value">{{ formatMeasure(localProperties.height || 0) }}</span>
-                <span class="property-label">Surface :</span>
-                <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
-              </template>
+            <template v-else-if="localProperties.type === 'Rectangle'">
+              <span class="text-sm font-semibold text-gray-700">Largeur :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.width || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Hauteur :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.height || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Surface :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatArea(localProperties.area || 0) }}</span>
+            </template>
 
             <!-- Demi-cercle -->
-              <template v-else-if="localProperties.type === 'Semicircle'">
-                <span class="property-label">Rayon :</span>
-                <span class="property-value">{{ formatMeasure(localProperties.radius || 0) }}</span>
-                <span class="property-label">Surface :</span>
-                <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
-                <span class="property-label">Angle :</span>
-                <span class="property-value">{{ formatAngle(localProperties.openingAngle || 0) }}</span>
-              </template>
+            <template v-else-if="localProperties.type === 'Semicircle'">
+              <span class="text-sm font-semibold text-gray-700">Rayon :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.radius || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Surface :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatArea(localProperties.area || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Angle :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatAngle(localProperties.openingAngle || 0) }}</span>
+            </template>
 
             <!-- Ligne -->
-              <template v-else-if="localProperties.type === 'Line'">
-                <span class="property-label">Longueur :</span>
-                <span class="property-value">{{ formatMeasure(localProperties.length || 0) }}</span>
-              </template>
+            <template v-else-if="localProperties.type === 'Line'">
+              <span class="text-sm font-semibold text-gray-700">Longueur :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.length || 0) }}</span>
+            </template>
 
             <!-- Polygone -->
-              <template v-else-if="localProperties.type === 'Polygon'">
-                <span class="property-label">Surface :</span>
-                <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
-                <span class="property-label">Périmètre :</span>
-                <span class="property-value">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
-              </template>
+            <template v-else-if="localProperties.type === 'Polygon'">
+              <span class="text-sm font-semibold text-gray-700">Surface :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatArea(localProperties.area || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Périmètre :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
+            </template>
 
             <!-- Rectangle avec texte -->
-              <template v-else-if="localProperties.type === 'TextRectangle'">
-                <span class="property-label">Largeur :</span>
-                <span class="property-value">{{ formatMeasure(localProperties.width || 0) }}</span>
-                <span class="property-label">Hauteur :</span>
-                <span class="property-value">{{ formatMeasure(localProperties.height || 0) }}</span>
-                <span class="property-label">Surface :</span>
-                <span class="property-value">{{ formatArea(localProperties.area || 0) }}</span>
-                <span class="property-label">Rotation :</span>
-                <span class="property-value">{{ formatAngle(localProperties.rotation || 0) }}</span>
-                <span class="property-label col-span-2">Texte :</span>
-                <span class="property-value col-span-2 truncate">{{ localProperties.text || 'Aucun texte' }}</span>
-              </template>
-              </div>
-              </div>
-          <div v-else class="no-properties">
-            Aucune propriété disponible
+            <template v-else-if="localProperties.type === 'TextRectangle'">
+              <span class="text-sm font-semibold text-gray-700">Largeur :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.width || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Hauteur :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.height || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Surface :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatArea(localProperties.area || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Rotation :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatAngle(localProperties.rotation || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700 col-span-2">Texte :</span>
+              <span class="text-sm font-medium text-gray-500 col-span-2 truncate">{{ localProperties.text || 'Aucun texte' }}</span>
+            </template>
           </div>
+        </div>
+        <div v-else class="text-center text-sm text-gray-500">
+          Aucune propriété disponible
         </div>
       </div>
     </div>
@@ -730,20 +731,44 @@ const formatAngle = (angle: number): string => {
 </script>
 
 <style scoped>
-.drawing-tools-sidebar {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 250px;
+.h-full {
   height: 100%;
-  background-color: white;
-  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+.flex {
   display: flex;
+}
+
+.flex-col {
   flex-direction: column;
-  z-index: 10;
-  transition: width 0.3s;
+}
+
+.bg-white {
+  background-color: white;
+}
+
+.overflow-y-auto {
   overflow-y: auto;
-  margin-top: 50px; /* Ajout d'une marge en haut pour éviter le chevauchement avec MapToolbar */
+}
+
+.p-3 {
+  padding: 1rem;
+}
+
+.border-b {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.text-sm {
+  font-size: 0.875rem;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+.text-gray-700 {
+  color: #334155;
 }
 
 .sidebar-header {

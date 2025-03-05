@@ -74,12 +74,9 @@
       </div>
 
       <!-- Conteneur de la carte avec positionnement relatif -->
-      <div class="relative h-full w-full overflow-hidden">
-        <!-- La carte Leaflet -->
-        <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
-        
+      <div class="relative h-full w-full overflow-hidden flex flex-col">
         <!-- Barre d'outils principale -->
-        <div v-if="currentPlan && !isGeneratingSynthesis" class="absolute top-0 left-0 right-0 z-[1000]">
+        <div v-if="currentPlan && !isGeneratingSynthesis" class="z-[1000]">
           <MapToolbar 
             :last-save="currentPlan?.date_modification ? new Date(currentPlan.date_modification) : undefined"
             :plan-name="currentPlan?.nom"
@@ -94,17 +91,25 @@
           />
         </div>
         
-        <!-- Panneau latéral d'outils de dessin avec z-index ajusté pour qu'il soit sous la barre d'outils -->
-        <DrawingTools 
-          v-if="currentPlan && !isGeneratingSynthesis" 
-          :current-tool="currentTool" 
-          :selected-shape="selectedShape"
-          @tool-change="setDrawingTool"
-          @style-update="updateShapeStyle"
-          @properties-update="updateShapeProperties"
-          @delete-shape="deleteSelectedShape"
-          class="drawing-tools-wrapper"
-        />
+        <!-- Conteneur principal avec carte et outils -->
+        <div class="flex-1 flex overflow-hidden">
+          <!-- Conteneur de la carte -->
+          <div class="flex-1 relative">
+            <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
+          </div>
+          
+          <!-- Panneau latéral d'outils de dessin -->
+          <div v-if="currentPlan && !isGeneratingSynthesis" class="w-64 bg-white border-l border-gray-200 flex-shrink-0">
+            <DrawingTools 
+              :current-tool="currentTool" 
+              :selected-shape="selectedShape"
+              @tool-change="setDrawingTool"
+              @style-update="updateShapeStyle"
+              @properties-update="updateShapeProperties"
+              @delete-shape="deleteSelectedShape"
+            />
+          </div>
+        </div>
         
         <!-- Interface de synthèse -->
         <div v-if="isGeneratingSynthesis" class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-50">
