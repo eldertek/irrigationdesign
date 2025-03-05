@@ -96,6 +96,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useIrrigationStore } from '@/stores/irrigation';
 import type { UserDetails } from '@/types/user';
 import api from '@/services/api';
+import { useDrawingStore } from '@/stores/drawing';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -110,6 +111,7 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore();
 const irrigationStore = useIrrigationStore();
+const drawingStore = useDrawingStore();
 
 const loading = ref(false);
 const isCreating = ref(false);
@@ -303,8 +305,11 @@ async function createPlan() {
       data.client = planData.value.client;
     } else if (authStore.user?.user_type === 'client') {
       data.client = authStore.user.id;
-      // Ne pas inclure le concessionnaire pour un client
     }
+
+    // S'assurer que l'état est propre avant de créer un nouveau plan
+    irrigationStore.clearCurrentPlan();
+    drawingStore.setCurrentPlan(null);
 
     const newPlan = await irrigationStore.createPlan(data);
     emit('created', newPlan.id);

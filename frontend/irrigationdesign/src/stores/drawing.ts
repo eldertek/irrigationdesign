@@ -48,10 +48,25 @@ export const useDrawingStore = defineStore('drawing', {
   },
   actions: {
     setCurrentPlan(planId: number | null) {
+      // Émettre un événement personnalisé pour nettoyer les points de contrôle
+      window.dispatchEvent(new CustomEvent('clearControlPoints'));
+      
       this.currentPlanId = planId;
       if (planId === null) {
         this.clearElements();
       }
+      // Réinitialiser l'état du dessin
+      this.selectedElement = null;
+      this.unsavedChanges = false;
+      this.currentTool = '';
+      this.lastUsedType = null;
+      this.currentStyle = {
+        strokeStyle: 'solid',
+        strokeWidth: 2,
+        strokeColor: '#2563EB',
+        fillColor: '#3B82F6',
+        fillOpacity: 0.2
+      };
     },
     clearCurrentPlan() {
       this.currentPlanId = null;
@@ -65,6 +80,7 @@ export const useDrawingStore = defineStore('drawing', {
       this.elements = [];
       this.selectedElement = null;
       this.unsavedChanges = false;
+      this.error = null;
     },
     addElement(element: DrawingElement) {
       if (!element.type_forme && this.lastUsedType) {

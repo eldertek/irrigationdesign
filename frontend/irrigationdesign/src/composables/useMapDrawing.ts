@@ -174,6 +174,33 @@ export function useMapDrawing(): MapDrawingReturn {
   const currentTool = ref<string>('');
   const selectedShape = ref<any>(null);
   const isDrawing = ref<boolean>(false);
+
+  // Ajouter l'écouteur d'événement pour le nettoyage
+  window.addEventListener('clearControlPoints', () => {
+    // Désélectionner la forme active
+    selectedShape.value = null;
+    // Nettoyer les points de contrôle
+    if (controlPointsGroup.value) {
+      controlPointsGroup.value.clearLayers();
+    }
+    if (tempControlPointsGroup.value) {
+      tempControlPointsGroup.value.clearLayers();
+    }
+    // Supprimer tous les tooltips de mesure
+    document.querySelectorAll('.measure-tooltip').forEach(el => el.remove());
+    // Supprimer tous les messages d'aide
+    document.querySelectorAll('.drawing-help-message').forEach(el => el.remove());
+  });
+
+  // Nettoyer l'écouteur lors du démontage
+  onUnmounted(() => {
+    window.removeEventListener('clearControlPoints', () => {});
+    if (map.value) {
+      map.value.remove();
+      map.value = null;
+    }
+  });
+
   const createTextMarker = (latlng: L.LatLng, text: string = 'Double-cliquez pour éditer'): L.Marker => {
     const defaultStyle: TextStyle = {
       fontSize: '14px',
@@ -2665,12 +2692,6 @@ export function useMapDrawing(): MapDrawingReturn {
       count: tempControlPointsGroup.value.getLayers().length
     });
   };
-  onUnmounted(() => {
-    if (map.value) {
-      map.value.remove();
-      map.value = null;
-    }
-  });
   return {
     map,
     featureGroup,

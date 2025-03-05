@@ -102,6 +102,7 @@ export const useIrrigationStore = defineStore('irrigation', {
       }
     },
     async createPlan(planData: NewPlan) {
+      this.clearCurrentPlan();
       this.loading = true;
       try {
         const response = await api.post('/plans/', planData);
@@ -215,7 +216,11 @@ export const useIrrigationStore = defineStore('irrigation', {
     },
     clearCurrentPlan() {
       this.currentPlan = null;
-      this.stopAutoSave();
+      this.unsavedChanges = false;
+      if (this.autoSaveInterval) {
+        clearInterval(this.autoSaveInterval);
+        this.autoSaveInterval = null;
+      }
     },
     markUnsavedChanges() {
       this.unsavedChanges = true;
