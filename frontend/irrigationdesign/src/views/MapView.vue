@@ -835,6 +835,7 @@ async function loadPlan(planId: number) {
             }
           }
         });
+        adjustView();
       }
       
       console.log(`Plan ${planId} chargé avec succès avec ${drawingStore.getCurrentElements.length} formes`);

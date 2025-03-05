@@ -1,16 +1,17 @@
 ---
-description: Analyse les fichiers en contexte à la demande, liste leurs chemins, et crée un fichier out.txt avec leur contenu (remplace le contenu existant).
+description: Analyse les fichiers en contexte à la demande, liste leurs chemins, et crée un fichier out.txt avec leur contenu (remplace le contenu existant). L’IA doit également transformer des demandes vagues ou hasardeuses en prompts enrichis et exploitables pour Grok, allant au-delà d’une simple reformulation (ex. : "ajuste la vue au chargement de tous les plans" devient une demande claire et détaillée).
 globs: 
 alwaysApply: false
 ---
 
 **Instruction impérative pour l'IA qui reçoit ce fichier :**  
-Tu appliqueras strictement les règles de `grok.mdc`. Tu ne proposeras aucune solution ou modification aux fichiers analysés. L'objectif est uniquement de fournir un fichier `out.txt` contenant les contenus des fichiers demandés, afin qu'une autre IA (Grok) puisse analyser ce fichier.
+Tu appliqueras strictement les règles de `grok.mdc`. Tu ne proposeras aucune solution ou modification aux fichiers analysés. L'objectif est uniquement de fournir un fichier `out.txt` contenant les contenus des fichiers demandés, afin qu'une autre IA (Grok) puisse analyser ce fichier. De plus, tu transformeras toute demande vague ou hasardeuse en un prompt enrichi et précis via du prompt engineering avancé.
 
-Lorsque l'utilisateur met ce fichier en contexte et me demande d'analyser des fichiers spécifiques :
+Lorsque l'utilisateur met ce fichier en contexte et me demande d'analyser des fichiers spécifiques ou exprime une intention :
 
 1. **Analyser les fichiers à la demande** :
    - Si l'utilisateur demande explicitement d'analyser certains fichiers (par exemple, "analyse useMapDrawing.ts et CircleArc.ts"), je dois identifier ces fichiers dans le contexte ou le projet.
+   - Si aucune demande explicite de fichiers n'est faite mais une intention vague est exprimée (ex. : "ajuste la vue au chargement de tous les plans"), je déduis les fichiers pertinents et je les analyse.
    - Si aucune demande explicite n'est faite, je ne fais rien sauf si l'utilisateur me demande de lister tous les fichiers en contexte.
 
 2. **Lister les fichiers concernés** :
@@ -37,27 +38,42 @@ Lorsque l'utilisateur met ce fichier en contexte et me demande d'analyser des fi
      ```
 
 4. **Reformuler le prompt de l'utilisateur dans le chat** :
-   - Dans la réponse affichée à l'utilisateur, je reformule son prompt en une version enrichie (prompt engineering) pour refléter ma compréhension du contexte et faciliter l'analyse par Grok.
-   - Exemple :
+   - Dans la réponse affichée à l'utilisateur, je reformule son prompt en une version enrichie (prompt engineering avancé) pour refléter ma compréhension du contexte et faciliter l'analyse par Grok. Si la demande est vague, je la rends précise et exploitable.
+   - Exemple 1 (demande précise) :
      - Prompt utilisateur : "Analyse useMapDrawing.ts et CircleArc.ts"
-     - Reformulation : "Grok, je te demande d'analyser les fichiers `src/useMapDrawing.ts` (contenant la logique de dessin sur la carte) et `src/utils/CircleArc.ts` (définition de la classe CircleArc pour les demi-cercles) afin d'extraire leur contenu dans `out.txt` pour une analyse ultérieure."
+     - Reformulation : "Grok, je te demande d'analyser les fichiers `src/useMapDrawing.ts` (contenant la logique de dessin sur la carte) et `src/utils/CircleArc.ts` (définition de la classe CircleArc pour les demi-cercles) afin d'extraire leur contenu dans `out.txt` pour une analyse approfondie de la gestion des dessins géométriques."
+   - Exemple 2 (demande vague) :
+     - Prompt utilisateur : "Ajuste la vue au chargement de tous les plans"
+     - Reformulation : "Grok, je te demande d’analyser les fichiers pertinents (par exemple, `src/useMapDrawing.ts` pour la logique de dessin sur la carte et `src/mapLoader.ts` pour le chargement des plans) afin d’extraire leur contenu dans `out.txt`. L’objectif est de comprendre comment ajuster automatiquement la vue de la carte (zoom et position) au moment du chargement complet de tous les plans, en s’assurant que l’ensemble des éléments dessinés est visible sans interaction manuelle."
 
 5. **Exemple de workflow** :
    - Demande : "Analyse useMapDrawing.ts et CircleArc.ts"
    - Réponse :
      ```
      Reformulation de votre demande pour Grok :
-     "Grok, je te demande d'analyser les fichiers `src/useMapDrawing.ts` (contenant la logique de dessin sur la carte) et `src/utils/CircleArc.ts` (définition de la classe CircleArc pour les demi-cercles) afin d'extraire leur contenu dans `out.txt` pour une analyse ultérieure."
+     "Grok, je te demande d'analyser les fichiers `src/useMapDrawing.ts` (contenant la logique de dessin sur la carte) et `src/utils/CircleArc.ts` (définition de la classe CircleArc pour les demi-cercles) afin d'extraire leur contenu dans `out.txt` pour une analyse approfondie de la gestion des dessins géométriques."
 
      Les fichiers suivants sont concernés par votre demande :
      - src/useMapDrawing.ts
      - src/utils/CircleArc.ts
 
-     Commandes exécutées :
-     > out.txt
-     echo "--- src/useMapDrawing.ts ---" >> out.txt
-     cat src/useMapDrawing.ts >> out.txt
-     echo "--- src/utils/CircleArc.ts ---" >> out.txt
-     cat src/utils/CircleArc.ts >> out.txt
+     Commandes exécutées : (en une seule ligne)
+     > out.txt && echo "--- src/useMapDrawing.ts ---" >> out.txt && cat src/useMapDrawing.ts >> out.txt && echo "--- src/utils/CircleArc.ts ---" >> out.txt && cat src/utils/CircleArc.ts >> out.txt
 
-     Le fichier out.txt a été créé/remplacé à la racine du projet avec le
+     Le fichier out.txt a été créé/remplacé à la racine du projet avec le contenu des fichiers listés.
+     ```
+   - Demande vague : "Ajuste la vue au chargement de tous les plans"
+   - Réponse :
+     ```
+     Reformulation de votre demande pour Grok :
+     "Grok, je te demande d’analyser les fichiers pertinents (par exemple, `src/useMapDrawing.ts` pour la logique de dessin sur la carte et `src/mapLoader.ts` pour le chargement des plans) afin d’extraire leur contenu dans `out.txt`. L’objectif est de comprendre comment ajuster automatiquement la vue de la carte (zoom et position) au moment du chargement complet de tous les plans, en s’assurant que l’ensemble des éléments dessinés est visible sans interaction manuelle. Tu proposeras un plan de code pour créer la solution à ma demande"
+
+     Les fichiers suivants sont concernés par votre demande :
+     - src/useMapDrawing.ts
+     - src/mapLoader.ts
+
+     Commandes exécutées : (en une seule ligne)
+     > out.txt && echo "--- src/useMapDrawing.ts ---" >> out.txt && cat src/useMapDrawing.ts >> out.txt && echo "--- src/mapLoader.ts ---" >> out.txt && cat src/mapLoader.ts >> out.txt
+
+     Le fichier out.txt a été créé/remplacé à la racine du projet avec le contenu des fichiers listés.
+     ```
