@@ -1,5 +1,4 @@
 import L from 'leaflet';
-import * as turf from '@turf/turf';
 export interface TextRectangleOptions extends L.PolylineOptions {
   textColor?: string;
   fontSize?: string;
@@ -169,7 +168,6 @@ export class TextRectangle extends L.Rectangle {
       // Calculate width and height in meters
       const sw = bounds.getSouthWest();
       const se = L.latLng(bounds.getSouth(), bounds.getEast());
-      const ne = bounds.getNorthEast();
       const width = this._map.distance(sw, se);
       const height = this._map.distance(sw, L.latLng(bounds.getNorth(), bounds.getWest()));
       const area = width * height;
@@ -231,7 +229,6 @@ export class TextRectangle extends L.Rectangle {
       const padding = 10;
       const textX = nwPoint.x + padding;
       const textY = nwPoint.y + padding;
-      const textWidth = Math.max(10, sePoint.x - nwPoint.x - (padding * 2));
       // Position the text
       textNode.setAttribute('x', textX.toString());
       textNode.setAttribute('y', textY.toString());
@@ -365,8 +362,6 @@ export class TextRectangle extends L.Rectangle {
       // Apply rotation if needed
       if (this.properties.rotation !== 0) {
         const center = this._map.latLngToLayerPoint(bounds.getCenter());
-        const divCenterX = (nwPoint.x + sePoint.x) / 2;
-        const divCenterY = (nwPoint.y + sePoint.y) / 2;
         div.style.transformOrigin = `${center.x - nwPoint.x + 10}px ${center.y - nwPoint.y + 10}px`;
         div.style.transform = `rotate(${this.properties.rotation}deg)`;
       }
