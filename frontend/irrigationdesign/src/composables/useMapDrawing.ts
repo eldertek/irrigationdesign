@@ -975,6 +975,14 @@ export function useMapDrawing(): MapDrawingReturn {
       // Supprimer tous les messages d'aide à la désélection
       document.querySelectorAll('.drawing-help-message').forEach(msg => msg.remove());
     });
+    // Désélectionner la forme et ses points de contrôle lors du zoom/dézoom
+    mapInstance.on('zoomstart', () => {
+      if (selectedShape.value) {
+        clearActiveControlPoints();
+        selectedShape.value = null;
+        document.querySelectorAll('.drawing-help-message').forEach(msg => msg.remove());
+      }
+    });
     return mapInstance;
   };
   const adjustView = () => {
