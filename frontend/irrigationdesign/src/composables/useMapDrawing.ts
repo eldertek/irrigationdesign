@@ -746,92 +746,39 @@ export function useMapDrawing(): MapDrawingReturn {
     fg.on('click', (e: L.LeafletMouseEvent) => {
       L.DomEvent.stopPropagation(e);
       const layer = e.layer;
+      
       console.log('[featureGroup click] Sélection de forme', {
         type: layer.properties?.type,
         previouslySelected: selectedShape.value === layer
       });
-      // Nettoyer les points temporaires
+      
+      // Nettoyer les points temporaires et les points de contrôle existants
       tempControlPointsGroup.value?.clearLayers();
-      // Nettoyer les points de contrôle existants
       clearActiveControlPoints();
       document.querySelector('.drawing-help-message')?.remove();
+      
       // Mettre à jour la forme sélectionnée
       selectedShape.value = layer;
-      // Pour TextRectangle, pas besoin d'ajouter de points de contrôle car ils sont édités directement via double-clic
+      
       if (layer instanceof TextRectangle) {
-        // Log to help debugging the TextRectangle selection
-        console.log('[featureGroup click] TextRectangle selected', {
-          id: (layer as any)._leaflet_id, // Use 'any' to access Leaflet's internal ID
+        console.log('[featureGroup click] TextRectangle sélectionné', {
+          id: (layer as any)._leaflet_id,
           bounds: layer.getBounds(),
           hasTextContainer: !!layer.getTextElement(),
           properties: layer.properties
         });
-        // Afficher un message d'aide spécifique pour le TextRectangle
-        showHelpMessage('Double-cliquez sur le texte pour le modifier. Cliquez et glissez pour déplacer.');
-        // Make sure any pending editing operations are cancelled
-        if (map.value && map.value.pm) {
-          try {
-            // Cancel any active editing modes
-            if (map.value.pm.globalEditModeEnabled()) {
-              map.value.pm.disableGlobalEditMode();
-            }
-            // Check for any remnant standard rectangles that might be duplicates
-            if (featureGroup.value) {
-              const allLayers = featureGroup.value.getLayers();
-              // Look for Rectangle layers with the same bounds
-              const duplicateRectangles = allLayers.filter((otherLayer: any) => {
-                // Skip if it's the same layer
-                if (otherLayer === layer) {
-                  return false;
-                }
-                // Skip if it's not a Rectangle
-                if (!(otherLayer instanceof L.Rectangle)) {
-                  return false;
-                }
-                // Skip if it's already a TextRectangle
-                if (otherLayer.properties && otherLayer.properties.type === 'TextRectangle') {
-                  return false;
-                }
-                // Compare bounds to see if it's a duplicate
-                try {
-                  const otherBounds = otherLayer.getBounds();
-                  const textRectBounds = layer.getBounds();
-                  // Use a more precise tolerance for bounds comparison
-                  const tolerance = 1e-8;
-                  const isSameBounds = 
-                    Math.abs(otherBounds.getNorth() - textRectBounds.getNorth()) < tolerance &&
-                    Math.abs(otherBounds.getSouth() - textRectBounds.getSouth()) < tolerance &&
-                    Math.abs(otherBounds.getEast() - textRectBounds.getEast()) < tolerance &&
-                    Math.abs(otherBounds.getWest() - textRectBounds.getWest()) < tolerance;
-                  return isSameBounds;
-                } catch (error) {
-                  console.error('[TextRectangle] Error comparing bounds:', error);
-                  return false;
-                }
-              });
-              // Remove any found duplicates
-              if (duplicateRectangles.length > 0) {
-                console.warn(`[TextRectangle] ALERT: ${duplicateRectangles.length} rectangles already exist with the same bounds!`);
-                // Need to delay removal to avoid conflicts with current operation
-                setTimeout(() => {
-                  duplicateRectangles.forEach((duplicate: L.Layer) => {
-                    try {
-                      if (featureGroup.value && featureGroup.value.hasLayer(duplicate)) {
-                        featureGroup.value.removeLayer(duplicate);
-                      }
-                    } catch (error) {
-                      console.error('[TextRectangle] Error removing duplicate:', error);
-                    }
-                  });
-                }, 100);
-              }
-            }
-          } catch (e) {
-            console.error('Error disabling edit mode:', e);
-          }
+        
+        // Désactiver le mode d'édition Geoman si actif
+        if (map.value?.pm.globalEditModeEnabled()) {
+          map.value.pm.disableGlobalEditMode();
         }
+        
+        // Ajouter les points de contrôle
+        updateTextRectangleControlPoints(layer);
+        showHelpMessage('Double-cliquez pour éditer le texte. Utilisez les points rouges pour redimensionner.');
         return;
       }
+      
       if (layer instanceof CircleArc || layer.properties?.type === 'Semicircle') {
         updateSemicircleControlPoints(layer as CircleArc);
       } else if (layer instanceof Circle) {
@@ -1085,42 +1032,86 @@ export function useMapDrawing(): MapDrawingReturn {
             break;
           case 'TextRectangle':
             showHelpMessage('Cliquez et maintenez pour dessiner un rectangle avec texte, relâchez pour terminer');
+            
+            // Désactiver tout mode d'édition actif
+            if (map.value?.pm.globalEditModeEnabled()) {
+              map.value.pm.disableGlobalEditMode();
+            }
+            
+            // Configurer le mode dessin avec des styles spécifiques
             map.value?.pm.enableDraw('Rectangle', {
               finishOn: 'mouseup' as any,
-              continueDrawing: false
+              continueDrawing: false,
+              templineStyle: {
+                color: '#3B82F6',
+                weight: 2,
+                dashArray: '5,5'
+              }
             });
+
+            // Supprimer l'ancien gestionnaire d'événements s'il existe
+            map.value?.off('pm:create');
+            
+            // Ajouter le nouveau gestionnaire
             map.value?.on('pm:create', (e: any) => {
               if (e.shape === 'Rectangle' && e.layer) {
                 const bounds = e.layer.getBounds();
-                const rect = new TextRectangle(bounds, 'Double-cliquez pour éditer');
-                // Stocker les propriétés sur le rectangle
-                rect.properties = {
-                  type: 'TextRectangle',
-                  text: 'Double-cliquez pour éditer',
-                  width: 0, // Sera calculé automatiquement
-                  height: 0, // Sera calculé automatiquement
-                  area: 0,   // Sera calculé automatiquement
-                  rotation: 0,
-                  style: {
+                
+                // Vérifier s'il existe déjà un TextRectangle avec les mêmes limites
+                let duplicateFound = false;
+                if (featureGroup.value) {
+                  featureGroup.value.eachLayer((layer: any) => {
+                    if (layer instanceof TextRectangle) {
+                      const existingBounds = layer.getBounds();
+                      const tolerance = 1e-8;
+                      if (
+                        Math.abs(existingBounds.getNorth() - bounds.getNorth()) < tolerance &&
+                        Math.abs(existingBounds.getSouth() - bounds.getSouth()) < tolerance &&
+                        Math.abs(existingBounds.getEast() - bounds.getEast()) < tolerance &&
+                        Math.abs(existingBounds.getWest() - bounds.getWest()) < tolerance
+                      ) {
+                        duplicateFound = true;
+                        selectedShape.value = layer;
+                        console.log('[TextRectangle] Rectangle existant trouvé, sélection au lieu de création');
+                      }
+                    }
+                  });
+                }
+
+                if (!duplicateFound) {
+                  // Supprimer immédiatement le rectangle temporaire
+                  map.value?.removeLayer(e.layer);
+                  if (featureGroup.value?.hasLayer(e.layer)) {
+                    featureGroup.value.removeLayer(e.layer);
+                  }
+
+                  // Créer un nouveau TextRectangle
+                  const rect = new TextRectangle(bounds, 'Double-cliquez pour éditer', {
                     color: '#3B82F6',
                     weight: 2,
                     fillColor: '#F9FAFB',
                     fillOpacity: 0.8,
                     textColor: '#000000',
-                    fontSize: '14px',
                     fontFamily: 'Arial, sans-serif',
                     textAlign: 'center'
+                  });
+
+                  // Ajouter le TextRectangle au groupe de fonctionnalités
+                  if (featureGroup.value) {
+                    featureGroup.value.addLayer(rect);
+                    selectedShape.value = rect;
+                    rect.updateProperties();
+                    
+                    // Ajouter les points de contrôle immédiatement
+                    updateTextRectangleControlPoints(rect);
+                    
+                    console.log('[TextRectangle] Nouveau rectangle créé avec succès', {
+                      bounds: rect.getBounds(),
+                      properties: rect.properties
+                    });
                   }
-                };
-                // Supprimer le rectangle temporaire
-                map.value?.removeLayer(e.layer);
-                // Ajouter le rectangle de texte à la couche de dessin
-                if (featureGroup.value) {
-                  featureGroup.value.addLayer(rect);
-                  selectedShape.value = rect;
-                  // Mettre à jour les propriétés
-                  rect.updateProperties();
                 }
+
                 // Désactiver le mode dessin
                 map.value?.pm.disableDraw();
               }
@@ -2698,6 +2689,148 @@ export function useMapDrawing(): MapDrawingReturn {
     }
     console.log('[generateTempControlPoints] Points temporaires générés', {
       count: tempControlPointsGroup.value.getLayers().length
+    });
+  };
+  // Fonction pour gérer les points de contrôle du TextRectangle
+  const updateTextRectangleControlPoints = (layer: TextRectangle) => {
+    if (!map.value || !featureGroup.value) return;
+    
+    console.log('[TextRectangle] Début de la mise à jour des points de contrôle');
+    
+    // Nettoyer les points de contrôle existants
+    clearActiveControlPoints();
+
+    const bounds = layer.getBounds();
+    const corners = [
+      bounds.getNorthWest(),
+      bounds.getNorthEast(),
+      bounds.getSouthEast(),
+      bounds.getSouthWest()
+    ];
+    const center = bounds.getCenter();
+
+    // Point central pour le déplacement (vert)
+    const centerPoint = createControlPoint(center, '#059669');
+    centerPoint.addTo(map.value);
+    activeControlPoints.push(centerPoint);
+    console.log('[TextRectangle] Point central créé', { position: center });
+
+    // Gestion du déplacement via le point central avec throttle
+    centerPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
+      if (!map.value) return;
+      L.DomEvent.stopPropagation(e);
+      map.value.dragging.disable();
+      
+      const startLatLng = layer.getBounds().getCenter();
+      const startMouseLatLng = e.latlng;
+      
+      // Fonction throttled pour le déplacement
+      const throttledMove = throttle((e: L.LeafletMouseEvent) => {
+        const dx = e.latlng.lng - startMouseLatLng.lng;
+        const dy = e.latlng.lat - startMouseLatLng.lat;
+        const newCenter = L.latLng(
+          startLatLng.lat + dy,
+          startLatLng.lng + dx
+        );
+        
+        // Déplacer le rectangle
+        const currentBounds = layer.getBounds();
+        const width = currentBounds.getEast() - currentBounds.getWest();
+        const height = currentBounds.getNorth() - currentBounds.getSouth();
+        const newBounds = L.latLngBounds(
+          L.latLng(newCenter.lat - height/2, newCenter.lng - width/2),
+          L.latLng(newCenter.lat + height/2, newCenter.lng + width/2)
+        );
+        
+        layer.setBounds(newBounds);
+        centerPoint.setLatLng(newCenter);
+        
+        // Mettre à jour les points de coin
+        const updatedCorners = [
+          newBounds.getNorthWest(),
+          newBounds.getNorthEast(),
+          newBounds.getSouthEast(),
+          newBounds.getSouthWest()
+        ];
+        activeControlPoints.slice(1).forEach((point, i) => {
+          point.setLatLng(updatedCorners[i]);
+        });
+      }, 16); // 60fps
+
+      const onMouseMove = (e: L.LeafletMouseEvent) => {
+        throttledMove(e);
+      };
+
+      const onMouseUp = () => {
+        map.value?.off('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        map.value.dragging.enable();
+        layer.updateProperties();
+      };
+
+      map.value.on('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+
+    // Points de coin pour le redimensionnement (rouge)
+    corners.forEach((corner, index) => {
+      const cornerPoint = createControlPoint(corner, '#DC2626');
+      cornerPoint.addTo(map.value);
+      activeControlPoints.push(cornerPoint);
+      console.log('[TextRectangle] Point de coin créé', { position: corner, index });
+
+      cornerPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
+        if (!map.value) return;
+        L.DomEvent.stopPropagation(e);
+        map.value.dragging.disable();
+        
+        const oppositeIndex = (index + 2) % 4;
+        const oppositeCorner = corners[oppositeIndex];
+        
+        // Fonction throttled pour le redimensionnement
+        const throttledResize = throttle((e: L.LeafletMouseEvent) => {
+          const newBounds = L.latLngBounds(oppositeCorner, e.latlng);
+          layer.setBounds(newBounds);
+          
+          // Mettre à jour les positions des points de contrôle
+          const updatedCorners = [
+            newBounds.getNorthWest(),
+            newBounds.getNorthEast(),
+            newBounds.getSouthEast(),
+            newBounds.getSouthWest()
+          ];
+          
+          updatedCorners.forEach((pos, i) => {
+            if (i !== oppositeIndex) {
+              activeControlPoints[i + 1].setLatLng(pos);
+            }
+          });
+          
+          // Mettre à jour le point central
+          centerPoint.setLatLng(newBounds.getCenter());
+        }, 16); // 60fps
+
+        const onMouseMove = (e: L.LeafletMouseEvent) => {
+          throttledResize(e);
+        };
+
+        const onMouseUp = () => {
+          map.value?.off('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          map.value.dragging.enable();
+          // Forcer une mise à jour finale des propriétés
+          layer.updateProperties();
+        };
+
+        map.value.on('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+    });
+
+    console.log('[TextRectangle] Points de contrôle mis à jour avec succès', {
+      total: activeControlPoints.length,
+      center: true,
+      corners: corners.length
     });
   };
   return {

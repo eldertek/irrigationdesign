@@ -15,14 +15,12 @@ declare module 'leaflet' {
 // Interface for style options
 export interface TextRectangleOptions extends L.PolylineOptions {
   textColor?: string;
-  fontSize?: string;
   fontFamily?: string;
   textAlign?: 'left' | 'center' | 'right';
   backgroundColor?: string;
   backgroundOpacity?: number;
   bold?: boolean;
   italic?: boolean;
-  fixedPhysicalSize?: boolean;
 }
 
 // Interface for properties
@@ -40,14 +38,12 @@ interface TextRectangleProperties {
     fillColor?: string;
     fillOpacity?: number;
     textColor?: string;
-    fontSize?: string;
     fontFamily?: string;
     textAlign?: string;
     backgroundColor?: string;
     backgroundOpacity?: number;
     bold?: boolean;
     italic?: boolean;
-    fixedPhysicalSize?: boolean;
   };
 }
 
@@ -56,7 +52,6 @@ export class TextRectangle extends L.Rectangle {
   private _textNode: SVGTextElement | null = null;
   private _isEditing: boolean = false;
   private _editableDiv: HTMLDivElement | null = null;
-  private _fontScale: number = 1.0;
 
   private get map(): L.Map | undefined {
     return (this as any)._map;
@@ -103,14 +98,12 @@ export class TextRectangle extends L.Rectangle {
         fillColor: mergedOptions.fillColor || '#FFFFFF',
         fillOpacity: mergedOptions.fillOpacity || 0.8,
         textColor: mergedOptions.textColor || '#000000',
-        fontSize: mergedOptions.fontSize || '14px',
         fontFamily: mergedOptions.fontFamily || 'Arial, sans-serif',
         textAlign: mergedOptions.textAlign || 'center',
         backgroundColor: mergedOptions.backgroundColor || '#FFFFFF',
         backgroundOpacity: mergedOptions.backgroundOpacity ?? 1,
         bold: mergedOptions.bold || false,
         italic: mergedOptions.italic || false,
-        fixedPhysicalSize: mergedOptions.fixedPhysicalSize || false,
       },
     };
 
@@ -128,13 +121,37 @@ export class TextRectangle extends L.Rectangle {
 
     if (this.pm) {
       this.pm.enableLayerDrag();
+      console.log('[TextRectangle] Geoman activé pour cette instance');
     }
   }
 
   public setText(text: string): void {
+    const oldText = this.properties.text;
     this.properties.text = text || 'Double-cliquez pour éditer';
+    
+    console.log('[TextRectangle] Mise à jour du texte', {
+      oldText,
+      newText: this.properties.text,
+      hasTextNode: !!this._textNode
+    });
+    
+    // Redessiner le texte
     this._textRedraw();
-    this.fire('properties:updated', { shape: this, properties: this.properties });
+    
+    // Émettre les événements dans cet ordre pour assurer la cohérence
+    this.fire('text:updated', { 
+      text: this.properties.text,
+      oldText,
+      bounds: this.getBounds(),
+      style: this.properties.style
+    });
+    
+    // Émettre l'événement properties:updated après text:updated
+    this.fire('properties:updated', { 
+      shape: this, 
+      properties: this.properties,
+      source: 'setText'
+    });
   }
 
   public setTextStyle(style: Partial<TextRectangleProperties['style']>): void {
@@ -168,20 +185,53 @@ export class TextRectangle extends L.Rectangle {
       const se = L.latLng(bounds.getSouth(), bounds.getEast());
       const width = this.map.distance(sw, se);
       const height = this.map.distance(sw, L.latLng(bounds.getNorth(), bounds.getWest()));
+      
+      // Mettre à jour les propriétés
       this.properties.width = width;
       this.properties.height = height;
       this.properties.area = width * height;
       this.properties.center = bounds.getCenter();
-      this.fire('properties:updated', { shape: this, properties: this.properties });
+      
+      // Émettre l'événement avec la source de la mise à jour
+      this.fire('properties:updated', { 
+        shape: this, 
+        properties: this.properties,
+        source: 'updateProperties',
+        dimensions: { width, height }
+      });
+      
+      console.log('[TextRectangle] Propriétés mises à jour', {
+        width,
+        height,
+        area: width * height,
+        center: bounds.getCenter()
+      });
     } catch (error) {
       console.error('[TextRectangle] Erreur lors de la mise à jour des propriétés :', error);
     }
   }
 
   public setBounds(bounds: L.LatLngBounds): this {
-    super.setBounds(bounds);
-    this._textRedraw();
+    const oldBounds = this.getBounds();
+    
+    // Appliquer les nouvelles limites
+    L.Rectangle.prototype.setBounds.call(this, bounds);
+    
+    // Ne pas redessiner le texte pendant le redimensionnement si on est en édition
+    if (!this._isEditing) {
+      this._textRedraw();
+    }
+    
+    // Mettre à jour les propriétés et émettre l'événement
     this.updateProperties();
+    
+    // Émettre un événement spécifique pour le changement de limites
+    this.fire('bounds:updated', {
+      oldBounds,
+      newBounds: bounds,
+      isEditing: this._isEditing
+    });
+    
     return this;
   }
 
@@ -202,7 +252,12 @@ export class TextRectangle extends L.Rectangle {
   }
 
   private _textRedraw(): void {
-    if (!L.Browser.svg || !this.map || this._isEditing) return;
+    if (!L.Browser.svg || !this.map || this._isEditing) {
+      console.log('[TextRectangle] _textRedraw ignoré', {
+        reason: !L.Browser.svg ? 'SVG non supporté' : !this.map ? 'Carte non disponible' : 'En cours d\'édition'
+      });
+      return;
+    }
 
     this._removeTextNode();
     const text = this.properties.text;
@@ -210,57 +265,67 @@ export class TextRectangle extends L.Rectangle {
 
     try {
       const path = (this as any)._path as SVGPathElement;
-      if (!path) return;
+      if (!path) {
+        console.warn('[TextRectangle] Chemin SVG non trouvé');
+        return;
+      }
       const svg = path.ownerSVGElement;
-      if (!svg) return;
+      if (!svg) {
+        console.warn('[TextRectangle] Élément SVG parent non trouvé');
+        return;
+      }
 
       const textNode = L.SVG.create('text') as SVGTextElement;
       textNode.setAttribute('class', 'leaflet-text-rectangle-text');
 
-      textNode.style.fill = this.properties.style.textColor || '#000000';
-      textNode.style.fontFamily = this.properties.style.fontFamily || 'Arial, sans-serif';
-      textNode.style.fontWeight = this.properties.style.bold ? 'bold' : 'normal';
-      textNode.style.fontStyle = this.properties.style.italic ? 'italic' : 'normal';
+      // Appliquer les styles de texte
+      Object.assign(textNode.style, {
+        fill: this.properties.style.textColor || '#000000',
+        fontFamily: this.properties.style.fontFamily || 'Arial, sans-serif',
+        fontWeight: this.properties.style.bold ? 'bold' : 'normal',
+        fontStyle: this.properties.style.italic ? 'italic' : 'normal'
+      });
 
       const bounds = this.getBounds();
       const nw = this.map.latLngToLayerPoint(bounds.getNorthWest());
       const se = this.map.latLngToLayerPoint(bounds.getSouthEast());
-      const padding = 10;
-      const baseFontSize = parseInt(this.properties.style.fontSize || '14');
-      const fontSize = this.properties.style.fixedPhysicalSize
-        ? this._calculatePhysicalFontSize(baseFontSize)
-        : baseFontSize * this._fontScale;
+      const rectWidth = se.x - nw.x;
+      const rectHeight = se.y - nw.y;
 
+      // Calculer la taille de police relative au rectangle (10% de la plus petite dimension)
+      const fontSize = Math.min(rectWidth, rectHeight) * 0.1;
+      const clampedFontSize = Math.max(10, Math.min(48, fontSize));
+
+      // Séparer le texte en lignes
       const lines = text.split('\n');
+      const lineHeight = clampedFontSize * 1.2; // Espacement entre les lignes
+      const totalTextHeight = lines.length * lineHeight;
+
+      // Calculer la position Y pour centrer verticalement
+      const textY = nw.y + (rectHeight - totalTextHeight) / 2;
+
+      // Définir l'alignement horizontal et la position X
+      const textAnchor = this._getTextAnchor();
+      const textXBase = this._calculateTextX(nw.x, se.x, 5); // Marge de 5px
+
+      // Nettoyer et configurer le nœud de texte
+      textNode.setAttribute('text-anchor', textAnchor);
+      textNode.setAttribute('dominant-baseline', 'hanging');
+
+      // Ajouter chaque ligne avec le bon espacement
       lines.forEach((line, index) => {
         const tspan = L.SVG.create('tspan');
         tspan.textContent = line;
-        tspan.setAttribute('dy', index === 0 ? '0' : `${fontSize * 1.2}px`);
-        tspan.style.fontSize = `${fontSize}px`;
-
-        const textXBase =
-          this.properties.style.textAlign === 'center'
-            ? (nw.x + se.x) / 2
-            : this.properties.style.textAlign === 'right'
-            ? se.x - padding
-            : nw.x + padding;
-
         tspan.setAttribute('x', textXBase.toString());
-        tspan.setAttribute(
-          'text-anchor',
-          this.properties.style.textAlign === 'center'
-            ? 'middle'
-            : this.properties.style.textAlign === 'right'
-            ? 'end'
-            : 'start'
-        );
+        tspan.setAttribute('dy', index === 0 ? '0' : `${lineHeight}px`);
+        tspan.style.fontSize = `${clampedFontSize}px`;
         textNode.appendChild(tspan);
       });
 
-      const textY = nw.y + padding;
+      // Positionner le texte
       textNode.setAttribute('y', textY.toString());
-      textNode.setAttribute('dominant-baseline', 'hanging');
 
+      // Appliquer la rotation si nécessaire
       if (this.properties.rotation !== 0) {
         const center = this.map.latLngToLayerPoint(bounds.getCenter());
         textNode.setAttribute('transform', `rotate(${this.properties.rotation}, ${center.x}, ${center.y})`);
@@ -268,18 +333,52 @@ export class TextRectangle extends L.Rectangle {
 
       this._textNode = textNode;
       svg.appendChild(textNode);
+
+      // Émettre un événement pour notifier que le texte a été redessiné
+      this.fire('text:redrawn', {
+        text,
+        fontSize: clampedFontSize,
+        position: { x: textXBase, y: textY },
+        dimensions: { width: rectWidth, height: rectHeight }
+      });
+
+      console.log('[TextRectangle] Texte redessiné avec succès', {
+        text,
+        fontSize: clampedFontSize,
+        position: { x: textXBase, y: textY },
+        dimensions: { width: rectWidth, height: rectHeight },
+        lines: lines.length,
+        lineHeight,
+        totalTextHeight
+      });
     } catch (error) {
       console.error('[TextRectangle] Erreur lors du rendu du texte :', error);
     }
   }
 
-  private _calculatePhysicalFontSize(baseSize: number): number {
-    if (!this.map) return baseSize;
-    const bounds = this.getBounds();
-    const center = bounds.getCenter();
-    const zoom = this.map.getZoom();
-    const metersPerPixel = (40075016.686 * Math.abs(Math.cos((center.lat * Math.PI) / 180))) / Math.pow(2, zoom + 8);
-    return Math.max(10, Math.min(48, (baseSize / metersPerPixel) * 2.5));
+  private _calculateTextX(nwX: number, seX: number, padding: number): number {
+    const width = seX - nwX;
+    switch (this.properties.style.textAlign) {
+      case 'left':
+        return nwX + padding;
+      case 'right':
+        return seX - padding;
+      case 'center':
+      default:
+        return nwX + width / 2;
+    }
+  }
+
+  private _getTextAnchor(): string {
+    switch (this.properties.style.textAlign) {
+      case 'left':
+        return 'start';
+      case 'right':
+        return 'end';
+      case 'center':
+      default:
+        return 'middle';
+    }
   }
 
   private _removeTextNode(): void {
@@ -292,6 +391,14 @@ export class TextRectangle extends L.Rectangle {
   private _onDoubleClick(e: L.LeafletMouseEvent): void {
     if (this._isEditing) return;
     L.DomEvent.stopPropagation(e);
+    console.log('[TextRectangle] Double-clic détecté');
+
+    // Désactiver temporairement le mode d'édition de Geoman si actif
+    if (this.map && this.map.pm && this.map.pm.globalEditModeEnabled()) {
+      this.map.pm.disableGlobalEditMode();
+      console.log('[TextRectangle] Mode édition Geoman désactivé');
+    }
+
     this._isEditing = true;
     this._removeTextNode();
     this._createEditableDiv();
@@ -299,52 +406,109 @@ export class TextRectangle extends L.Rectangle {
 
   private _createEditableDiv(): void {
     if (!this.map) return;
+    
     try {
       const bounds = this.getBounds();
-      const nw = this.map.latLngToLayerPoint(bounds.getNorthWest());
-      const se = this.map.latLngToLayerPoint(bounds.getSouthEast());
+      const nw = this.map.latLngToContainerPoint(bounds.getNorthWest());
+      const se = this.map.latLngToContainerPoint(bounds.getSouthEast());
+      const rectWidth = se.x - nw.x;
+      const rectHeight = se.y - nw.y;
 
       const div = document.createElement('div');
       div.className = 'leaflet-text-rectangle-editor';
-      div.style.position = 'absolute';
-      div.style.left = `${nw.x + 10}px`;
-      div.style.top = `${nw.y + 10}px`;
-      div.style.width = `${se.x - nw.x - 20}px`;
-      div.style.maxHeight = `${se.y - nw.y - 20}px`;
-      div.style.padding = '5px';
-      div.style.backgroundColor = this.properties.style.backgroundColor || '#FFFFFF';
-      div.style.opacity = `${this.properties.style.backgroundOpacity ?? 1}`;
-      div.style.color = this.properties.style.textColor || '#000000';
-      div.style.fontSize = `${parseInt(this.properties.style.fontSize || '14') * this._fontScale}px`;
-      div.style.fontFamily = this.properties.style.fontFamily || 'Arial, sans-serif';
-      div.style.fontWeight = this.properties.style.bold ? 'bold' : 'normal';
-      div.style.fontStyle = this.properties.style.italic ? 'italic' : 'normal';
-      div.style.textAlign = this.properties.style.textAlign || 'center';
-      div.style.border = '2px dashed #3388ff';
-      div.style.zIndex = '1000';
-      div.style.overflow = 'auto';
-      div.style.whiteSpace = 'pre-wrap';
       div.contentEditable = 'true';
       div.innerText = this.properties.text;
 
+      // Calculer la taille de police relative
+      const fontSize = Math.min(rectWidth, rectHeight) * 0.1;
+      const clampedFontSize = Math.max(10, Math.min(48, fontSize));
+
+      // Styles améliorés pour une meilleure visibilité et interaction
+      Object.assign(div.style, {
+        position: 'absolute',
+        left: `${nw.x}px`,
+        top: `${nw.y}px`,
+        width: `${rectWidth}px`,
+        height: `${rectHeight}px`,
+        backgroundColor: this.properties.style.fillColor || '#FFFFFF',
+        opacity: `${this.properties.style.fillOpacity ?? 1}`,
+        color: this.properties.style.textColor || '#000000',
+        fontSize: `${clampedFontSize}px`,
+        fontFamily: this.properties.style.fontFamily || 'Arial, sans-serif',
+        fontWeight: this.properties.style.bold ? 'bold' : 'normal',
+        fontStyle: this.properties.style.italic ? 'italic' : 'normal',
+        textAlign: this.properties.style.textAlign || 'center',
+        border: `${this.properties.style.weight || 2}px solid ${this.properties.style.color || '#3388ff'}`,
+        borderRadius: '2px',
+        padding: '4px',
+        boxSizing: 'border-box',
+        zIndex: '1000',
+        overflow: 'auto',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        cursor: 'text',
+        userSelect: 'text',
+        outline: 'none',
+        display: 'flex',
+        alignItems: 'center', // Centre vertical
+        justifyContent: this._getJustifyContent() // Alignement horizontal
+      });
+
+      // Appliquer la rotation si nécessaire
       if (this.properties.rotation !== 0) {
-        const center = this.map.latLngToLayerPoint(bounds.getCenter());
-        div.style.transformOrigin = `${center.x - nw.x - 10}px ${center.y - nw.y - 10}px`;
+        const center = this.map.latLngToContainerPoint(bounds.getCenter());
+        div.style.transformOrigin = `${center.x - nw.x}px ${center.y - nw.y}px`;
         div.style.transform = `rotate(${this.properties.rotation}deg)`;
       }
 
-      document.body.appendChild(div);
+      // Ajouter au conteneur de la carte pour un meilleur positionnement
+      const mapContainer = this.map.getContainer();
+      mapContainer.appendChild(div);
       this._editableDiv = div;
-      div.focus();
 
-      div.addEventListener('keydown', this._onKeyDown);
-      div.addEventListener('blur', this._finishEditing);
+      // Focus et sélection du texte
+      div.focus();
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(div);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+
+      // Gestionnaires d'événements avec bind explicite
+      div.addEventListener('keydown', this._onKeyDown.bind(this));
+      div.addEventListener('blur', this._finishEditing.bind(this));
+      div.addEventListener('paste', (e: ClipboardEvent) => {
+        e.preventDefault();
+        const text = e.clipboardData?.getData('text/plain') || '';
+        document.execCommand('insertText', false, text);
+      });
+
+      // Désactiver le défilement de la carte pendant l'édition
       if (this.map.dragging.enabled()) {
         this.map.dragging.disable();
       }
+
+      console.log('[TextRectangle] Div éditable créé', {
+        position: { left: nw.x, top: nw.y },
+        size: { width: rectWidth, height: rectHeight },
+        fontSize: clampedFontSize,
+        styles: this.properties.style
+      });
     } catch (error) {
-      console.error("[TextRectangle] Erreur lors de la creation de l'editeur :", error);
+      console.error('[TextRectangle] Erreur lors de la création de l\'éditeur :', error);
       this._isEditing = false;
+    }
+  }
+
+  private _getJustifyContent(): string {
+    switch (this.properties.style.textAlign) {
+      case 'left':
+        return 'flex-start';
+      case 'right':
+        return 'flex-end';
+      case 'center':
+      default:
+        return 'center';
     }
   }
 
@@ -360,11 +524,24 @@ export class TextRectangle extends L.Rectangle {
 
   private _finishEditing = (): void => {
     if (!this._editableDiv) return;
-    const newText = this._editableDiv.innerText.trim();
-    this.setText(newText);
-    this._cleanupEditableDiv();
-    if (this.map && !this.map.dragging.enabled()) {
-      this.map.dragging.enable();
+    
+    try {
+      const newText = this._editableDiv.innerText.trim() || 'Double-cliquez pour éditer';
+      console.log('[TextRectangle] Fin de l\'édition, nouveau texte :', newText);
+      
+      // Nettoyer d'abord le div éditable
+      this._cleanupEditableDiv();
+      
+      // Puis mettre à jour le texte (cela déclenchera les événements nécessaires)
+      this.setText(newText);
+      
+      // Réactiver le défilement de la carte
+      if (this.map && !this.map.dragging.enabled()) {
+        this.map.dragging.enable();
+      }
+    } catch (error) {
+      console.error('[TextRectangle] Erreur lors de la finalisation de l\'édition :', error);
+      this._cleanupEditableDiv();
     }
   };
 
@@ -394,7 +571,6 @@ export class TextRectangle extends L.Rectangle {
   };
 
   private _onZoomEnd = (): void => {
-    this._fontScale = Math.max(0.5, Math.min(2.5, 1 + (this.map!.getZoom() - 15) * 0.15));
     this._textRedraw();
   };
 }

@@ -1012,7 +1012,6 @@ async function savePlan() {
           style: {
             ...baseData.style,
             textColor: textStyle.textColor || '#000000',
-            fontSize: textStyle.fontSize || '14px',
             fontFamily: textStyle.fontFamily || 'Arial, sans-serif',
             textAlign: textStyle.textAlign || 'center', 
             backgroundColor: textStyle.backgroundColor || '#FFFFFF',
