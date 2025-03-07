@@ -1,4 +1,16 @@
-import type { LatLngTuple } from 'leaflet';
+import type L from 'leaflet';
+
+// Interface for drawable layers
+export interface DrawableLayer extends L.Layer {
+  getBounds(): L.LatLngBounds;
+  getLatLng?(): L.LatLng;
+  getRadius?(): number;
+  properties?: any;
+  startResize?(): void;
+  updateResizePreview?(bounds: L.LatLngBounds): void;
+  endResize?(bounds: L.LatLngBounds): void;
+}
+
 export interface Style {
   color?: string;
   fillColor?: string;
@@ -6,65 +18,77 @@ export interface Style {
   weight?: number;
   opacity?: number;
   fontSize?: string;
+  dashArray?: string;
 }
+
+export interface TextStyle {
+  color: string;
+  fontSize: string;
+  fontFamily: string;
+  textAlign: 'left' | 'center' | 'right';
+  backgroundColor: string;
+  backgroundOpacity: number;
+  bold: boolean;
+  italic: boolean;
+}
+
+export interface TextRectangleStyle extends Style {
+  textStyle: TextStyle;
+}
+
+export interface Bounds {
+  southWest: [number, number];
+  northEast: [number, number];
+}
+
 export interface BaseData {
   style: Style;
   rotation?: number;
 }
+
 export interface CircleData extends BaseData {
   center: [number, number];  // [longitude, latitude]
   radius: number;
+  style: Style;
 }
+
 export interface RectangleData extends BaseData {
-  bounds: {
-    southWest: [number, number];  // [longitude, latitude]
-    northEast: [number, number];  // [longitude, latitude]
-  };
+  bounds: Bounds;
+  style: Style;
 }
+
 export interface SemicircleData extends BaseData {
   center: [number, number];  // [longitude, latitude]
   radius: number;
   startAngle: number;
   endAngle: number;
+  style: Style;
 }
+
 export interface LineData extends BaseData {
   points: [number, number][];  // Array of [longitude, latitude]
+  style: Style;
 }
-// Interface pour le style de texte
-export interface TextStyle {
-  color?: string;
-  fillColor?: string;
-  fillOpacity?: number;
-  weight?: number;
-  opacity?: number;
-  fontSize?: string;
-  textColor?: string;
-  fontFamily?: string;
-  textAlign?: string;
-  backgroundColor?: string;
-  backgroundOpacity?: number;
-  bold?: boolean;
-  italic?: boolean;
-}
-// Mise à jour de l'interface TextData pour inclure un style complet
+
 export interface TextData {
-  position: [number, number]; // [longitude, latitude]
+  bounds: Bounds;
   content: string;
-  style?: TextStyle;
-  width?: number;
-  height?: number;
+  style: TextRectangleStyle;
   rotation?: number;
-  bounds?: {
-    southWest: [number, number];
-    northEast: [number, number];
-  };
 }
-export type ShapeData = CircleData | RectangleData | SemicircleData | LineData | TextData;
+
+export interface PolygonData extends BaseData {
+  points: [number, number][];  // Array of [longitude, latitude]
+}
+
+export type ShapeData = CircleData | RectangleData | SemicircleData | LineData | TextData | PolygonData;
+
 export interface DrawingElement {
   id?: number;
-  type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE';
+  type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | 'POLYGON' | 'UNKNOWN';
   data: ShapeData;
 }
+
 export interface ShapeType {
   type: "unknown" | "Rectangle" | "Circle" | "Polygon" | "Line" | "Semicircle";
   properties: {

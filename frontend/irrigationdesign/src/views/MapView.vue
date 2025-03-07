@@ -391,7 +391,7 @@ import { useDrawingStore } from '@/stores/drawing';
 import type { Plan } from '@/stores/irrigation';
   import type { DrawingElement, ShapeType, CircleData, RectangleData, SemicircleData, LineData, TextData } from '@/types/drawing';
 import { CircleArc } from '@/utils/CircleArc';
-import { TextRectangle, type TextRectangleOptions } from '@/utils/TextRectangle';
+import { TextRectangle } from '@/utils/TextRectangle';
 import { useAuthStore } from '@/stores/auth';
   import type { UserDetails } from '@/types/user';
 import api from '@/services/api';
@@ -502,22 +502,7 @@ function getMapPosition(): { lat: number; lng: number; zoom: number } | null {
   return null;
 }
 
-// Fonction pour calculer les limites d'un rectangle à partir d'un point central
-function calculateBoundsFromCenter(center: L.LatLng, width: number, height: number): L.LatLngBounds {
-  // Convertir taille en mètres en degrés lat/lng approximatifs
-  // La constante 111111 est la distance approximative en mètres d'un degré de latitude
-  const latOffset = height / 2 / 111111;
-  const lngOffset = width / 2 / (111111 * Math.cos(center.lat * Math.PI / 180));
-  
-  return L.latLngBounds(
-    L.latLng(center.lat - latOffset, center.lng - lngOffset),
-    L.latLng(center.lat + latOffset, center.lng + lngOffset)
-  );
-}
-
 onMounted(async () => {
-
-  
   // Charger les plans
   await irrigationStore.fetchPlans();
   
@@ -662,6 +647,60 @@ async function refreshMapWithPlan(planId: number) {
           const { style = {}, ...otherData } = element.data;
 
           switch (element.type_forme) {
+            case 'TEXTE': {
+              const textData = element.data as TextData;
+              console.log('[refreshMapWithPlan] Création TextRectangle', {
+                bounds: textData.bounds,
+                content: textData.content,
+                style: textData.style
+              });
+
+              if (!textData.bounds) {
+                console.error('Bounds manquants pour TextRectangle');
+                return;
+              }
+
+              // Créer les bounds pour le TextRectangle
+              const bounds = L.latLngBounds(
+                L.latLng(textData.bounds.southWest[1], textData.bounds.southWest[0]),
+                L.latLng(textData.bounds.northEast[1], textData.bounds.northEast[0])
+              );
+
+              // Créer le TextRectangle avec les options complètes
+              layer = new TextRectangle(bounds, textData.content || 'Double-cliquez pour éditer', {
+                color: textData.style?.color || '#3388ff',
+                weight: textData.style?.weight || 3,
+                opacity: textData.style?.opacity || 1,
+                fillColor: textData.style?.fillColor || '#3388ff',
+                fillOpacity: textData.style?.fillOpacity || 0.2,
+                textStyle: {
+                  color: textData.style?.textStyle?.color || '#000000',
+                  fontSize: textData.style?.textStyle?.fontSize || '14px',
+                  fontFamily: textData.style?.textStyle?.fontFamily || 'Arial, sans-serif',
+                  textAlign: textData.style?.textStyle?.textAlign || 'center',
+                  backgroundColor: textData.style?.textStyle?.backgroundColor || '#FFFFFF',
+                  backgroundOpacity: textData.style?.textStyle?.backgroundOpacity ?? 1,
+                  bold: textData.style?.textStyle?.bold || false,
+                  italic: textData.style?.textStyle?.italic || false
+                }
+              });
+
+              // Appliquer la rotation si spécifiée
+              if (textData.rotation && typeof (layer as any).setRotation === 'function') {
+                (layer as any).setRotation(textData.rotation);
+              }
+
+              // S'assurer que les propriétés sont correctement définies
+              (layer as any).properties = {
+                type: 'TextRectangle',
+                text: textData.content || 'Double-cliquez pour éditer',
+                style: textData.style,
+                rotation: textData.rotation || 0
+              };
+
+              break;
+            }
+
             case 'CERCLE': {
               const circleData = otherData as CircleData;
               if (circleData.center && circleData.radius) {
@@ -752,77 +791,12 @@ async function refreshMapWithPlan(planId: number) {
               }
               break;
             }
-
-            case 'TEXTE': {
-              const textData = otherData as TextData;
-              if (textData.position && textData.content) {
-                console.log('[loadPlan] Chargement d\'un élément texte avec données:', textData);
-                
-                // Récupérer la position et convertir en LatLng
-                const position = L.latLng(textData.position[1], textData.position[0]);
-                
-                // Déterminer les dimensions du rectangle (valeurs par défaut si non spécifiées)
-                const width = textData.width || 100; // largeur en mètres
-                const height = textData.height || 50; // hauteur en mètres
-                
-                // Créer les limites du rectangle à partir de la position et des dimensions
-                let bounds: L.LatLngBounds;
-                
-                if (textData.bounds) {
-                  // Si les limites sont déjà spécifiées, les utiliser
-                  bounds = L.latLngBounds(
-                    [textData.bounds.southWest[1], textData.bounds.southWest[0]],
-                    [textData.bounds.northEast[1], textData.bounds.northEast[0]]
-                  );
-                } else {
-                  // Sinon, calculer les limites à partir du centre et des dimensions
-                  bounds = calculateBoundsFromCenter(position, width, height);
-                }
-                
-                // Créer le TextRectangle avec les bonnes limites et le texte
-                layer = new TextRectangle(bounds, textData.content, {
-                  ...style,
-                  textColor: (textData.style as any)?.textColor || '#000000',
-                  fontSize: (textData.style as any)?.fontSize || '14px',
-                  fontFamily: (textData.style as any)?.fontFamily || 'Arial, sans-serif',
-                  textAlign: (textData.style as any)?.textAlign || 'center',
-                  backgroundColor: (textData.style as any)?.backgroundColor || '#FFFFFF',
-                  backgroundOpacity: (textData.style as any)?.backgroundOpacity !== undefined 
-                    ? (textData.style as any).backgroundOpacity 
-                    : 1
-                } as TextRectangleOptions) as unknown as L.Layer;
-                
-                // Appliquer la rotation si spécifiée
-                if (textData.rotation && typeof (layer as any).setRotation === 'function') {
-                  (layer as any).setRotation(textData.rotation);
-                }
-                
-                console.log('[loadPlan] TextRectangle créé avec succès:', layer);
-              }
-              break;
-            }
           }
 
           if (layer) {
-            // Stocker l'ID de la base de données sur la couche pour la retrouver lors de la sauvegarde
+            // Stocker l'ID de la base de données sur la couche
             (layer as any)._dbId = element.id;
             
-            // Ne pas écraser les propriétés déjà définies pour les types spécifiques
-            if (!(layer as any).properties) {
-              (layer as any).properties = {
-                type: element.type_forme === 'DEMI_CERCLE' ? 'Semicircle' : element.type_forme,
-                style: style,
-                ...otherData
-              };
-              console.log(`[loadPlan] Propriétés initialisées pour ${element.type_forme}:`, (layer as any).properties);
-            } else {
-              // Pour les types avec propriétés déjà définies, s'assurer que les données supplémentaires sont ajoutées
-              if (otherData.rotation) {
-                (layer as any).properties.rotation = otherData.rotation;
-              }
-              console.log(`[loadPlan] Propriétés enrichies pour ${element.type_forme}:`, (layer as any).properties);
-            }
-
             featureGroup.value?.addLayer(layer);
 
             shapes.value.push({
@@ -831,12 +805,10 @@ async function refreshMapWithPlan(planId: number) {
               layer: layer,
               properties: (layer as any).properties
             });
-
-            if (otherData.rotation && typeof (layer as any).setRotation === 'function') {
-              (layer as any).setRotation(otherData.rotation);
-            }
           }
         });
+
+        // Ajuster la vue après avoir ajouté toutes les formes
         adjustView();
       }
       
@@ -898,7 +870,6 @@ async function savePlan() {
     const elements: DrawingElement[] = [];
     
     // Récupérer les identifiants existants dans la base de données
-    // Ces identifiants sont chargés lors du loadPlan() et stockés dans drawingStore.elements
     const existingIds = new Set(drawingStore.getCurrentElements
       .filter(el => el.id !== undefined)
       .map(el => el.id as number));
@@ -907,6 +878,51 @@ async function savePlan() {
     const currentLayerIds = new Set<number>();
     
     featureGroup.value.eachLayer((layer: L.Layer) => {
+      // Vérifier d'abord si c'est un TextRectangle
+      if (layer instanceof TextRectangle) {
+        const bounds = layer.getBounds();
+        const text = layer.properties?.text || '';
+        
+        // Préparer les données spécifiques au TextRectangle
+        const data: TextData = {
+          style: {
+            color: layer.options?.color || '#3388ff',
+            fillColor: layer.options?.fillColor || '#3388ff',
+            fillOpacity: layer.options?.fillOpacity || 0.2,
+            weight: layer.options?.weight || 3,
+            opacity: layer.options?.opacity || 1,
+            textStyle: {
+              color: layer.properties?.style?.textStyle?.color || '#000000',
+              fontSize: layer.properties?.style?.textStyle?.fontSize || '14px',
+              fontFamily: layer.properties?.style?.textStyle?.fontFamily || 'Arial, sans-serif',
+              textAlign: layer.properties?.style?.textStyle?.textAlign || 'center',
+              backgroundColor: layer.properties?.style?.textStyle?.backgroundColor || '#FFFFFF',
+              backgroundOpacity: layer.properties?.style?.textStyle?.backgroundOpacity ?? 1,
+              bold: layer.properties?.style?.textStyle?.bold || false,
+              italic: layer.properties?.style?.textStyle?.italic || false
+            }
+          },
+          bounds: {
+            southWest: [bounds.getSouthWest().lng, bounds.getSouthWest().lat] as [number, number],
+            northEast: [bounds.getNorthEast().lng, bounds.getNorthEast().lat] as [number, number]
+          },
+          content: text
+        };
+
+        // Ajouter l'élément avec le type TEXTE
+        elements.push({
+          id: (layer as any)._dbId,
+          type_forme: 'TEXTE',
+          data
+        });
+
+        // Ajouter l'ID à la liste des IDs actuels si présent
+        if ((layer as any)._dbId) {
+          currentLayerIds.add((layer as any)._dbId);
+        }
+        return;
+      }
+
       const baseData = {
         style: {
           color: (layer as any).options?.color || '#3388ff',
@@ -939,34 +955,20 @@ async function savePlan() {
         };
       } else if ((layer as any).properties?.type === 'Semicircle') {
         type_forme = 'DEMI_CERCLE';
-        // Récupérer le centre de manière sécurisée
         let center;
         if (typeof (layer as any).getLatLng === 'function') {
-          // Si la méthode getLatLng est disponible
           center = (layer as any).getLatLng();
-          console.log('[savePlan] Demi-cercle - centre récupéré avec getLatLng', center);
         } else if ((layer as any).getCenter && typeof (layer as any).getCenter === 'function') {
-          // Sinon, essayer avec getCenter qui pourrait être implémenté
           center = (layer as any).getCenter();
-          console.log('[savePlan] Demi-cercle - centre récupéré avec getCenter', center);
         } else if ((layer as any)._latlng) {
-          // En dernier recours, essayer d'accéder directement à la propriété _latlng
           center = (layer as any)._latlng;
-          console.log('[savePlan] Demi-cercle - centre récupéré via _latlng', center);
         } else {
-          console.warn('Impossible de récupérer le centre du demi-cercle', layer);
-          // Utiliser un centre par défaut pour éviter de planter
           center = { lat: 0, lng: 0 };
         }
         
-        // Récupérer le rayon de manière sécurisée
         const radius = (layer as any).getRadius ? (layer as any).getRadius() : 0;
-        console.log('[savePlan] Demi-cercle - rayon:', radius);
-        
-        // Récupérer les angles de manière sécurisée
         const startAngle = (layer as any).properties?.style?.startAngle || 0;
         const endAngle = (layer as any).properties?.style?.stopAngle || 180;
-        console.log('[savePlan] Demi-cercle - angles:', { startAngle, endAngle });
         
         data = {
           ...baseData,
@@ -975,8 +977,6 @@ async function savePlan() {
           startAngle: startAngle,
           endAngle: endAngle
         };
-        
-        console.log('[savePlan] Données du demi-cercle préparées:', data);
       } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
         type_forme = 'LIGNE';
         const latLngs = layer.getLatLngs() as L.LatLng[];
@@ -984,66 +984,13 @@ async function savePlan() {
           ...baseData,
           points: latLngs.map(ll => [ll.lng, ll.lat])
         };
-      } else if (layer instanceof TextRectangle || (layer as any).properties?.type === 'TextRectangle') {
-        type_forme = 'TEXTE';
-        
-        // Récupérer les données du TextRectangle
-        const textRectangle = layer as unknown as TextRectangle;
-        const bounds = textRectangle.getBounds();
-        const text = textRectangle.properties?.text || '';
-        
-        // Récupérer les styles spécifiques au texte
-        const textStyle = {
-          ...(textRectangle.properties?.style || {}),
-          ...(textRectangle.options || {})
-        } as TextRectangleOptions;
-        
-        // Préparer les données de sauvegarde
-        data = {
-          ...baseData,
-          // Stocker la position (centre) et les limites
-          position: [bounds.getCenter().lng, bounds.getCenter().lat],
-          content: text,
-          bounds: {
-            southWest: [bounds.getSouthWest().lng, bounds.getSouthWest().lat],
-            northEast: [bounds.getNorthEast().lng, bounds.getNorthEast().lat]
-          },
-          // Intégrer tous les styles spécifiques au texte
-          style: {
-            ...baseData.style,
-            textColor: textStyle.textColor || '#000000',
-            fontFamily: textStyle.fontFamily || 'Arial, sans-serif',
-            textAlign: textStyle.textAlign || 'center', 
-            backgroundColor: textStyle.backgroundColor || '#FFFFFF',
-            backgroundOpacity: textStyle.backgroundOpacity !== undefined ? textStyle.backgroundOpacity : 1
-          } as TextRectangleOptions,
-          // Conserver la rotation si présente
-          rotation: (layer as any).properties?.rotation || 0
-        };
-        
-        console.log('[savePlan] Sauvegarde TextRectangle avec données:', data);
-      } else if ((layer as any).properties?.type === 'text') {
-        // Ancien type de texte (à conserver pour la compatibilité)
-        type_forme = 'TEXTE';
-        data = {
-          ...baseData,
-          position: [(layer as L.Marker).getLatLng().lng, (layer as L.Marker).getLatLng().lat],
-          content: (layer as any).properties.text,
-          style: {
-            ...(layer as any).properties.style,
-            fontSize: (layer as any).properties.style.fontSize
-          }
-        };
       }
 
       if (type_forme && data) {
-        // Assurer que chaque couche a un identifiant persistant
         let elementId: number | undefined = (layer as any)._elementId;
         
-        // Si la couche a déjà un ID depuis le chargement (donc existe en DB), l'utiliser
         if ((layer as any)._dbId) {
           elementId = (layer as any)._dbId;
-          // S'assurer que l'ID est un nombre valide avant de l'ajouter
           if (typeof elementId === 'number') {
             currentLayerIds.add(elementId);
           }
@@ -1060,7 +1007,7 @@ async function savePlan() {
       }
     });
     
-    // Identifier les éléments supprimés (existants dans la DB mais plus sur la carte)
+    // Identifier les éléments supprimés
     const elementsToDelete = Array.from(existingIds).filter(id => !currentLayerIds.has(id));
     
     console.log('Sauvegarde du plan:', {
@@ -1074,21 +1021,18 @@ async function savePlan() {
     // Passer les éléments à supprimer au store
     const updatedPlan = await drawingStore.saveToPlan(currentPlan.value.id, { elementsToDelete });
     
-    // Mettre à jour le plan courant avec les nouvelles données, y compris la date de modification
+    // Mettre à jour le plan courant avec les nouvelles données
     if (updatedPlan && currentPlan.value?.id) {
       const planId = currentPlan.value.id;
       currentPlan.value = {
         ...currentPlan.value,
         ...updatedPlan
       };
-      // Forcer la mise à jour du plan dans le store irrigation
       irrigationStore.updatePlanDetails(planId, updatedPlan);
     }
     
-    // Changer l'état à "success"
     saveStatus.value = 'success';
     
-    // Réinitialiser l'état après un délai
     setTimeout(() => {
       saveStatus.value = null;
     }, 3000);

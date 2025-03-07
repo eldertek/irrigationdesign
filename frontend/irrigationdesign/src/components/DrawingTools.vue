@@ -190,42 +190,6 @@
                 @change="updateTextStyle({ textColor })"
                 title="Couleur du texte"
               />
-              <select
-                v-model="fontSize"
-                class="w-full rounded border"
-                @change="updateTextStyle({ fontSize })"
-              >
-                <option value="10px">10px</option>
-                <option value="12px">12px</option>
-                <option value="14px">14px</option>
-                <option value="16px">16px</option>
-                <option value="18px">18px</option>
-                <option value="20px">20px</option>
-                <option value="24px">24px</option>
-              </select>
-            </div>
-          </div>
-          
-          <div class="flex items-center gap-4">
-            <span class="w-20 text-sm font-semibold text-gray-700">Fond</span>
-            <div class="flex items-center gap-2">
-              <input
-                type="color"
-                v-model="textBackgroundColor"
-                class="w-16 h-8 rounded border"
-                @change="updateTextStyle({ backgroundColor: textBackgroundColor })"
-                title="Couleur de fond"
-              />
-              <input
-                type="range"
-                v-model="textBackgroundOpacity"
-                min="0"
-                max="1"
-                step="0.1"
-                class="w-16 h-2 rounded-md"
-                @change="updateTextStyle({ backgroundOpacity: textBackgroundOpacity })"
-                title="Opacité du fond"
-              />
             </div>
           </div>
           
@@ -254,7 +218,7 @@
                 v-for="align in textAlignOptions"
                 :key="align.value"
                 class="flex items-center justify-center p-2 rounded border"
-                :class="{ 'bg-blue-50 border-blue-200 text-blue-700': textAlign === align.value }"
+                :class="{ 'bg-blue-50 border-blue-200 text-blue-700': currentTextAlign === align.value }"
                 @click="updateTextStyle({ textAlign: align.value })"
                 :title="align.label"
               >
@@ -279,30 +243,12 @@
               </button>
             </div>
           </div>
-          
-          <!-- Ajout d'un switch pour le scaling du texte -->
-          <div class="flex items-center gap-4">
-            <span class="w-20 text-sm font-semibold text-gray-700">Échelle</span>
-            <div class="flex items-center gap-2">
-              <div class="toggle-switch">
-                <input 
-                  type="checkbox" 
-                  id="text-scaling" 
-                  v-model="fixedPhysicalSize"
-                  @change="updateTextStyle({ fixedPhysicalSize })"
-                />
-                <label for="text-scaling" class="text-sm text-gray-700" :title="fixedPhysicalSize ? 'Taille fixe sur le terrain' : 'Taille fixe à l\'écran'">
-                  {{ fixedPhysicalSize ? 'Terrain' : 'Écran' }}
-                </label>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
 
     <!-- Propriétés - Section collapsable -->
-    <div v-if="selectedShape && localProperties" class="p-3 border-t border-gray-200">
+    <div v-if="selectedShape && localProperties && localProperties.type !== 'TextRectangle'" class="p-3 border-t border-gray-200">
       <button 
         class="flex items-center justify-between w-full text-sm font-semibold text-gray-700"
         @click="toggleSection('properties')"
@@ -363,20 +309,6 @@
               <span class="text-sm font-semibold text-gray-700">Périmètre :</span>
               <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
             </template>
-
-            <!-- Rectangle avec texte -->
-            <template v-else-if="localProperties.type === 'TextRectangle'">
-              <span class="text-sm font-semibold text-gray-700">Largeur :</span>
-              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.width || 0) }}</span>
-              <span class="text-sm font-semibold text-gray-700">Hauteur :</span>
-              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.height || 0) }}</span>
-              <span class="text-sm font-semibold text-gray-700">Surface :</span>
-              <span class="text-sm font-medium text-gray-500">{{ formatArea(localProperties.area || 0) }}</span>
-              <span class="text-sm font-semibold text-gray-700">Rotation :</span>
-              <span class="text-sm font-medium text-gray-500">{{ formatAngle(localProperties.rotation || 0) }}</span>
-              <span class="text-sm font-semibold text-gray-700 col-span-2">Texte :</span>
-              <span class="text-sm font-medium text-gray-500 col-span-2 truncate">{{ localProperties.text || 'Aucun texte' }}</span>
-            </template>
           </div>
         </div>
         <div v-else class="text-center text-sm text-gray-500">
@@ -435,8 +367,109 @@ const emit = defineEmits<{
   (e: 'delete-shape'): void;
 }>();
 
-// Variable locale réactive pour les propriétés
+// Variables réactives pour les propriétés et styles
 const localProperties = ref<ShapeProperties | null>(null);
+const textContent = ref('Double-cliquez pour éditer');
+
+// Style
+const fillColor = ref('#3B82F6');
+const fillOpacity = ref(0.2);
+const strokeColor = ref('#2563EB');
+const strokeWidth = ref(2);
+const strokeStyle = ref('solid');
+
+// Styles spécifiques au texte
+const textColor = ref('#000000');
+const fontFamily = ref('Arial, sans-serif');
+const textAlign = ref('center');
+const isBold = ref(false);
+const isItalic = ref(false);
+
+// Sections collapsables
+const sectionsCollapsed = ref({
+  style: false,
+  properties: false
+});
+
+// Computed pour l'alignement actuel
+const currentTextAlign = computed(() => {
+  if (!props.selectedShape?.properties || props.selectedShape.properties.type !== 'TextRectangle') {
+    return 'center';
+  }
+  return props.selectedShape.properties.style?.textAlign || 'center';
+});
+
+// Watchers
+watch(
+  () => props.selectedShape,
+  (newShape) => {
+    if (!newShape) {
+      localProperties.value = null;
+      textAlign.value = 'center';
+      isBold.value = false;
+      isItalic.value = false;
+      textContent.value = 'Double-cliquez pour éditer';
+      return;
+    }
+
+    console.log('[DrawingTools] Changement de forme sélectionnée', {
+      newShape,
+      properties: newShape?.properties,
+    });
+
+    if (newShape) {
+      localProperties.value = { ...newShape.properties };
+      
+      // Si c'est un TextRectangle, initialiser les propriétés de style de texte
+      if (newShape.properties?.type === 'TextRectangle') {
+        const style = newShape.properties?.style || {};
+        textColor.value = style.textColor || '#000000';
+        fontFamily.value = style.fontFamily || 'Arial, sans-serif';
+        textAlign.value = style.textAlign || 'center';
+        isBold.value = style.bold || false;
+        isItalic.value = style.italic || false;
+        textContent.value = newShape.properties.text || 'Double-cliquez pour éditer';
+        
+        console.log('[DrawingTools] Initialisation du TextRectangle', {
+          text: textContent.value,
+          style: style
+        });
+      }
+    } else {
+      localProperties.value = null;
+    }
+  },
+  { immediate: true }
+);
+
+// Watcher pour les changements de texte
+watch(
+  () => props.selectedShape?.properties?.text,
+  (newText) => {
+    if (props.selectedShape?.properties?.type === 'TextRectangle') {
+      console.log('[DrawingTools] Mise à jour du texte :', newText);
+      textContent.value = newText || 'Double-cliquez pour éditer';
+    }
+  },
+  { immediate: true }
+);
+
+// Watcher pour les changements de style
+watch(
+  () => props.selectedShape?.properties?.style,
+  (newStyle) => {
+    if (props.selectedShape?.properties && 
+        props.selectedShape.properties.type === 'TextRectangle' && 
+        newStyle) {
+      // Mettre à jour les contrôles de style avec les nouvelles valeurs
+      textColor.value = newStyle.textColor || '#000000';
+      fontFamily.value = newStyle.fontFamily || 'Arial, sans-serif';
+      isBold.value = newStyle.bold || false;
+      isItalic.value = newStyle.italic || false;
+    }
+  },
+  { deep: true }
+);
 
 // Debounce function to limit updates
 const debounce = (fn: Function, delay: number) => {
@@ -473,50 +506,6 @@ const isEqual = (obj1: any, obj2: any): boolean => {
   
   return true;
 };
-
-// Optimized watcher to reduce cascading updates
-watch(
-  () => props.selectedShape,
-  (newShape, oldShape) => {
-    if (!newShape) {
-      localProperties.value = null;
-      return;
-    }
-    
-    // Skip if there's no meaningful change to avoid loops
-    if (oldShape && newShape.properties && oldShape.properties &&
-        isEqual(newShape.properties, oldShape.properties)) {
-      return;
-    }
-    
-    console.log('[DrawingTools] Changement de forme sélectionnée', {
-      newShape,
-      properties: newShape?.properties
-    });
-    
-    if (newShape) {
-      isUpdatingFromProps = true;
-      localProperties.value = { ...newShape.properties };
-      
-      // If c'est un TextRectangle, initialiser les propriétés de style de texte
-      if (newShape.properties?.type === 'TextRectangle') {
-        const style = newShape.properties?.style || {};
-        textColor.value = style.textColor || '#000000';
-        fontSize.value = style.fontSize || '14px';
-        textBackgroundColor.value = style.backgroundColor || '#FFFFFF';
-        textBackgroundOpacity.value = style.backgroundOpacity || 1;
-        fontFamily.value = style.fontFamily || 'Arial, sans-serif';
-        textAlign.value = style.textAlign || 'center';
-        isBold.value = style.bold || false;
-        isItalic.value = style.italic || false;
-      }
-      isUpdatingFromProps = false;
-    } else {
-      localProperties.value = null;
-    }
-  },
-  { deep: true, immediate: true }
-);
 
 // Debounced handler for property changes to reduce log spam
 const handlePropertyChange = debounce((newProperties: any, oldProperties: any) => {
@@ -590,30 +579,6 @@ const textAlignOptions = [
   { value: 'right', label: 'Aligné à droite', icon: '&#8680;' }
 ];
 
-// Style
-const fillColor = ref('#3B82F6');
-const fillOpacity = ref(0.2);
-const strokeColor = ref('#2563EB');
-const strokeWidth = ref(2);
-const strokeStyle = ref('solid');
-
-// Styles spécifiques au texte
-const textColor = ref('#000000');
-const fontSize = ref('14px');
-const textBackgroundColor = ref('#FFFFFF');
-const textBackgroundOpacity = ref(1);
-const fontFamily = ref('Arial, sans-serif');
-const textAlign = ref('center');
-const isBold = ref(false);
-const isItalic = ref(false);
-const fixedPhysicalSize = ref(false);
-
-// Ajouter l'état pour les sections collapsables
-const sectionsCollapsed = ref({
-  style: false,
-  properties: false
-});
-
 const showFillOptions = computed(() => {
   const shapeType = props.selectedShape?.properties?.type;
   console.log('[DrawingTools] Calcul de showFillOptions', {
@@ -682,8 +647,18 @@ const updateStyle = (style: any) => {
 const updateTextStyle = (style: any) => {
   if (props.selectedShape?.properties?.type !== 'TextRectangle') return;
   
-  // Si on met à jour les propriétés de texte, on les envoie au parent
-  emit('style-update', { ...style }); 
+  // Créer un objet de style complet avec les valeurs actuelles
+  const updatedStyle = {
+    textColor: props.selectedShape.properties.style?.textColor,
+    fontFamily: props.selectedShape.properties.style?.fontFamily,
+    textAlign: props.selectedShape.properties.style?.textAlign,
+    bold: props.selectedShape.properties.style?.bold,
+    italic: props.selectedShape.properties.style?.italic,
+    ...style // Écraser avec les nouvelles valeurs
+  };
+
+  // Émettre l'événement avec le style complet
+  emit('style-update', updatedStyle);
 };
 
 // Fonctions pour le texte
