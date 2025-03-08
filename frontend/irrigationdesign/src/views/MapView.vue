@@ -363,7 +363,7 @@
   </div>
 </template>
 <script setup lang="ts">
-  import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed } from 'vue';
+import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed } from 'vue';
 import type { LatLngTuple } from 'leaflet';
 import * as L from 'leaflet';
 import 'leaflet-simple-map-screenshoter';
@@ -374,15 +374,16 @@ import { useMapState } from '../composables/useMapState';
 import { useIrrigationStore } from '@/stores/irrigation';
 import { useDrawingStore } from '@/stores/drawing';
 import type { Plan } from '@/stores/irrigation';
-  import type { DrawingElement, ShapeType, CircleData, RectangleData, SemicircleData, LineData, TextData } from '@/types/drawing';
+import type { DrawingElement, ShapeType, CircleData, RectangleData, SemicircleData, LineData, TextData, PolygonData } from '@/types/drawing';
 import { CircleArc } from '@/utils/CircleArc';
 import { TextRectangle } from '@/utils/TextRectangle';
+import { Polygon } from '@/utils/Polygon';
 import { useAuthStore } from '@/stores/auth';
-  import type { UserDetails } from '@/types/user';
+import type { UserDetails } from '@/types/user';
 import api from '@/services/api';
 import NewPlanModal from '@/components/NewPlanModal.vue';
-  import jsPDF from 'jspdf';
-  import logo from '@/assets/logo.jpeg';
+import jsPDF from 'jspdf';
+import logo from '@/assets/logo.jpeg';
 const mapContainer = ref<HTMLElement | null>(null);
 const irrigationStore = useIrrigationStore();
 const drawingStore = useDrawingStore();
@@ -532,6 +533,13 @@ onMounted(async () => {
     if (authStore.user?.user_type === 'dealer') {
       await loadDealerClients();
     }
+
+    // Écouter l'événement de création de forme
+    window.addEventListener('shape:created', ((event: CustomEvent) => {
+      const { shape, type, properties } = event.detail;
+      console.log('[MapView] Nouvelle forme créée', { shape, type, properties });
+      drawingStore.addElement(shape);
+    }) as EventListener);
   } catch (error) {
     console.error('Error during component mount:', error);
     // S'assurer que l'état est propre en cas d'erreur
@@ -582,6 +590,7 @@ onBeforeUnmount(() => {
   if (map.value) {
     map.value.off('moveend');
   }
+  window.removeEventListener('shape:created', (() => {}) as EventListener);
 });
 // Fonction pour nettoyer la carte
 function clearMap() {
@@ -661,6 +670,23 @@ async function refreshMapWithPlan(planId: number) {
                 style: textData.style,
                 rotation: textData.rotation || 0
               };
+              break;
+            }
+            case 'POLYGON': {
+              const polygonData = element.data as PolygonData;
+              if (polygonData.points && polygonData.points.length > 0) {
+                const points = polygonData.points.map(p => L.latLng(p[1], p[0]));
+                layer = new Polygon([points], {
+                  ...polygonData.style,
+                  pmIgnore: false
+                });
+                (layer as Polygon).updateProperties();
+                console.log('[refreshMapWithPlan] Polygon restauré', {
+                  points: points.length,
+                  style: polygonData.style,
+                  properties: (layer as Polygon).properties
+                });
+              }
               break;
             }
             case 'CERCLE': {
@@ -820,7 +846,22 @@ async function savePlan() {
       .map(el => el.id as number));
     // Identifiants actuellement présents sur la carte
     const currentLayerIds = new Set<number>();
+
+    // Log pour le debug
+    console.log('[savePlan] Début de la sauvegarde', {
+      featureGroupLayers: featureGroup.value.getLayers().length,
+      existingIds: Array.from(existingIds),
+      currentElements: drawingStore.getCurrentElements
+    });
+
     featureGroup.value.eachLayer((layer: L.Layer) => {
+      console.log('[savePlan] Traitement de la couche', {
+        type: (layer as any).properties?.type,
+        isPolygon: layer instanceof L.Polygon,
+        isCircleArc: layer instanceof CircleArc,
+        properties: (layer as any).properties
+      });
+
       // Vérifier d'abord si c'est un TextRectangle
       if (layer instanceof TextRectangle) {
         const bounds = layer.getBounds();
@@ -861,93 +902,169 @@ async function savePlan() {
           currentLayerIds.add((layer as any)._dbId);
         }
         return;
-      }
-      const baseData = {
-        style: {
-          color: (layer as any).options?.color || '#3388ff',
-          fillColor: (layer as any).options?.fillColor || '#3388ff',
-          fillOpacity: (layer as any).options?.fillOpacity || 0.2,
-          weight: (layer as any).options?.weight || 3,
-          opacity: (layer as any).options?.opacity || 1
-        }
-      };
-      let type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | undefined;
-      let data: any;
-      if (layer instanceof L.Circle) {
-        type_forme = 'CERCLE';
-        data = {
-          ...baseData,
-          center: [(layer as L.Circle).getLatLng().lng, (layer as L.Circle).getLatLng().lat],
-          radius: layer.getRadius()
-        };
-      } else if (layer instanceof L.Rectangle) {
-        type_forme = 'RECTANGLE';
-        const bounds = layer.getBounds();
-        data = {
-          ...baseData,
-          bounds: {
-            southWest: [bounds.getSouthWest().lng, bounds.getSouthWest().lat],
-            northEast: [bounds.getNorthEast().lng, bounds.getNorthEast().lat]
-          }
-        };
-      } else if ((layer as any).properties?.type === 'Semicircle') {
-        type_forme = 'DEMI_CERCLE';
-        let center;
-        if (typeof (layer as any).getLatLng === 'function') {
-          center = (layer as any).getLatLng();
-        } else if ((layer as any).getCenter && typeof (layer as any).getCenter === 'function') {
-          center = (layer as any).getCenter();
-        } else if ((layer as any)._latlng) {
-          center = (layer as any)._latlng;
-        } else {
-          center = { lat: 0, lng: 0 };
-        }
-        const radius = (layer as any).getRadius ? (layer as any).getRadius() : 0;
-        const startAngle = (layer as any).properties?.style?.startAngle || 0;
-        const endAngle = (layer as any).properties?.style?.stopAngle || 180;
-        data = {
-          ...baseData,
+      } else if (layer instanceof CircleArc || (layer as any).properties?.type === 'Semicircle') {
+        // Traitement spécifique pour les demi-cercles
+        const center = typeof (layer as any).getCenter === 'function' 
+          ? (layer as any).getCenter() 
+          : (layer as any).getLatLng();
+        const semicircleData: SemicircleData = {
           center: [center.lng, center.lat],
-          radius: radius,
-          startAngle: startAngle,
-          endAngle: endAngle
-        };
-      } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-        type_forme = 'LIGNE';
-        const latLngs = layer.getLatLngs() as L.LatLng[];
-        data = {
-          ...baseData,
-          points: latLngs.map(ll => [ll.lng, ll.lat])
-        };
-      }
-      if (type_forme && data) {
-        let elementId: number | undefined = (layer as any)._elementId;
-        if ((layer as any)._dbId) {
-          elementId = (layer as any)._dbId;
-          if (typeof elementId === 'number') {
-            currentLayerIds.add(elementId);
+          radius: (layer as any).getRadius(),
+          startAngle: (layer as any).properties?.startAngle || 0,
+          endAngle: (layer as any).properties?.stopAngle || 180,
+          style: {
+            color: (layer as any).options?.color || '#3388ff',
+            fillColor: (layer as any).options?.fillColor || '#3388ff',
+            fillOpacity: (layer as any).options?.fillOpacity || 0.2,
+            weight: (layer as any).options?.weight || 3,
+            opacity: (layer as any).options?.opacity || 1
           }
-        }
+        };
+
         elements.push({
-          id: elementId,
-          type_forme,
-          data: {
-            ...data,
-            rotation: (layer as any).properties?.rotation || 0
-          }
+          id: (layer as any)._dbId,
+          type_forme: 'DEMI_CERCLE',
+          data: semicircleData
         });
+
+        if ((layer as any)._dbId) {
+          currentLayerIds.add((layer as any)._dbId);
+        }
+
+        console.log('[savePlan] Demi-cercle ajouté aux éléments', {
+          id: (layer as any)._dbId,
+          center: semicircleData.center,
+          radius: semicircleData.radius,
+          angles: [semicircleData.startAngle, semicircleData.endAngle],
+          style: semicircleData.style
+        });
+      } else if (layer instanceof L.Polygon && !(layer instanceof L.Rectangle)) {
+        // Traitement spécifique pour les polygones
+        const polygonLayer = layer as L.Polygon;
+        const latLngs = polygonLayer.getLatLngs()[0] as L.LatLng[];
+        
+        const data: PolygonData = {
+          points: latLngs.map(ll => [ll.lng, ll.lat] as [number, number]),
+          style: {
+            color: (layer as any).options?.color || '#3388ff',
+            fillColor: (layer as any).options?.fillColor || '#3388ff',
+            fillOpacity: (layer as any).options?.fillOpacity || 0.2,
+            weight: (layer as any).options?.weight || 3,
+            opacity: (layer as any).options?.opacity || 1
+          }
+        };
+
+        elements.push({
+          id: (layer as any)._dbId,
+          type_forme: 'POLYGON',
+          data
+        });
+
+        if ((layer as any)._dbId) {
+          currentLayerIds.add((layer as any)._dbId);
+        }
+
+        console.log('[savePlan] Polygone ajouté aux éléments', {
+          id: (layer as any)._dbId,
+          points: data.points.length,
+          style: data.style
+        });
+      } else {
+        const baseData = {
+          style: {
+            color: (layer as any).options?.color || '#3388ff',
+            fillColor: (layer as any).options?.fillColor || '#3388ff',
+            fillOpacity: (layer as any).options?.fillOpacity || 0.2,
+            weight: (layer as any).options?.weight || 3,
+            opacity: (layer as any).options?.opacity || 1
+          }
+        };
+        let type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | undefined;
+        let data: any;
+        if (layer instanceof L.Circle) {
+          type_forme = 'CERCLE';
+          data = {
+            ...baseData,
+            center: [(layer as L.Circle).getLatLng().lng, (layer as L.Circle).getLatLng().lat],
+            radius: layer.getRadius()
+          };
+        } else if (layer instanceof L.Rectangle) {
+          type_forme = 'RECTANGLE';
+          const bounds = layer.getBounds();
+          data = {
+            ...baseData,
+            bounds: {
+              southWest: [bounds.getSouthWest().lng, bounds.getSouthWest().lat],
+              northEast: [bounds.getNorthEast().lng, bounds.getNorthEast().lat]
+            }
+          };
+        } else if ((layer as any).properties?.type === 'Semicircle') {
+          type_forme = 'DEMI_CERCLE';
+          let center;
+          if (typeof (layer as any).getLatLng === 'function') {
+            center = (layer as any).getLatLng();
+          } else if ((layer as any).getCenter && typeof (layer as any).getCenter === 'function') {
+            center = (layer as any).getCenter();
+          } else if ((layer as any)._latlng) {
+            center = (layer as any)._latlng;
+          } else {
+            center = { lat: 0, lng: 0 };
+          }
+          const radius = (layer as any).getRadius ? (layer as any).getRadius() : 0;
+          const startAngle = (layer as any).properties?.style?.startAngle || 0;
+          const endAngle = (layer as any).properties?.style?.stopAngle || 180;
+          data = {
+            ...baseData,
+            center: [center.lng, center.lat],
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle
+          };
+        } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+          type_forme = 'LIGNE';
+          const latLngs = layer.getLatLngs() as L.LatLng[];
+          data = {
+            ...baseData,
+            points: latLngs.map(ll => [ll.lng, ll.lat])
+          };
+        }
+        if (type_forme && data) {
+          let elementId: number | undefined = (layer as any)._elementId;
+          if ((layer as any)._dbId) {
+            elementId = (layer as any)._dbId;
+            if (typeof elementId === 'number') {
+              currentLayerIds.add(elementId);
+            }
+          }
+          elements.push({
+            id: elementId,
+            type_forme,
+            data: {
+              ...data,
+              rotation: (layer as any).properties?.rotation || 0
+            }
+          });
+        }
       }
     });
+
+    // Log pour le debug
+    console.log('[savePlan] Éléments à sauvegarder', {
+      totalElements: elements.length,
+      elements: elements.map(el => ({
+        type: el.type_forme,
+        hasPoints: 'points' in el.data,
+        hasStyle: 'style' in el.data
+      }))
+    });
+
     // Identifier les éléments supprimés
     const elementsToDelete = Array.from(existingIds).filter(id => !currentLayerIds.has(id));
-    console.log('Sauvegarde du plan:', {
-      totalElements: elements.length,
-      elementsToDelete: elementsToDelete.length,
-      details: { elements, elementsToDelete }
-    });
+    
     drawingStore.elements = elements;
     // Passer les éléments à supprimer au store
     const updatedPlan = await drawingStore.saveToPlan(currentPlan.value.id, { elementsToDelete });
+    
     // Mettre à jour le plan courant avec les nouvelles données
     if (updatedPlan && currentPlan.value?.id) {
       const planId = currentPlan.value.id;
@@ -957,6 +1074,7 @@ async function savePlan() {
       };
       irrigationStore.updatePlanDetails(planId, updatedPlan);
     }
+    
     saveStatus.value = 'success';
     setTimeout(() => {
       saveStatus.value = null;
@@ -1455,8 +1573,8 @@ function clearLastPlan() {
             }
           }
         } catch (error) {
-          console.error(`[generateSynthesis] Erreur capture forme ${i + 1}:`, error);
-        }
+            console.error(`[generateSynthesis] Erreur capture forme ${i + 1}:`, error);
+          }
       }
       // Retirer le screenshoter
       map.value.removeControl(screenshoter);

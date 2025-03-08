@@ -7,6 +7,7 @@ import { Rectangle } from '../utils/Rectangle';
 import { TextRectangle } from '../utils/TextRectangle';
 import { Line } from '../utils/Line';
 import { Polygon } from '../utils/Polygon';
+import { ElevationLine } from '../utils/ElevationLine';
 import type { TextStyle, TextMarker } from '../types/leaflet';
 import type { DrawableLayer } from '../types/drawing';
 import * as turf from '@turf/turf';
@@ -113,10 +114,6 @@ const formatMeasure = (value: number, unit: string = 'm', label: string = ''): s
     formattedUnit = unit;
   }
   return label ? `${label}: ${formattedValue} ${formattedUnit}` : `${formattedValue} ${formattedUnit}`;
-};
-// Fonction pour formater les angles
-const formatAngle = (angle: number): string => {
-  return `${((angle % 360 + 360) % 360).toFixed(1)}°`;
 };
 // Interface pour les points de contrôle avec mesure
 interface ControlPoint extends L.CircleMarker {
@@ -475,7 +472,9 @@ export function useMapDrawing(): MapDrawingReturn {
         Polygon: layer instanceof L.Polygon,
         Polyline: layer instanceof L.Polyline,
         CircleArc: layer instanceof CircleArc,
-        TextRectangle: layer instanceof TextRectangle
+        TextRectangle: layer instanceof TextRectangle,
+        ElevationLine: layer instanceof ElevationLine,
+        Line: layer instanceof Line
       },
       options: layer.options
     });
@@ -543,7 +542,16 @@ export function useMapDrawing(): MapDrawingReturn {
         properties.surfaceExterieure = properties.area;
       }
       else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-        if (layer instanceof Line) {
+        // Vérifier d'abord si c'est un ElevationLine
+        if (layer instanceof ElevationLine) {
+          // Conserver le type ElevationLine et ses propriétés spécifiques
+          layer.updateProperties();
+          Object.assign(properties, {
+            ...layer.properties,
+            type: 'ElevationLine'
+          });
+          console.log('[calculateShapeProperties] ElevationLine properties:', properties);
+        } else if (layer instanceof Line) {
           // Si c'est notre classe Line personnalisée
           layer.updateProperties();
           // Utiliser les propriétés calculées par la classe
@@ -563,6 +571,7 @@ export function useMapDrawing(): MapDrawingReturn {
           properties.dimensions = {
             width
           };
+          properties.type = 'Line';
         }
       }
       // Ajouter les propriétés de style
@@ -653,6 +662,7 @@ export function useMapDrawing(): MapDrawingReturn {
     mapInstance.on('pm:create', async (e: any) => {
       const layer = e.layer;
       featureGroup.value?.addLayer(layer);
+
       // Déterminer le type de forme
       let shapeType = 'unknown';
       if (layer instanceof L.Circle) {
@@ -664,9 +674,20 @@ export function useMapDrawing(): MapDrawingReturn {
       } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
         shapeType = 'Line';
       }
+
       // Calculer et initialiser les propriétés
       layer.properties = calculateShapeProperties(layer, shapeType);
       selectedShape.value = layer;
+
+      // Émettre un événement pour notifier la création
+      window.dispatchEvent(new CustomEvent('shape:created', {
+        detail: {
+          shape: layer,
+          type: shapeType,
+          properties: layer.properties
+        }
+      }));
+
       // Ajouter les événements de survol
       layer.on('mouseover', () => {
         console.log('[mouseover] Survol de la forme', {
@@ -677,6 +698,7 @@ export function useMapDrawing(): MapDrawingReturn {
           generateTempControlPoints(layer);
         }
       });
+
       layer.on('mouseout', () => {
         console.log('[mouseout] Sortie de la forme', {
           type: shapeType,
@@ -686,6 +708,7 @@ export function useMapDrawing(): MapDrawingReturn {
           tempControlPointsGroup.value?.clearLayers();
         }
       });
+
       // Ajouter les points de contrôle selon le type
       if (shapeType === 'Semicircle') {
         const center = layer.getLatLng();
@@ -722,7 +745,16 @@ export function useMapDrawing(): MapDrawingReturn {
         selectedShape.value = rectangle;
         updateRectangleControlPoints(rectangle);
       } else if (layer instanceof L.Polygon) {
-        updatePolygonControlPoints(layer);
+        // Convertir en notre Polygon personnalisé
+        const latLngs = layer.getLatLngs()[0] as L.LatLngExpression[];
+        const polygon = new Polygon([latLngs], {
+          ...layer.options
+        });
+        polygon.updateProperties();
+        featureGroup.value?.removeLayer(layer);
+        featureGroup.value?.addLayer(polygon);
+        selectedShape.value = polygon;
+        updatePolygonControlPoints(polygon);
       } else if (layer instanceof Line) {
         updateLineControlPoints(layer);
       } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
@@ -738,6 +770,7 @@ export function useMapDrawing(): MapDrawingReturn {
         selectedShape.value = line;
         updateLineControlPoints(line);
       }
+
       // Afficher le message d'aide
       showHelpMessage('Cliquez sur la forme pour afficher les points de contrôle');
     });
@@ -1163,6 +1196,60 @@ export function useMapDrawing(): MapDrawingReturn {
                 }
                 // Désactiver le mode dessin
                 map.value?.pm.disableDraw();
+              }
+            });
+            break;
+          case 'ElevationLine':
+            showHelpMessage('Cliquez et maintenez pour tracer le profil altimétrique');
+            map.value?.pm.enableDraw('Line', {
+              finishOn: 'mouseup',
+              continueDrawing: false, // Désactiver la continuation
+              allowSelfIntersection: false,
+              templineStyle: {
+                color: '#FF4500',
+                weight: 4,
+                opacity: 0.8
+              }
+            });
+
+            // Désactiver explicitement la continuation après le dessin
+            map.value?.pm.setGlobalOptions({
+              continueDrawing: false,
+              finishOn: 'mouseup'
+            } as any);
+
+            // Supprimer l'ancien gestionnaire d'événements s'il existe
+            map.value?.off('pm:create');
+            // Ajouter le nouveau gestionnaire
+            map.value?.on('pm:create', async (e: any) => {
+              if (e.shape === 'Line' && e.layer) {
+                const latLngs = e.layer.getLatLngs();
+                // Supprimer la ligne temporaire
+                map.value?.removeLayer(e.layer);
+                if (featureGroup.value?.hasLayer(e.layer)) {
+                  featureGroup.value.removeLayer(e.layer);
+                }
+
+                // Créer une nouvelle ligne d'élévation
+                const elevationLine = new ElevationLine(latLngs, {
+                  color: '#FF4500',
+                  weight: 4,
+                  opacity: 0.8
+                });
+
+                // Ajouter la ligne au groupe de fonctionnalités
+                if (featureGroup.value) {
+                  featureGroup.value.addLayer(elevationLine);
+                  selectedShape.value = elevationLine;
+                  // Initialiser le profil d'élévation
+                  await elevationLine.updateElevationProfile();
+                  // Ajouter les points de contrôle
+                  updateLineControlPoints(elevationLine);
+                }
+
+                // Désactiver le mode dessin et réinitialiser l'outil
+                map.value?.pm.disableDraw();
+                currentTool.value = '';
               }
             });
             break;
@@ -2019,6 +2106,92 @@ export function useMapDrawing(): MapDrawingReturn {
       });
     };
     updateMidPoints();
+
+    // Gestion spécifique pour ElevationLine
+    if (layer instanceof ElevationLine) {
+      // Force la mise à jour du profil après toute modification
+      layer.updateElevationProfile().then(() => {
+        console.log('[useMapDrawing] ElevationLine properties updated:', {
+          length: layer.properties.length,
+          elevationData: layer.getElevationData()
+        });
+      });
+
+      // Ajouter les mesures d'élévation aux points de contrôle
+      activeControlPoints.forEach((point, index) => {
+        const elevationData = layer.getElevationData();
+        if (elevationData[index]) {
+          addMeasureEvents(point as ControlPoint, layer, () => {
+            const data = elevationData[index];
+            return [
+              formatMeasure(data.distance, 'm', 'Distance'),
+              formatMeasure(data.elevation, 'm', 'Altitude'),
+              formatMeasure(layer.properties.elevationGain, 'm', 'Dénivelé +'),
+              formatMeasure(layer.properties.elevationLoss, 'm', 'Dénivelé -')
+            ].join('<br>');
+          });
+
+          // Modifier le comportement des points de contrôle pour ElevationLine
+          point.on('mousedown', (e: L.LeafletMouseEvent) => {
+            if (!map.value) return;
+            L.DomEvent.stopPropagation(e);
+            map.value.dragging.disable();
+
+            const onMouseMove = (e: L.LeafletMouseEvent) => {
+              // Utiliser la méthode spécifique d'ElevationLine pour le déplacement
+              layer.moveVertex(index, e.latlng, false);
+              // Mettre à jour la position du point de contrôle
+              point.setLatLng(e.latlng);
+            };
+
+            const onMouseUp = () => {
+              if (!map.value) return;
+              map.value.off('mousemove', onMouseMove);
+              document.removeEventListener('mouseup', onMouseUp);
+              map.value.dragging.enable();
+
+              // S'assurer que c'est toujours une ElevationLine
+              if (layer instanceof ElevationLine) {
+                layer.updateElevationProfile();
+                // Forcer la mise à jour des propriétés
+                selectedShape.value = null;
+                nextTick(() => {
+                  selectedShape.value = layer;
+                });
+              }
+            };
+
+            map.value.on('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+          });
+        }
+      });
+
+      // Écouter les événements de mise à jour du profil
+      layer.on('elevation:updated', () => {
+        // Mettre à jour les mesures affichées
+        activeControlPoints.forEach((point, index) => {
+          const elevationData = layer.getElevationData();
+          if (elevationData[index] && (point as any).measureDiv) {
+            const data = elevationData[index];
+            (point as any).measureDiv.innerHTML = [
+              formatMeasure(data.distance, 'm', 'Distance'),
+              formatMeasure(data.elevation, 'm', 'Altitude'),
+              formatMeasure(layer.properties.elevationGain, 'm', 'Dénivelé +'),
+              formatMeasure(layer.properties.elevationLoss, 'm', 'Dénivelé -')
+            ].join('<br>');
+          }
+        });
+      });
+
+      // Désactiver l'ajout de points intermédiaires pour ElevationLine
+      if (map.value) {
+        map.value.pm.setGlobalOptions({
+          preventMarkerRemoval: true,
+          preventVertexEdit: true
+        } as any);
+      }
+    }
   };
   // Mettre à jour la fonction updatePolygonControlPoints pour ajouter plus de mesures
   const updatePolygonControlPoints = (layer: L.Polygon) => {
@@ -2400,85 +2573,77 @@ export function useMapDrawing(): MapDrawingReturn {
     if (!map.value || !featureGroup.value) return;
     clearActiveControlPoints();
     const center = layer.getCenter();
-    const radius = layer.getRadius();
     const startAngle = layer.getStartAngle();
     const stopAngle = layer.getStopAngle();
     const openingAngle = layer.getOpeningAngle();
-    // Points de contrôle des angles (rouges) - Utiliser les nouvelles méthodes
+
+    // Points de contrôle des angles (rouges)
     const startPoint = layer.calculatePointOnArc(startAngle);
     const stopPoint = layer.calculatePointOnArc(stopAngle);
     const startControl = createControlPoint(startPoint, '#DC2626');
     const stopControl = createControlPoint(stopPoint, '#DC2626');
     activeControlPoints.push(startControl, stopControl);
-    // Ajouter les mesures aux points de contrôle des angles
-    addMeasureEvents(startControl, layer, () => {
-      return `Angle d'ouverture: ${formatAngle(openingAngle)}`;
-    });
-    addMeasureEvents(stopControl, layer, () => {
-      return `Angle d'ouverture: ${formatAngle(openingAngle)}`;
-    });
+
     // Point central (vert)
     const centerPoint = createControlPoint(center, '#059669');
     activeControlPoints.push(centerPoint);
-    // Ajouter les mesures au point central
-    addMeasureEvents(centerPoint, layer, () => {
-      const area = layer.properties.area || 0;
-      return [
-        formatMeasure(radius, 'm', 'Rayon'),
-        formatMeasure(area, 'm²', 'Surface'),
-        `Angle: ${formatAngle(openingAngle)}`
-      ].join('<br>');
-    });
+
     // Point de contrôle du rayon au milieu de l'arc (bleu)
-    // Ne pas afficher le point bleu si l'angle d'ouverture est trop petit
+    let radiusControl: L.CircleMarker | null = null;
     if (openingAngle > 5) {
-      // Utiliser la méthode de CircleArc pour trouver le point milieu sur l'arc
       const midPoint = layer.calculateMidpointPosition();
-      const radiusControl = createControlPoint(midPoint, '#2563EB');
+      radiusControl = createControlPoint(midPoint, '#2563EB');
       activeControlPoints.push(radiusControl);
-      // Ajouter les mesures au point de contrôle du rayon
-      addMeasureEvents(radiusControl, layer, () => {
-        return formatMeasure(layer.getRadius(), 'm', 'Rayon');
-      });
+
       // Gestion du redimensionnement via le point de contrôle du rayon
       radiusControl.on('mousedown', (e: L.LeafletMouseEvent) => {
         if (!map.value) return;
         L.DomEvent.stopPropagation(e);
         map.value.dragging.disable();
         let isDragging = true;
+
         const onMouseMove = (e: L.LeafletMouseEvent) => {
           if (!isDragging) return;
           const newRadius = center.distanceTo(e.latlng);
           layer.setRadius(newRadius);
+
           // Recalculer les positions des points de contrôle
           const newStartPoint = layer.calculatePointOnArc(startAngle);
           const newStopPoint = layer.calculatePointOnArc(stopAngle);
           const newMidPoint = layer.calculateMidpointPosition();
+
           // Mettre à jour les positions des points de contrôle
           startControl.setLatLng(newStartPoint);
           stopControl.setLatLng(newStopPoint);
-          radiusControl.setLatLng(newMidPoint);
-          // Les propriétés sont automatiquement mises à jour par la méthode setRadius
+          radiusControl?.setLatLng(newMidPoint);
+
+          // Forcer la mise à jour des propriétés pendant le déplacement
+          layer.updateProperties();
           selectedShape.value = layer;
-          // Forcer la mise à jour des tooltips pour refléter le nouveau rayon
-          if (radiusControl) {
-            const measureDiv = (radiusControl as ControlPoint).measureDiv;
-            if (measureDiv) {
-              measureDiv.innerHTML = formatMeasure(newRadius, 'm', 'Rayon');
-            }
-          }
         };
+
         const onMouseUp = () => {
           isDragging = false;
           if (!map.value) return;
           map.value.off('mousemove', onMouseMove);
           document.removeEventListener('mouseup', onMouseUp);
           map.value.dragging.enable();
+
+          // Forcer la mise à jour des propriétés à la fin du redimensionnement
+          layer.updateProperties();
+          selectedShape.value = null;
+          nextTick(() => {
+            selectedShape.value = layer;
+          });
+          // Mettre à jour les propriétés via la méthode globale
+          updateLayerProperties(layer, 'Semicircle');
         };
+
         map.value.on('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
       });
     }
+
     // Gestion du déplacement des points de contrôle des angles
     [startControl, stopControl].forEach((angleControl, index) => {
       angleControl.on('mousedown', (e: L.LeafletMouseEvent) => {
@@ -2486,95 +2651,129 @@ export function useMapDrawing(): MapDrawingReturn {
         L.DomEvent.stopPropagation(e);
         map.value.dragging.disable();
         let isDragging = true;
-        // Référence au point bleu
-        const radiusControl = activeControlPoints.find(pt => (pt as any).options?.color === '#2563EB');
-        // On ne cache plus le point bleu pendant le déplacement
+
         const onMouseMove = (e: L.LeafletMouseEvent) => {
           if (!isDragging || !map.value) return;
-          const newAngle = Math.atan2(
-            e.latlng.lat - center.lat,
-            e.latlng.lng - center.lng
-          ) * 180 / Math.PI;
+
+          // Calculer l'angle en degrés entre le centre et la position de la souris
+          const dx = e.latlng.lng - center.lng;
+          const dy = e.latlng.lat - center.lat;
+          let newAngle = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+
           // Mise à jour des angles selon le point déplacé
           if (index === 0) {
             layer.setAngles(newAngle, layer.getStopAngle());
           } else {
             layer.setAngles(layer.getStartAngle(), newAngle);
           }
-          // Recalculer les positions des points de contrôle après mise à jour des angles
+
+          // Recalculer les positions des points de contrôle
           const updatedStartAngle = layer.getStartAngle();
           const updatedStopAngle = layer.getStopAngle();
           const updatedOpeningAngle = layer.getOpeningAngle();
+
+          // Calculer les nouvelles positions des points de contrôle
           const newStartPoint = layer.calculatePointOnArc(updatedStartAngle);
           const newStopPoint = layer.calculatePointOnArc(updatedStopAngle);
-          // Mettre à jour les positions des points de contrôle rouges
+
+          // Mettre à jour les positions des points de contrôle
           startControl.setLatLng(newStartPoint);
           stopControl.setLatLng(newStopPoint);
+
           // Maintenir visible et mettre à jour le point bleu en temps réel
           if (radiusControl && updatedOpeningAngle > 5) {
             const newMidPoint = layer.calculateMidpointPosition();
             radiusControl.setLatLng(newMidPoint);
-            radiusControl.setStyle({ opacity: 1, fillOpacity: 1 }); // S'assurer qu'il est visible
+            radiusControl.setStyle({ opacity: 1, fillOpacity: 1 });
           } else if (radiusControl) {
-            // Si l'angle devient trop petit, masquer temporairement le point bleu
             radiusControl.setStyle({ opacity: 0, fillOpacity: 0 });
           }
-          // Les propriétés sont automatiquement mises à jour par la méthode setAngles
+
+          // Forcer la mise à jour des propriétés pendant le déplacement
+          layer.updateProperties();
           selectedShape.value = layer;
         };
+
         const onMouseUp = () => {
           isDragging = false;
           if (!map.value) return;
           map.value.off('mousemove', onMouseMove);
           document.removeEventListener('mouseup', onMouseUp);
           map.value.dragging.enable();
+
+          // Forcer la mise à jour des propriétés à la fin de la modification
+          layer.updateProperties();
+          selectedShape.value = null;
+          nextTick(() => {
+            selectedShape.value = layer;
+          });
+          // Mettre à jour les propriétés via la méthode globale
+          updateLayerProperties(layer, 'Semicircle');
+
           // Réafficher et repositionner correctement tous les points de contrôle
           updateSemicircleControlPoints(layer);
         };
+
         map.value.on('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
       });
     });
+
     // Gestion du déplacement du point central
     centerPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
       if (!map.value) return;
       L.DomEvent.stopPropagation(e);
       map.value.dragging.disable();
       let isDragging = true;
+
       const onMouseMove = (e: L.LeafletMouseEvent) => {
         if (!isDragging) return;
         // Utiliser la méthode de CircleArc pour déplacer le centre
         layer.setCenter(e.latlng);
         centerPoint.setLatLng(e.latlng);
+
         // Recalculer les positions des points de contrôle
         const updatedStartAngle = layer.getStartAngle();
         const updatedStopAngle = layer.getStopAngle();
         const updatedOpeningAngle = layer.getOpeningAngle();
         const newStartPoint = layer.calculatePointOnArc(updatedStartAngle);
         const newStopPoint = layer.calculatePointOnArc(updatedStopAngle);
+
         // Mettre à jour les positions des points de contrôle
         startControl.setLatLng(newStartPoint);
         stopControl.setLatLng(newStopPoint);
+
         // Mettre à jour le point de contrôle du rayon s'il existe
-        const radiusControl = activeControlPoints.find(pt => (pt as any).options?.color === '#2563EB');
         if (radiusControl && updatedOpeningAngle > 5) {
           const newMidPoint = layer.calculateMidpointPosition();
           radiusControl.setLatLng(newMidPoint);
-          radiusControl.setStyle({ opacity: 1, fillOpacity: 1 }); // S'assurer qu'il est visible
+          radiusControl.setStyle({ opacity: 1, fillOpacity: 1 });
         } else if (radiusControl) {
-          // Si l'angle devient trop petit, masquer temporairement le point bleu
           radiusControl.setStyle({ opacity: 0, fillOpacity: 0 });
         }
-        // Les propriétés sont automatiquement mises à jour par la méthode setCenter
+
+        // Forcer la mise à jour des propriétés pendant le déplacement
+        layer.updateProperties();
         selectedShape.value = layer;
       };
+
       const onMouseUp = () => {
         isDragging = false;
         if (!map.value) return;
         map.value.off('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
         map.value.dragging.enable();
+
+        // Forcer la mise à jour des propriétés à la fin du déplacement
+        layer.updateProperties();
+        selectedShape.value = null;
+        nextTick(() => {
+          selectedShape.value = layer;
+        });
+        // Mettre à jour les propriétés via la méthode globale
+        updateLayerProperties(layer, 'Semicircle');
       };
+
       map.value.on('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     });

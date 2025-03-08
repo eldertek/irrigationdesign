@@ -35,7 +35,7 @@ export class Polygon extends L.Polygon {
       add: () => this.updateProperties(),
       edit: () => this.updateProperties(),
       drag: () => this.updateProperties()
-    });
+    } as any);
   }
   /**
    * Calcule et met à jour les propriétés du polygone
@@ -149,9 +149,9 @@ export class Polygon extends L.Polygon {
   move(deltaLatLng: L.LatLng): this {
     const latLngs = this.getLatLngs()[0] as L.LatLng[];
     // Créer un nouveau tableau avec les coordonnées déplacées
-    const newLatLngs = latLngs.map(point => 
+    const newLatLngs = latLngs.map(point =>
       L.latLng(
-        point.lat + deltaLatLng.lat, 
+        point.lat + deltaLatLng.lat,
         point.lng + deltaLatLng.lng
       )
     );
@@ -165,50 +165,50 @@ export class Polygon extends L.Polygon {
   getCenter(): L.LatLng {
     const latLngs = this.getLatLngs()[0] as L.LatLng[];
     if (!latLngs || latLngs.length === 0) {
-        return new L.LatLng(0, 0);
+      return new L.LatLng(0, 0);
     }
     try {
-        // Vérifions si les coordonnées sont valides
-        const validPoints = latLngs.filter(point => 
-            point && typeof point.lat === 'number' && typeof point.lng === 'number' &&
-            !isNaN(point.lat) && !isNaN(point.lng) &&
-            Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180
-        );
-        if (validPoints.length === 0) {
-            console.warn('Aucun point valide dans le polygone pour calculer le centre');
-            return new L.LatLng(0, 0);
-        }
-        const coordinates = validPoints.map((ll: L.LatLng) => [ll.lng, ll.lat]);
-        coordinates.push(coordinates[0]); // Fermer le polygone
-        const polygonFeature = polygon([coordinates]);
-        const centroidPoint = centroid(polygonFeature);
-        // Vérifier que le résultat du centroid est valide
-        const centerLat = centroidPoint.geometry.coordinates[1];
-        const centerLng = centroidPoint.geometry.coordinates[0];
-        if (typeof centerLat !== 'number' || typeof centerLng !== 'number' || 
-            isNaN(centerLat) || isNaN(centerLng) ||
-            Math.abs(centerLat) > 90 || Math.abs(centerLng) > 180) {
-            throw new Error('Centroid calculé invalide');
-        }
-        return L.latLng(centerLat, centerLng);
+      // Vérifions si les coordonnées sont valides
+      const validPoints = latLngs.filter(point =>
+        point && typeof point.lat === 'number' && typeof point.lng === 'number' &&
+        !isNaN(point.lat) && !isNaN(point.lng) &&
+        Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180
+      );
+      if (validPoints.length === 0) {
+        console.warn('Aucun point valide dans le polygone pour calculer le centre');
+        return new L.LatLng(0, 0);
+      }
+      const coordinates = validPoints.map((ll: L.LatLng) => [ll.lng, ll.lat]);
+      coordinates.push(coordinates[0]); // Fermer le polygone
+      const polygonFeature = polygon([coordinates]);
+      const centroidPoint = centroid(polygonFeature);
+      // Vérifier que le résultat du centroid est valide
+      const centerLat = centroidPoint.geometry.coordinates[1];
+      const centerLng = centroidPoint.geometry.coordinates[0];
+      if (typeof centerLat !== 'number' || typeof centerLng !== 'number' ||
+        isNaN(centerLat) || isNaN(centerLng) ||
+        Math.abs(centerLat) > 90 || Math.abs(centerLng) > 180) {
+        throw new Error('Centroid calculé invalide');
+      }
+      return L.latLng(centerLat, centerLng);
     } catch (error) {
-        console.warn('Erreur lors du calcul du centroïde avec turf.js, utilisation de la méthode simple', error);
-        // Méthode alternative: moyenne des coordonnées valides
-        let totalLat = 0, totalLng = 0, count = 0;
-        for (const point of latLngs) {
-            if (point && typeof point.lat === 'number' && typeof point.lng === 'number' &&
-                !isNaN(point.lat) && !isNaN(point.lng) &&
-                Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180) {
-                totalLat += point.lat;
-                totalLng += point.lng;
-                count++;
-            }
+      console.warn('Erreur lors du calcul du centroïde avec turf.js, utilisation de la méthode simple', error);
+      // Méthode alternative: moyenne des coordonnées valides
+      let totalLat = 0, totalLng = 0, count = 0;
+      for (const point of latLngs) {
+        if (point && typeof point.lat === 'number' && typeof point.lng === 'number' &&
+          !isNaN(point.lat) && !isNaN(point.lng) &&
+          Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180) {
+          totalLat += point.lat;
+          totalLng += point.lng;
+          count++;
         }
-        if (count === 0) {
-            console.error('Impossible de calculer un centre valide pour le polygone');
-            return new L.LatLng(0, 0);
-        }
-        return new L.LatLng(totalLat / count, totalLng / count);
+      }
+      if (count === 0) {
+        console.error('Impossible de calculer un centre valide pour le polygone');
+        return new L.LatLng(0, 0);
+      }
+      return new L.LatLng(totalLat / count, totalLng / count);
     }
   }
   /**

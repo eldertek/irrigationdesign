@@ -292,10 +292,91 @@
               <span class="text-sm font-semibold text-gray-700">Périmètre :</span>
               <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.perimeter || 0) }}</span>
             </template>
+            <!-- ElevationLine -->
+            <template v-else-if="localProperties.type === 'ElevationLine'">
+              <span class="text-sm font-semibold text-gray-700">Longueur :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.length || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Altitude min :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.minElevation || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Altitude max :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.maxElevation || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Dénivelé + :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.elevationGain || 0) }}</span>
+              <span class="text-sm font-semibold text-gray-700">Dénivelé - :</span>
+              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.elevationLoss || 0) }}</span>
+            </template>
           </div>
         </div>
         <div v-else class="text-center text-sm text-gray-500">
           Aucune propriété disponible
+        </div>
+      </div>
+    </div>
+    <!-- Section de personnalisation des points d'échantillonnage -->
+    <div v-if="selectedShape && localProperties && localProperties.type === 'ElevationLine'" class="p-3 border-t border-gray-200">
+      <button 
+        class="flex items-center justify-between w-full text-sm font-semibold text-gray-700"
+        @click="toggleSection('samplePoints')"
+      >
+        <span>Points d'échantillonnage</span>
+        <svg 
+          class="w-4 h-4"
+          :class="{ 'rotate-180': !sectionsCollapsed.samplePoints }"
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      <div v-show="!sectionsCollapsed.samplePoints" class="mt-3">
+        <!-- Points normaux -->
+        <div class="mb-4">
+          <h4 class="text-sm font-semibold mb-2">Points normaux</h4>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-xs text-gray-600">Taille</label>
+              <input type="number" v-model="samplePointStyle.radius" min="2" max="10" step="1" 
+                     class="w-full px-2 py-1 border rounded" @change="updateSamplePointStyle">
+            </div>
+            <div>
+              <label class="text-xs text-gray-600">Couleur</label>
+              <input type="color" v-model="samplePointStyle.color" 
+                     class="w-full h-8 px-1 border rounded" @change="updateSamplePointStyle">
+            </div>
+            <div>
+              <label class="text-xs text-gray-600">Opacité</label>
+              <input type="range" v-model="samplePointStyle.fillOpacity" min="0" max="1" step="0.1" 
+                     class="w-full" @change="updateSamplePointStyle">
+            </div>
+            <div>
+              <label class="text-xs text-gray-600">Bordure</label>
+              <input type="number" v-model="samplePointStyle.weight" min="1" max="5" step="1" 
+                     class="w-full px-2 py-1 border rounded" @change="updateSamplePointStyle">
+            </div>
+          </div>
+        </div>
+
+        <!-- Points min/max -->
+        <div>
+          <h4 class="text-sm font-semibold mb-2">Points min/max</h4>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-xs text-gray-600">Taille</label>
+              <input type="number" v-model="minMaxPointStyle.radius" min="4" max="12" step="1" 
+                     class="w-full px-2 py-1 border rounded" @change="updateMinMaxPointStyle">
+            </div>
+            <div>
+              <label class="text-xs text-gray-600">Bordure</label>
+              <input type="number" v-model="minMaxPointStyle.weight" min="1" max="5" step="1" 
+                     class="w-full px-2 py-1 border rounded" @change="updateMinMaxPointStyle">
+            </div>
+            <div>
+              <label class="text-xs text-gray-600">Opacité</label>
+              <input type="range" v-model="minMaxPointStyle.fillOpacity" min="0" max="1" step="0.1" 
+                     class="w-full" @change="updateMinMaxPointStyle">
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -334,6 +415,12 @@ interface ShapeProperties {
   style?: any;
   rotation?: number;
   text?: string;
+  // Propriétés spécifiques au profil altimétrique
+  minElevation?: number;
+  maxElevation?: number;
+  elevationGain?: number;
+  elevationLoss?: number;
+  elevationData?: Array<{ distance: number; elevation: number }>;
 }
 const props = defineProps<{
   currentTool: string;
@@ -362,7 +449,24 @@ const isItalic = ref(false);
 // Sections collapsables
 const sectionsCollapsed = ref({
   style: false,
-  properties: false
+  properties: false,
+  samplePoints: false
+});
+// Styles des points d'échantillonnage
+const samplePointStyle = ref({
+  radius: 4,
+  color: '#FF4500',
+  fillColor: '#FF4500',
+  fillOpacity: 0.6,
+  weight: 2,
+  opacity: 0.8
+});
+// Styles des points min/max
+const minMaxPointStyle = ref({
+  radius: 6,
+  weight: 3,
+  opacity: 1,
+  fillOpacity: 1
 });
 // Computed pour l'alignement actuel
 const currentTextAlign = computed(() => {
@@ -402,6 +506,11 @@ watch(
           text: textContent.value,
           style: style
         });
+      }
+      // Initialiser les styles des points
+      if (newShape.properties?.type === 'ElevationLine') {
+        samplePointStyle.value = { ...newShape.properties.samplePointStyle };
+        minMaxPointStyle.value = { ...newShape.properties.minMaxPointStyle };
       }
     } else {
       localProperties.value = null;
@@ -493,7 +602,8 @@ const getToolIcon = (toolType: string) => {
     'Polygon': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 7-3 9H6l-3-9 9-7z" /></svg>',
     'delete': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>',
     'Line': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 19l18-14" /></svg>',
-    'TextRectangle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" /><path d="M9 8h6m-3 0v8" /></svg>'
+    'TextRectangle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" /><path d="M9 8h6m-3 0v8" /></svg>',
+    'ElevationLine': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h3l3-9 6 18 3-9h3" /></svg>'
   };
   return icons[toolType] || '';
 };
@@ -503,6 +613,7 @@ const drawingTools = [
   { type: 'Rectangle', label: 'Rectangle' },
   { type: 'Polygon', label: 'Polygone' },
   { type: 'Line', label: 'Ligne' },
+  { type: 'ElevationLine', label: 'Profil altimétrique' },
   { type: 'TextRectangle', label: 'Texte' },
   { type: 'delete', label: 'Supprimer' }
 ];
@@ -535,10 +646,10 @@ const showFillOptions = computed(() => {
     selectedShape: props.selectedShape
   });
   if (!shapeType) return false;
-  return ['Circle', 'Rectangle', 'Polygon', 'Semicircle'].includes(shapeType);
+  return ['Circle', 'Rectangle', 'Polygon', 'Semicircle'].includes(shapeType) && shapeType !== 'ElevationLine';
 });
 // Fonction pour basculer l'état des sections
-const toggleSection = (section: 'style' | 'properties') => {
+const toggleSection = (section: 'style' | 'properties' | 'samplePoints') => {
   sectionsCollapsed.value[section] = !sectionsCollapsed.value[section];
 };
 const getDashArray = (style: string): string => {
@@ -615,6 +726,7 @@ const typeTranslations = {
   'Line': 'Ligne',
   'Semicircle': 'Demi-cercle',
   'TextRectangle': 'Rectangle avec texte',
+  'ElevationLine': 'Profil altimétrique',
   'unknown': 'Inconnu'
 } as const;
 // Fonction pour formater les mesures
@@ -634,6 +746,21 @@ const formatArea = (value: number): string => {
 const formatAngle = (angle: number): string => {
   if (!angle) return '0°';
   return `${((angle % 360 + 360) % 360).toFixed(1)}°`;
+};
+// Mettre à jour les styles des points
+const updateSamplePointStyle = () => {
+  if (props.selectedShape?.properties?.type === 'ElevationLine') {
+    const style = {
+      ...samplePointStyle.value,
+      fillColor: samplePointStyle.value.color
+    };
+    (props.selectedShape.layer as any).setSamplePointStyle(style);
+  }
+};
+const updateMinMaxPointStyle = () => {
+  if (props.selectedShape?.properties?.type === 'ElevationLine') {
+    (props.selectedShape.layer as any).setMinMaxPointStyle(minMaxPointStyle.value);
+  }
 };
 </script>
 <style scoped>
@@ -950,5 +1077,39 @@ input:checked + .switch-label:before {
 }
 input:focus + .switch-label {
   box-shadow: 0 0 1px #3b82f6;
+}
+/* Styles pour les inputs de type range */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: #e2e8f0;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3B82F6;
+  cursor: pointer;
+}
+/* Styles pour les inputs de type color */
+input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  height: 32px;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
 }
 </style> 

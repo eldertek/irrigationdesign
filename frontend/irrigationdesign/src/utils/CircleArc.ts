@@ -130,13 +130,16 @@ export class CircleArc extends L.Polygon {
    * Définit les angles de début et de fin du demi-cercle
    */
   setAngles(startAngle: number, stopAngle: number): this {
-    // Normaliser les angles
+    // Normaliser les angles entre 0 et 360 degrés
     const normalizedStart = this.normalizeAngle(startAngle);
     const normalizedStop = this.normalizeAngle(stopAngle);
+
     // Calculer l'angle d'ouverture actuel
     const currentOpeningAngle = this.getOpeningAngle();
+
     // Calculer le nouvel angle d'ouverture
     let newOpeningAngle = (normalizedStop - normalizedStart + 360) % 360;
+
     // Si l'angle d'ouverture change trop brutalement, le limiter
     const maxAngleChange = 45; // Degrés maximum de changement par mouvement
     if (Math.abs(newOpeningAngle - currentOpeningAngle) > maxAngleChange) {
@@ -146,17 +149,27 @@ export class CircleArc extends L.Polygon {
         newOpeningAngle = currentOpeningAngle - maxAngleChange;
       }
     }
+
     // Limiter l'angle d'ouverture entre 5° et 355°
     newOpeningAngle = Math.max(5, Math.min(355, newOpeningAngle));
-    // Mettre à jour les angles
-    this.startAngle = normalizedStart;
-    this.stopAngle = (normalizedStart + newOpeningAngle) % 360;
+
+    // Mettre à jour les angles en fonction du point déplacé
+    if (this.startAngle === startAngle) {
+      // Si on déplace le point de fin
+      this.stopAngle = (this.startAngle + newOpeningAngle) % 360;
+    } else {
+      // Si on déplace le point de début
+      this.startAngle = normalizedStart;
+      this.stopAngle = (normalizedStart + newOpeningAngle) % 360;
+    }
+
     // Mettre à jour les propriétés
     this.properties.startAngle = this.startAngle;
     this.properties.stopAngle = this.stopAngle;
     this.properties.openingAngle = newOpeningAngle;
     this.properties.style.startAngle = this.startAngle;
     this.properties.style.stopAngle = this.stopAngle;
+
     // Mettre à jour la géométrie
     this.updateGeometry();
     return this;
@@ -217,9 +230,13 @@ export class CircleArc extends L.Polygon {
    */
   calculatePointOnArc(angle: number): L.LatLng {
     const rad = (angle * Math.PI) / 180;
+    const dx = this.radius * Math.cos(rad);
+    const dy = this.radius * Math.sin(rad);
+    const latOffset = (dy / 111319.9);
+    const lngOffset = (dx / (111319.9 * Math.cos(this.center.lat * Math.PI / 180)));
     return L.latLng(
-      this.center.lat + (this.radius / 111319.9) * Math.sin(rad),
-      this.center.lng + (this.radius / (111319.9 * Math.cos(this.center.lat * Math.PI / 180))) * Math.cos(rad)
+      this.center.lat + latOffset,
+      this.center.lng + lngOffset
     );
   }
   /**

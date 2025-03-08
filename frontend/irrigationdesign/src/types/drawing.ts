@@ -68,10 +68,23 @@ export interface TextData {
 export interface PolygonData extends BaseData {
   points: [number, number][];  // Array of [longitude, latitude]
 }
-export type ShapeData = CircleData | RectangleData | SemicircleData | LineData | TextData | PolygonData;
+export interface ElevationLineData {
+  points: [number, number][];
+  style: Style;
+  elevationData?: Array<{ distance: number; elevation: number }>;
+  samplePointStyle?: Style;
+  minMaxPointStyle?: Style;
+}
+export type ShapeData = 
+  | TextData 
+  | PolygonData 
+  | LineData 
+  | RectangleData 
+  | CircleData
+  | ElevationLineData;
 export interface DrawingElement {
   id?: number;
-  type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | 'POLYGON' | 'UNKNOWN';
+  type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | 'POLYGON' | 'ELEVATIONLINE' | 'UNKNOWN';
   data: ShapeData;
 }
 export interface ShapeType {
@@ -92,4 +105,86 @@ export interface ShapeType {
     [key: string]: any;
   };
   layer: any;
+}
+
+// Définir et exporter les types de base
+export interface BaseStyle {
+  color?: string;
+  fillColor?: string;
+  fillOpacity?: number;
+  weight?: number;
+  opacity?: number;
+  dashArray?: string;
+}
+
+// Définir les types de données pour chaque forme
+export interface TextData {
+  bounds: {
+    southWest: [number, number];
+    northEast: [number, number];
+  };
+  content: string;
+  style: BaseStyle & {
+    textStyle: TextStyle;
+  };
+  rotation?: number;
+}
+
+export interface PolygonData {
+  points: [number, number][];
+  style: BaseStyle;
+}
+
+export interface LineData {
+  points: [number, number][];
+  style: BaseStyle;
+}
+
+export interface RectangleData {
+  bounds: {
+    southWest: [number, number];
+    northEast: [number, number];
+  };
+  style: BaseStyle;
+}
+
+export interface CircleData {
+  center: [number, number];
+  radius: number;
+  style: BaseStyle;
+}
+
+export interface ElevationLineData {
+  points: [number, number][];
+  style: BaseStyle;
+  elevationData?: Array<{ distance: number; elevation: number }>;
+  samplePointStyle?: BaseStyle;
+  minMaxPointStyle?: BaseStyle;
+}
+
+// Union type pour toutes les formes possibles
+export type ShapeData = 
+  | TextData 
+  | PolygonData 
+  | LineData 
+  | RectangleData 
+  | CircleData
+  | ElevationLineData;
+
+// Type pour les types de formes possibles
+export type DrawingElementType = 
+  | 'CERCLE'
+  | 'RECTANGLE'
+  | 'DEMI_CERCLE'
+  | 'LIGNE'
+  | 'TEXTE'
+  | 'POLYGON'
+  | 'ELEVATIONLINE'
+  | 'UNKNOWN';
+
+// Interface principale pour un élément de dessin
+export interface DrawingElement {
+  id?: number;
+  type_forme: DrawingElementType;
+  data: ShapeData;
 } 
