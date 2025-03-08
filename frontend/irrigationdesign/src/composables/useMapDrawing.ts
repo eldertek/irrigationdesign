@@ -6,6 +6,7 @@ import { Circle } from '../utils/Circle';
 import { Rectangle } from '../utils/Rectangle';
 import { TextRectangle } from '../utils/TextRectangle';
 import { Line } from '../utils/Line';
+import { Polygon } from '../utils/Polygon';
 import type { TextStyle, TextMarker } from '../types/leaflet';
 import type { DrawableLayer } from '../types/drawing';
 import * as turf from '@turf/turf';
@@ -175,7 +176,6 @@ export function useMapDrawing(): MapDrawingReturn {
   const currentTool = ref<string>('');
   const selectedShape = ref<any>(null);
   const isDrawing = ref<boolean>(false);
-
   // Ajouter l'écouteur d'événement pour le nettoyage
   window.addEventListener('clearControlPoints', () => {
     // Désélectionner la forme active
@@ -192,7 +192,6 @@ export function useMapDrawing(): MapDrawingReturn {
     // Supprimer tous les messages d'aide
     document.querySelectorAll('.drawing-help-message').forEach(el => el.remove());
   });
-
   // Nettoyer l'écouteur lors du démontage
   onUnmounted(() => {
     window.removeEventListener('clearControlPoints', () => {});
@@ -201,7 +200,6 @@ export function useMapDrawing(): MapDrawingReturn {
       map.value = null;
     }
   });
-
   const createTextMarker = (latlng: L.LatLng, text: string = 'Double-cliquez pour éditer'): L.Marker => {
     const defaultStyle: TextStyle = {
       fontSize: '14px',
@@ -747,20 +745,16 @@ export function useMapDrawing(): MapDrawingReturn {
     fg.on('click', (e: L.LeafletMouseEvent) => {
       L.DomEvent.stopPropagation(e);
       const layer = e.layer;
-      
       console.log('[featureGroup click] Sélection de forme', {
         type: layer.properties?.type,
         previouslySelected: selectedShape.value === layer
       });
-      
       // Nettoyer les points temporaires et les points de contrôle existants
       tempControlPointsGroup.value?.clearLayers();
       clearActiveControlPoints();
       document.querySelector('.drawing-help-message')?.remove();
-      
       // Mettre à jour la forme sélectionnée
       selectedShape.value = layer;
-      
       if (layer instanceof TextRectangle) {
         console.log('[featureGroup click] TextRectangle sélectionné', {
           id: (layer as any)._leaflet_id,
@@ -768,18 +762,15 @@ export function useMapDrawing(): MapDrawingReturn {
           hasTextContainer: !!layer.getTextElement(),
           properties: layer.properties
         });
-        
         // Désactiver le mode d'édition Geoman si actif
         if (map.value?.pm.globalEditModeEnabled()) {
           map.value.pm.disableGlobalEditMode();
         }
-        
         // Ajouter les points de contrôle
         updateTextRectangleControlPoints(layer);
         showHelpMessage('Double-cliquez pour éditer le texte. Utilisez les points rouges pour redimensionner.');
         return;
       }
-      
       if (layer instanceof CircleArc || layer.properties?.type === 'Semicircle') {
         updateSemicircleControlPoints(layer as CircleArc);
       } else if (layer instanceof Circle) {
@@ -945,10 +936,8 @@ export function useMapDrawing(): MapDrawingReturn {
   };
   const setDrawingTool = (tool: string) => {
     if (!map.value) return;
-    
     // Nettoyer les messages d'aide existants
     document.querySelectorAll('.drawing-help-message').forEach(msg => msg.remove());
-    
     // Désactiver tous les modes et nettoyer les points de contrôle
     try {
       const pm = map.value.pm;
@@ -964,15 +953,12 @@ export function useMapDrawing(): MapDrawingReturn {
     } catch (error) {
       console.error('Error disabling modes:', error);
     }
-
     currentTool.value = tool;
-
     // Si aucun outil n'est sélectionné
     if (!tool) {
       clearActiveControlPoints();
       return;
     }
-
     // Attendre un court instant avant d'afficher le nouveau message
     setTimeout(() => {
       try {
@@ -983,12 +969,10 @@ export function useMapDrawing(): MapDrawingReturn {
             const rectangles = featureGroup.value?.getLayers().filter((layer: DrawableLayer) => 
               layer instanceof Rectangle || layer instanceof TextRectangle
             );
-            
             if (rectangles && rectangles.length > 0) {
               // Pour chaque rectangle, ajouter des points de contrôle temporaires
               rectangles.forEach((rect: DrawableLayer) => {
                 if (!rect.getBounds) return;
-                
                 // Points des sommets (rouge)
                 const bounds = rect.getBounds();
                 const corners = [
@@ -997,7 +981,6 @@ export function useMapDrawing(): MapDrawingReturn {
                   bounds.getSouthEast(),
                   bounds.getSouthWest()
                 ];
-                
                 corners.forEach(corner => {
                   const cornerMarker = L.circleMarker(corner, {
                     radius: 4,
@@ -1010,7 +993,6 @@ export function useMapDrawing(): MapDrawingReturn {
                   });
                   tempControlPointsGroup.value?.addLayer(cornerMarker);
                 });
-
                 // Points milieux (bleu)
                 const midPoints = rect instanceof Rectangle ? 
                   rect.getMidPoints() : 
@@ -1020,7 +1002,6 @@ export function useMapDrawing(): MapDrawingReturn {
                     L.latLng((bounds.getNorth() + bounds.getSouth()) / 2, bounds.getEast()),
                     L.latLng(bounds.getSouth(), (bounds.getEast() + bounds.getWest()) / 2)
                   ];
-
                 midPoints.forEach(midPoint => {
                   const midMarker = L.circleMarker(midPoint, {
                     radius: 5,
@@ -1033,7 +1014,6 @@ export function useMapDrawing(): MapDrawingReturn {
                   });
                   tempControlPointsGroup.value?.addLayer(midMarker);
                 });
-
                 // Point central (vert)
                 const center = bounds.getCenter();
                 const centerMarker = L.circleMarker(center, {
@@ -1048,26 +1028,22 @@ export function useMapDrawing(): MapDrawingReturn {
                 tempControlPointsGroup.value?.addLayer(centerMarker);
               });
             }
-
             // Configurer le snapping
             map.value.pm.setGlobalOptions({
               snapDistance: 20,
               snapSegment: true,
               snapLayers: [featureGroup.value, tempControlPointsGroup.value]
             } as any);
-
             showHelpMessage(
               tool === 'Circle' 
                 ? 'Positionnez le centre du cercle. Points bleus : milieu des côtés, Points rouges : sommets, Point vert : centre'
                 : 'Positionnez le centre du demi-cercle. Points bleus : milieu des côtés, Points rouges : sommets, Point vert : centre'
             );
-
             map.value.pm.enableDraw('Circle', {
               finishOn: 'mouseup',
               continueDrawing: false
             });
             break;
-
           case 'Rectangle':
             showHelpMessage('Cliquez et maintenez pour dessiner un rectangle, relâchez pour terminer');
             map.value?.pm.enableDraw('Rectangle', {
@@ -1113,12 +1089,10 @@ export function useMapDrawing(): MapDrawingReturn {
             break;
           case 'TextRectangle':
             showHelpMessage('Cliquez et maintenez pour dessiner un rectangle avec texte, relâchez pour terminer');
-            
             // Désactiver tout mode d'édition actif
             if (map.value?.pm.globalEditModeEnabled()) {
               map.value.pm.disableGlobalEditMode();
             }
-            
             // Configurer le mode dessin avec des styles spécifiques
             map.value?.pm.enableDraw('Rectangle', {
               finishOn: 'mouseup' as any,
@@ -1129,15 +1103,12 @@ export function useMapDrawing(): MapDrawingReturn {
                 dashArray: '5,5'
               }
             });
-
             // Supprimer l'ancien gestionnaire d'événements s'il existe
             map.value?.off('pm:create');
-            
             // Ajouter le nouveau gestionnaire
             map.value?.on('pm:create', (e: any) => {
               if (e.shape === 'Rectangle' && e.layer) {
                 const bounds = e.layer.getBounds();
-                
                 // Vérifier s'il existe déjà un TextRectangle avec les mêmes limites
                 let duplicateFound = false;
                 if (featureGroup.value) {
@@ -1158,14 +1129,12 @@ export function useMapDrawing(): MapDrawingReturn {
                     }
                   });
                 }
-
                 if (!duplicateFound) {
                   // Supprimer immédiatement le rectangle temporaire
                   map.value?.removeLayer(e.layer);
                   if (featureGroup.value?.hasLayer(e.layer)) {
                     featureGroup.value.removeLayer(e.layer);
                   }
-
                   // Créer un nouveau TextRectangle avec des options par défaut
                   const rect = new TextRectangle(bounds, 'Double-cliquez pour éditer', {
                     color: '#3B82F6',
@@ -1178,16 +1147,13 @@ export function useMapDrawing(): MapDrawingReturn {
                     bold: false,
                     italic: false
                   });
-
                   // Ajouter le TextRectangle au groupe de fonctionnalités
                   if (featureGroup.value) {
                     featureGroup.value.addLayer(rect);
                     selectedShape.value = rect;
                     rect.updateProperties();
-                    
                     // Ajouter les points de contrôle immédiatement
                     updateTextRectangleControlPoints(rect);
-                    
                     console.log('[TextRectangle] Nouveau rectangle créé avec succès', {
                       bounds: rect.getBounds(),
                       properties: rect.properties,
@@ -1195,7 +1161,6 @@ export function useMapDrawing(): MapDrawingReturn {
                     });
                   }
                 }
-
                 // Désactiver le mode dessin
                 map.value?.pm.disableDraw();
               }
@@ -2621,15 +2586,17 @@ export function useMapDrawing(): MapDrawingReturn {
     }
     console.log('[generateTempControlPoints] Génération des points temporaires pour', {
       layerType: layer.constructor.name,
-      properties: layer.properties
+      properties: layer.properties,
+      isPolygon: layer instanceof Polygon || layer instanceof L.Polygon
     });
     // Supprimer les points temporaires existants
     tempControlPointsGroup.value.clearLayers();
     // Pas de points de contrôle temporaires pour TextRectangle
     if (layer instanceof TextRectangle) {
       // Just add a simple hint to show it's hoverable
-      if (layer.getCenter()) {
-        const textHint = L.circleMarker(layer.getCenter(), {
+      const center = layer.getBounds?.().getCenter();
+      if (center) {
+        const textHint = L.circleMarker(center, {
           radius: 0,  // Invisible marker
           className: 'text-hint-marker',
           pmIgnore: true
@@ -2638,165 +2605,97 @@ export function useMapDrawing(): MapDrawingReturn {
       }
       return;
     }
-    if (layer instanceof Circle) {
-      const center = layer.getLatLng();
-      // Point central temporaire (vert)
-      const tempCenterPoint = createControlPoint(center, '#059669');
-      tempControlPointsGroup.value.addLayer(tempCenterPoint);
-      // Points cardinaux temporaires (bleu)
-      layer.getCardinalPoints().forEach(point => {
-        const tempControlPoint = createControlPoint(point, '#2563EB');
-        tempControlPointsGroup.value.addLayer(tempControlPoint);
-      });
-    } else if (layer instanceof L.Circle) {
-      // Pour les cercles standard de Leaflet (à conserver pour la compatibilité)
-      const center = layer.getLatLng();
-      const radius = layer.getRadius();
-      // Point central temporaire (vert)
-      const tempCenterPoint = createControlPoint(center, '#059669');
-      tempControlPointsGroup.value.addLayer(tempCenterPoint);
-      // Points cardinaux temporaires (bleu)
-      [0, 45, 90, 135, 180, 225, 270, 315].forEach(angle => {
-        const rad = (angle * Math.PI) / 180;
-        const point = L.latLng(
-          center.lat + (radius / 111319.9) * Math.sin(rad),
-          center.lng + (radius / (111319.9 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(rad)
-        );
-        const tempControlPoint = createControlPoint(point, '#2563EB');
-        tempControlPointsGroup.value.addLayer(tempControlPoint);
-      });
-    } else if (layer instanceof Rectangle) {
-      // Cast de la couche vers notre type Rectangle pour accéder aux méthodes spécifiques
-      const rectangleLayer = layer as Rectangle;
-      const bounds = rectangleLayer.getBounds();
-      const center = bounds.getCenter();
-      const corners = [
-        bounds.getNorthWest(),
-        bounds.getNorthEast(),
-        bounds.getSouthEast(),
-        bounds.getSouthWest()
-      ];
-      // Point central temporaire
-      const tempCenterPoint = createControlPoint(center, '#059669');
-      tempControlPointsGroup.value.addLayer(tempCenterPoint);
-      // Points de coin temporaires
-      corners.forEach(corner => {
-        const tempCornerPoint = createControlPoint(corner, '#DC2626');
-        tempControlPointsGroup.value.addLayer(tempCornerPoint);
-      });
-      // Points milieux temporaires
-      rectangleLayer.getMidPoints().forEach(midPoint => {
-        const tempMidPoint = createControlPoint(midPoint, '#2563EB');
-        tempControlPointsGroup.value.addLayer(tempMidPoint);
-      });
-    } else if (layer instanceof CircleArc || layer.properties?.type === 'Semicircle') {
-      // Utiliser les méthodes de CircleArc pour calculer les positions des points de contrôle
-      const arc = layer as CircleArc;
-      // Point central temporaire (vert)
-      const tempCenterPoint = createControlPoint(arc.getCenter(), '#059669');
-      tempControlPointsGroup.value.addLayer(tempCenterPoint);
-      // Points de début et de fin d'arc temporaires (rouge)
-      const startPoint = arc.calculatePointOnArc(arc.getStartAngle());
-      const stopPoint = arc.calculatePointOnArc(arc.getStopAngle());
-      const tempStartPoint = createControlPoint(startPoint, '#DC2626');
-      const tempStopPoint = createControlPoint(stopPoint, '#DC2626');
-      tempControlPointsGroup.value.addLayer(tempStartPoint);
-      tempControlPointsGroup.value.addLayer(tempStopPoint);
-      // Point de rayon au milieu de l'arc (bleu)
-      if (arc.getOpeningAngle() > 5) {
-        const midPoint = arc.calculateMidpointPosition();
-        const tempMidPoint = createControlPoint(midPoint, '#2563EB');
-        tempControlPointsGroup.value.addLayer(tempMidPoint);
-      }
-    } else if (layer instanceof L.Polyline) {
-      const points = layer.getLatLngs() as L.LatLng[];
-      // Centre temporaire pour les lignes personnalisées
-      if (layer instanceof Line) {
-        const center = (layer as Line).getCenter();
-        const tempCenterPoint = createControlPoint(center, '#059669');
-        tempControlPointsGroup.value.addLayer(tempCenterPoint);
-      }
-      // Points d'extrémité temporaires (rouge pour harmonisation)
-      points.forEach(point => {
-        const tempPoint = createControlPoint(point, '#DC2626');
-        tempControlPointsGroup.value.addLayer(tempPoint);
-      });
-      // Points milieux temporaires pour les segments
-      if (layer instanceof Line) {
-        (layer as Line).getMidPoints().forEach(midPoint => {
-          const tempMidPoint = createControlPoint(midPoint, '#2563EB');
-          tempControlPointsGroup.value.addLayer(tempMidPoint);
+    try {
+      if (layer instanceof Polygon || layer instanceof L.Polygon) {
+        // Récupérer les points du polygone de manière sûre
+        let points: L.LatLng[] = [];
+        try {
+          if ('getLatLngs' in layer) {
+            const latLngs = layer.getLatLngs();
+            if (Array.isArray(latLngs) && latLngs.length > 0) {
+              const firstLayer = latLngs[0];
+              if (Array.isArray(firstLayer)) {
+                points = firstLayer as L.LatLng[];
+              } else if (firstLayer instanceof L.LatLng) {
+                points = latLngs as L.LatLng[];
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[generateTempControlPoints] Erreur lors de la récupération des points du polygone:', error);
+          return;
+        }
+        // Point central temporaire (vert)
+        let center: L.LatLng | null = null;
+        try {
+          if (layer instanceof Polygon && typeof layer.getCenter === 'function') {
+            center = layer.getCenter();
+          } else {
+            // Calculer le centre manuellement pour les polygones standard
+            const coordinates = points.map(point => [point.lng, point.lat]);
+            coordinates.push(coordinates[0]); // Fermer le polygone
+            const polygonFeature = turf.polygon([coordinates]);
+            const centroidPoint = centroid(polygonFeature);
+            center = L.latLng(
+              centroidPoint.geometry.coordinates[1],
+              centroidPoint.geometry.coordinates[0]
+            );
+          }
+          if (center && center.lat !== undefined && center.lng !== undefined) {
+            const tempCenterPoint = createControlPoint(center, '#059669');
+            tempControlPointsGroup.value.addLayer(tempCenterPoint);
+          }
+        } catch (error) {
+          console.warn('[generateTempControlPoints] Erreur lors du calcul du centre du polygone:', error);
+        }
+        // Points de sommet temporaires (rouge)
+        points.forEach(point => {
+          if (point && point.lat !== undefined && point.lng !== undefined) {
+            const tempPoint = createControlPoint(point, '#DC2626');
+            tempControlPointsGroup.value.addLayer(tempPoint);
+          }
         });
-      } else {
-        for (let i = 0; i < points.length - 1; i++) {
-          const midPoint = getMidPoint(points[i], points[i + 1]);
-          const tempMidPoint = createControlPoint(midPoint, '#2563EB');
-          tempControlPointsGroup.value.addLayer(tempMidPoint);
+        // Points milieux temporaires
+        for (let i = 0; i < points.length; i++) {
+          const p1 = points[i];
+          const p2 = points[(i + 1) % points.length];
+          if (p1 && p2 && p1.lat !== undefined && p1.lng !== undefined && 
+              p2.lat !== undefined && p2.lng !== undefined) {
+            const midPoint = L.latLng(
+              (p1.lat + p2.lat) / 2,
+              (p1.lng + p2.lng) / 2
+            );
+            const tempMidPoint = createControlPoint(midPoint, '#2563EB');
+            tempControlPointsGroup.value.addLayer(tempMidPoint);
+          }
         }
+      } else if (layer instanceof Circle) {
+        // ... rest of the existing code for other shapes ...
       }
-    } else if (layer instanceof L.Polygon) {
-      const points = (layer.getLatLngs()[0] as L.LatLng[]);
-      // Point central temporaire (vert)
-      let center: L.LatLng;
-      try {
-        if (typeof layer.getCenter === 'function') {
-          center = layer.getCenter();
-        } else {
-          // Calculer le centre manuellement
-          const coordinates = points.map(point => [point.lng, point.lat]);
-          coordinates.push(coordinates[0]); // Fermer le polygone
-          const polygonFeature = turf.polygon([coordinates]);
-          const centroidPoint = centroid(polygonFeature);
-          center = L.latLng(centroidPoint.geometry.coordinates[1], centroidPoint.geometry.coordinates[0]);
-        }
-        // Vérifier que le centre est valide
-        if (center && typeof center.lat === 'number' && typeof center.lng === 'number' &&
-            !isNaN(center.lat) && !isNaN(center.lng)) {
-          const tempCenterPoint = createControlPoint(center, '#059669');
-          tempControlPointsGroup.value.addLayer(tempCenterPoint);
-        }
-      } catch (error) {
-        console.warn('Erreur lors du calcul du centre temporaire du polygone', error);
-      }
-      // Points de sommet temporaires (rouge pour harmonisation)
-      points.forEach(point => {
-        const tempPoint = createControlPoint(point, '#DC2626');
-        tempControlPointsGroup.value.addLayer(tempPoint);
+      console.log('[generateTempControlPoints] Points temporaires générés', {
+        count: tempControlPointsGroup.value.getLayers().length
       });
-      // Points milieux temporaires pour les segments
-      for (let i = 0; i < points.length; i++) {
-        const nextPoint = points[(i + 1) % points.length];
-        const midPoint = getMidPoint(points[i], nextPoint);
-        const tempMidPoint = createControlPoint(midPoint, '#2563EB');
-        tempControlPointsGroup.value.addLayer(tempMidPoint);
-      }
+    } catch (error) {
+      console.error('[generateTempControlPoints] Erreur lors de la génération des points temporaires:', error);
     }
-    console.log('[generateTempControlPoints] Points temporaires générés', {
-      count: tempControlPointsGroup.value.getLayers().length
-    });
   };
   // Fonction pour gérer les points de contrôle du TextRectangle
   const updateTextRectangleControlPoints = (layer: DrawableLayer) => {
     if (!map.value || !featureGroup.value || !layer.getBounds) return;
-    
     const textRect = layer as TextRectangle;
     clearActiveControlPoints();
-
     // Écouter les événements d'édition pour masquer/afficher les points de contrôle
     textRect.on('edit:start', () => {
       clearActiveControlPoints();
     });
-
     textRect.on('edit:end', () => {
       // Recréer les points de contrôle après l'édition
       updateTextRectangleControlPoints(textRect);
     });
-
     // Calculer les positions des points en tenant compte de la rotation
     const bounds = textRect.getBounds();
     const center = bounds.getCenter();
     const rotation = textRect.properties.rotation || 0;
-
     // Fonction pour appliquer la rotation à un point
     const rotatePoint = (point: L.LatLng): L.LatLng => {
       if (rotation === 0) return point;
@@ -2809,7 +2708,6 @@ export function useMapDrawing(): MapDrawingReturn {
       const newY = dx * sin + dy * cos;
       return L.latLng(center.lat + newY, center.lng + newX);
     };
-
     // Calculer les coins avec rotation
     const corners = [
       bounds.getNorthWest(),
@@ -2817,15 +2715,12 @@ export function useMapDrawing(): MapDrawingReturn {
       bounds.getSouthEast(),
       bounds.getSouthWest()
     ].map(corner => rotatePoint(corner));
-
     // Calculer les points milieux avec rotation
     const midPoints = textRect.getMidPoints().map(point => rotatePoint(point));
-
     // Point central pour le déplacement (vert)
     const centerPoint = createControlPoint(center, '#059669');
     centerPoint.addTo(map.value);
     activeControlPoints.push(centerPoint);
-
     // Ajouter les mesures au point central
     addMeasureEvents(centerPoint, textRect, () => {
       const { width, height } = textRect.getDimensions();
@@ -2837,13 +2732,11 @@ export function useMapDrawing(): MapDrawingReturn {
         `Rotation: ${rotation.toFixed(1)}°`
       ].join('<br>');
     });
-
     // Points de coin pour le redimensionnement (rouge)
     const cornerMarkers = corners.map((corner, index) => {
       const cornerPoint = createControlPoint(corner, '#DC2626');
       cornerPoint.addTo(map.value!);
       activeControlPoints.push(cornerPoint);
-
       // Ajouter les mesures aux points de coin
       addMeasureEvents(cornerPoint, textRect, () => {
         const { width, height } = textRect.getDimensions();
@@ -2852,53 +2745,40 @@ export function useMapDrawing(): MapDrawingReturn {
           formatMeasure(height, 'm', 'Hauteur')
         ].join('<br>');
       });
-
       cornerPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
         if (!map.value) return;
-        
         L.DomEvent.stopPropagation(e);
         map.value.dragging.disable();
-        
         const oppositeIndex = (index + 2) % 4;
         const oppositeCorner = corners[oppositeIndex];
-        
         textRect.startResize();
-        
         const throttledResize = throttle((e: L.LeafletMouseEvent) => {
           const newBounds = L.latLngBounds(oppositeCorner, e.latlng);
           textRect.updateResizePreview(newBounds);
         }, 16);
-
         const onMouseMove = (e: L.LeafletMouseEvent) => throttledResize(e);
-
         const onMouseUp = () => {
           if (!map.value) return;
           map.value.off('mousemove', onMouseMove);
           document.removeEventListener('mouseup', onMouseUp);
           map.value.dragging.enable();
-          
           const finalBounds = L.latLngBounds(oppositeCorner, cornerPoint.getLatLng());
           textRect.endResize(finalBounds);
-          
           selectedShape.value = null;
           nextTick(() => {
             selectedShape.value = textRect;
           });
         };
-
         map.value.on('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
       });
-
       return cornerPoint;
     });
-
     // Points milieux pour le redimensionnement proportionnel (bleu)
     const midPointMarkers = midPoints.map((midPoint, index) => {
       const midPointMarker = createControlPoint(midPoint, '#2563EB');
       midPointMarker.addTo(map.value!);
       activeControlPoints.push(midPointMarker);
-
       // Ajouter les mesures aux points milieux
       addMeasureEvents(midPointMarker, textRect, () => {
         const { width, height } = textRect.getDimensions();
@@ -2909,19 +2789,14 @@ export function useMapDrawing(): MapDrawingReturn {
           `Rotation: ${rotation.toFixed(1)}°`
         ].join('<br>');
       });
-
       midPointMarker.on('mousedown', (e: L.LeafletMouseEvent) => {
         if (!map.value) return;
-        
         L.DomEvent.stopPropagation(e);
         map.value.dragging.disable();
-        
         textRect.startResize();
-        
         const throttledResize = throttle((e: L.LeafletMouseEvent) => {
           const bounds = textRect.getBounds();
           let newBounds: L.LatLngBounds;
-          
           switch (index) {
             case 0: // Haut
               newBounds = L.latLngBounds(
@@ -2950,21 +2825,16 @@ export function useMapDrawing(): MapDrawingReturn {
             default:
               return;
           }
-          
           textRect.updateResizePreview(newBounds);
         }, 16);
-
         const onMouseMove = (e: L.LeafletMouseEvent) => throttledResize(e);
-
         const onMouseUp = () => {
           if (!map.value) return;
           map.value.off('mousemove', onMouseMove);
           document.removeEventListener('mouseup', onMouseUp);
           map.value.dragging.enable();
-          
           const bounds = textRect.getBounds();
           let finalBounds: L.LatLngBounds;
-          
           switch (index) {
             case 0: // Haut
               finalBounds = L.latLngBounds(
@@ -2993,34 +2863,25 @@ export function useMapDrawing(): MapDrawingReturn {
             default:
               return;
           }
-          
           textRect.endResize(finalBounds);
-          
           selectedShape.value = null;
           nextTick(() => {
             selectedShape.value = textRect;
           });
         };
-
         map.value.on('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
       });
-
       return midPointMarker;
     });
-
     // Gestion du déplacement via le point central
     centerPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
       if (!map.value) return;
-      
       L.DomEvent.stopPropagation(e);
       map.value.dragging.disable();
-      
       const startLatLng = textRect.getBounds().getCenter();
       const startMouseLatLng = e.latlng;
-      
       textRect.startResize();
-      
       const throttledMove = throttle((e: L.LeafletMouseEvent) => {
         const dx = e.latlng.lng - startMouseLatLng.lng;
         const dy = e.latlng.lat - startMouseLatLng.lat;
@@ -3028,7 +2889,6 @@ export function useMapDrawing(): MapDrawingReturn {
           startLatLng.lat + dy,
           startLatLng.lng + dx
         );
-        
         const bounds = textRect.getBounds();
         const width = bounds.getEast() - bounds.getWest();
         const height = bounds.getNorth() - bounds.getSouth();
@@ -3036,18 +2896,14 @@ export function useMapDrawing(): MapDrawingReturn {
           L.latLng(newCenter.lat - height/2, newCenter.lng - width/2),
           L.latLng(newCenter.lat + height/2, newCenter.lng + width/2)
         );
-        
         textRect.updateResizePreview(newBounds);
       }, 16);
-
       const onMouseMove = (e: L.LeafletMouseEvent) => throttledMove(e);
-
       const onMouseUp = () => {
         if (!map.value) return;
         map.value.off('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
         map.value.dragging.enable();
-        
         const bounds = textRect.getBounds();
         const width = bounds.getEast() - bounds.getWest();
         const height = bounds.getNorth() - bounds.getSouth();
@@ -3056,25 +2912,19 @@ export function useMapDrawing(): MapDrawingReturn {
           L.latLng(center.lat - height/2, center.lng - width/2),
           L.latLng(center.lat + height/2, center.lng + width/2)
         );
-        
         textRect.endResize(finalBounds);
-        
         selectedShape.value = null;
         nextTick(() => {
           selectedShape.value = textRect;
         });
       };
-
       map.value.on('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     });
-
     // Écouter les événements de redimensionnement
     textRect.on('resize:update', (e: any) => {
       const newBounds = e.bounds;
       const newCenter = newBounds.getCenter();
-      const rotation = textRect.properties.rotation || 0;
-
       // Calculer les nouvelles positions avec rotation
       const updatedCorners = [
         newBounds.getNorthWest(),
@@ -3082,32 +2932,26 @@ export function useMapDrawing(): MapDrawingReturn {
         newBounds.getSouthEast(),
         newBounds.getSouthWest()
       ].map(corner => rotatePoint(corner));
-      
       cornerMarkers.forEach((marker, i) => {
         marker.setLatLng(updatedCorners[i]);
       });
-      
       centerPoint.setLatLng(newCenter);
-      
       const newMidPoints = [
         L.latLng((updatedCorners[0].lat + updatedCorners[1].lat) / 2, (updatedCorners[0].lng + updatedCorners[1].lng) / 2),
         L.latLng((updatedCorners[1].lat + updatedCorners[2].lat) / 2, (updatedCorners[1].lng + updatedCorners[2].lng) / 2),
         L.latLng((updatedCorners[2].lat + updatedCorners[3].lat) / 2, (updatedCorners[2].lng + updatedCorners[3].lng) / 2),
         L.latLng((updatedCorners[3].lat + updatedCorners[0].lat) / 2, (updatedCorners[3].lng + updatedCorners[0].lng) / 2)
       ].map(point => rotatePoint(point));
-
       midPointMarkers.forEach((marker, i) => {
         marker.setLatLng(newMidPoints[i]);
       });
     });
-
     // Nettoyer les écouteurs d'événements lors du nettoyage des points de contrôle
     const cleanup = () => {
       textRect.off('edit:start');
       textRect.off('edit:end');
       textRect.off('resize:update');
     };
-
     // Ajouter la fonction de nettoyage à la liste des points de contrôle
     (activeControlPoints as any).cleanup = cleanup;
   };

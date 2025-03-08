@@ -8,7 +8,6 @@
         Entrez votre adresse e-mail pour réinitialiser votre mot de passe
       </p>
     </div>
-
     <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
       <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
         <form class="space-y-6" @submit.prevent="handleSubmit">
@@ -24,7 +23,6 @@
               </div>
             </div>
           </div>
-
           <div v-if="success" class="rounded-md bg-green-50 p-4">
             <div class="flex">
               <div class="flex-shrink-0">
@@ -39,7 +37,6 @@
               </div>
             </div>
           </div>
-
           <div>
             <label for="email" class="block text-sm font-medium text-gray-700">
               Adresse e-mail
@@ -55,7 +52,6 @@
               />
             </div>
           </div>
-
           <div>
             <button
               type="submit"
@@ -87,7 +83,6 @@
             </button>
           </div>
         </form>
-
         <div class="mt-6">
           <div class="relative">
             <div class="absolute inset-0 flex items-center">
@@ -99,7 +94,6 @@
               </span>
             </div>
           </div>
-
           <div class="mt-6">
             <router-link
               to="/login"
@@ -113,22 +107,18 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-
 const authStore = useAuthStore()
 const email = ref('')
 const loading = ref(false)
 const error = ref('')
 const success = ref(false)
-
 async function handleSubmit() {
   loading.value = true
   error.value = ''
   success.value = false
-
   try {
     // TODO: Implémenter la réinitialisation du mot de passe
     // await authStore.requestPasswordReset(email.value)

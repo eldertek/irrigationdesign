@@ -17,7 +17,6 @@
           </button>
         </div>
       </div>
-
       <!-- Interface Admin -->
       <div v-if="authStore.isAdmin" class="mt-8">
         <!-- Sélection du concessionnaire -->
@@ -34,7 +33,6 @@
             </option>
           </select>
         </div>
-
         <!-- Sélection du client si un concessionnaire est sélectionné -->
         <div v-if="selectedDealer" class="mb-6">
           <label for="client-filter" class="block text-sm font-medium text-gray-700">Filtrer par client</label>
@@ -50,7 +48,6 @@
           </select>
         </div>
       </div>
-
       <!-- Interface Concessionnaire -->
       <div v-else-if="authStore.isDealer" class="mt-8">
         <div class="mb-6">
@@ -67,7 +64,6 @@
           </select>
         </div>
       </div>
-
       <!-- Liste des plans -->
       <div class="mt-8">
         <div class="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5 rounded-lg">
@@ -231,7 +227,6 @@
           </div>
         </div>
       </div>
-
       <!-- Modal nouveau plan -->
       <NewPlanModal
         v-model="showNewPlanModal"
@@ -239,7 +234,6 @@
         :clients="clients"
         @created="onPlanCreated"
       />
-
       <!-- Modal Modification Plan -->
       <div v-if="showEditPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
         <div class="bg-white rounded-lg p-6 max-w-md w-full">
@@ -278,7 +272,6 @@
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
               ></textarea>
             </div>
-
             <!-- Assignation concessionnaire/client (admin uniquement) -->
             <div v-if="authStore.isAdmin" class="space-y-4">
               <div>
@@ -296,7 +289,6 @@
                   </option>
                 </select>
               </div>
-
               <div>
                 <label for="edit-client" class="block text-sm font-medium text-gray-700">
                   Client
@@ -313,7 +305,6 @@
                 </select>
               </div>
             </div>
-
             <div v-if="error" class="mt-4 bg-red-50 p-4 rounded-md">
               <div class="flex">
                 <div class="flex-shrink-0">
@@ -326,7 +317,6 @@
                 </div>
               </div>
             </div>
-
             <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
               <button
                 type="button"
@@ -370,7 +360,6 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -379,7 +368,6 @@ import { useAuthStore, formatUserName } from '@/stores/auth'
 import type { Plan as StorePlan } from '@/stores/irrigation'
 import api from '@/services/api'
 import NewPlanModal from '@/components/NewPlanModal.vue'
-
 interface LocalUser {
   id: number
   username: string
@@ -390,18 +378,15 @@ interface LocalUser {
   role: string
   concessionnaire?: number | null
 }
-
 interface LocalPlan extends Omit<StorePlan, 'client' | 'concessionnaire'> {
   client: number | null
   concessionnaire: number | null
   client_details?: LocalUser | null
   concessionnaire_details?: LocalUser | null
 }
-
 const router = useRouter()
 const irrigationStore = useIrrigationStore()
 const authStore = useAuthStore()
-
 const plans = ref<LocalPlan[]>([])
 const dealers = ref<LocalUser[]>([])
 const clients = ref<LocalUser[]>([])
@@ -421,25 +406,20 @@ const editPlanData = ref({
 })
 const loading = ref(false)
 const error = ref<string | null>(null)
-
 // Ajout des refs pour la sélection
 const selectedDealer = ref<number | null>(null);
 const selectedClient = ref<number | null>(null);
-
 // Ajout des refs pour le tri
 const sortField = ref<'nom' | 'date_creation' | 'date_modification'>('date_modification')
 const sortDirection = ref<'asc' | 'desc'>('desc')
-
 // Computed pour les clients filtrés selon le concessionnaire sélectionné
 const filteredClients = computed(() => {
   if (!selectedDealer.value) return clients.value;
   return clients.value.filter(client => client.concessionnaire === selectedDealer.value);
 });
-
 // Computed pour les plans filtrés
 const filteredPlans = computed(() => {
   let filtered = plans.value;
-
   if (authStore.isAdmin) {
     if (selectedDealer.value) {
       filtered = filtered.filter(plan => plan.concessionnaire === selectedDealer.value);
@@ -453,7 +433,6 @@ const filteredPlans = computed(() => {
       filtered = filtered.filter(plan => plan.client === selectedClient.value);
     }
   }
-
   // Appliquer le tri
   return [...filtered].sort((a, b) => {
     if (sortField.value === 'nom') {
@@ -493,7 +472,6 @@ const plansList = computed(() => {
     }
   }
 })
-
 onMounted(async () => {
   await loadPlans()
   if (authStore.isAdmin) {
@@ -503,7 +481,6 @@ onMounted(async () => {
     await loadClientsForDealer(authStore.user?.id || 0)
   }
 })
-
 async function loadPlans() {
   try {
     const response = await irrigationStore.fetchPlansWithDetails()
@@ -512,7 +489,6 @@ async function loadPlans() {
     console.error('Erreur lors du chargement des plans:', error)
   }
 }
-
 async function loadDealersAndClients() {
   try {
     const [dealersResponse, clientsResponse] = await Promise.all([
@@ -529,7 +505,6 @@ async function loadDealersAndClients() {
     console.error('Erreur lors du chargement des dealers et clients:', error)
   }
 }
-
 function openNewPlanModal() {
   showNewPlanModal.value = true
   newPlan.value = {
@@ -542,10 +517,8 @@ async function editPlan(plan: LocalPlan) {
   try {
     // Définir le plan courant dans le store
     irrigationStore.setCurrentPlan(plan);
-    
     // Sauvegarder l'ID du plan dans localStorage pour la persistance
     localStorage.setItem('lastPlanId', plan.id.toString());
-    
     // Rediriger vers la vue carte
     router.push('/');
   } catch (error) {
@@ -553,15 +526,12 @@ async function editPlan(plan: LocalPlan) {
     alert('Une erreur est survenue lors du chargement du plan');
   }
 }
-
 async function deletePlan(plan: LocalPlan) {
   if (!plan?.id) return
-
   if (confirm('Êtes-vous sûr de vouloir supprimer ce plan ?')) {
     try {
       await irrigationStore.deletePlan(plan.id)
       await loadPlans()
-      
       // Si le plan supprimé était le plan courant, le nettoyer
       if (irrigationStore.currentPlan?.id === plan.id) {
         irrigationStore.clearCurrentPlan()
@@ -572,7 +542,6 @@ async function deletePlan(plan: LocalPlan) {
     }
   }
 }
-
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString('fr-FR', {
     year: 'numeric',
@@ -582,12 +551,10 @@ function formatDate(dateString: string) {
     minute: '2-digit'
   })
 }
-
 function getInitials(user: LocalUser | null): string {
   if (!user) return ''
   return (user.first_name.charAt(0) + user.last_name.charAt(0)).toUpperCase()
 }
-
 function openEditPlanModal(plan: LocalPlan) {
   editPlanData.value = {
     id: plan.id,
@@ -596,15 +563,12 @@ function openEditPlanModal(plan: LocalPlan) {
     concessionnaire: plan.concessionnaire || null,
     client: plan.client || null
   }
-  
   // Si un concessionnaire est déjà assigné, charger ses clients
   if (plan.concessionnaire) {
     loadClientsForDealer(plan.concessionnaire);
   }
-  
   showEditPlanModal.value = true;
 }
-
 // Fonction pour charger les clients d'un concessionnaire spécifique
 async function loadClientsForDealer(dealerId: number) {
   try {
@@ -620,29 +584,24 @@ async function loadClientsForDealer(dealerId: number) {
     clients.value = [];
   }
 }
-
 // Fonction de validation avant la mise à jour
 async function updatePlan() {
   error.value = null
   loading.value = true
-  
   try {
     if (!editPlanData.value.nom.trim()) {
       throw new Error('Le nom du plan est requis')
     }
-
     // Validation de la logique client/concessionnaire
     if (editPlanData.value.client && !editPlanData.value.concessionnaire) {
       throw new Error('Un concessionnaire doit être sélectionné pour assigner un client')
     }
-
     const response = await irrigationStore.updatePlanDetails(editPlanData.value.id, {
       nom: editPlanData.value.nom.trim(),
       description: editPlanData.value.description.trim(),
       concessionnaire: editPlanData.value.concessionnaire,
       client: editPlanData.value.client
     })
-
     if (response) {
       showEditPlanModal.value = false
       await loadPlans()
@@ -665,7 +624,6 @@ async function updatePlan() {
     loading.value = false
   }
 }
-
 // Ajout d'un watcher pour charger les clients quand le concessionnaire change dans le modal d'édition
 watch(() => editPlanData.value.concessionnaire, async (newDealerId) => {
   if (newDealerId) {
@@ -675,12 +633,10 @@ watch(() => editPlanData.value.concessionnaire, async (newDealerId) => {
     editPlanData.value.client = null;
   }
 });
-
 // Fonction pour déterminer si l'utilisateur peut supprimer un plan
 function canDeletePlan(plan: LocalPlan): boolean {
   const user = authStore.user
   if (!user) return false
-
   if (user.user_type === 'admin') return true
   if (user.user_type === 'dealer') return plan.concessionnaire === user.id
   return plan.client === user.id || plan.createur.id === user.id
@@ -694,7 +650,6 @@ async function onPlanCreated(planId: number) {
   // Rediriger vers l'éditeur avec le nouveau plan
   router.push('/');
 }
-
 // Fonction pour gérer le tri
 function toggleSort(field: 'nom' | 'date_creation' | 'date_modification') {
   if (sortField.value === field) {

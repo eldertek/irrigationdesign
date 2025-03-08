@@ -26,7 +26,6 @@
               />
             </div>
           </div>
-          
           <div>
             <label for="new-password" class="block text-sm font-medium text-gray-700">Nouveau mot de passe</label>
             <div class="mt-1">
@@ -45,7 +44,6 @@
               Le mot de passe doit contenir au moins 8 caractères
             </p>
           </div>
-          
           <div>
             <label for="confirm-password" class="block text-sm font-medium text-gray-700">Confirmer le mot de passe</label>
             <div class="mt-1">
@@ -62,7 +60,6 @@
             </div>
           </div>
         </div>
-
         <div v-if="error" class="rounded-md bg-red-50 p-4">
           <div class="flex">
             <div class="flex-shrink-0">
@@ -75,7 +72,6 @@
             </div>
           </div>
         </div>
-
         <div v-if="validationErrors.length > 0" class="rounded-md bg-yellow-50 p-4">
           <div class="flex">
             <div class="flex-shrink-0">
@@ -95,7 +91,6 @@
             </div>
           </div>
         </div>
-
         <div>
           <button
             type="submit"
@@ -145,24 +140,19 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-
 const router = useRouter()
 const authStore = useAuthStore()
-
 const form = reactive({
   oldPassword: '',
   newPassword: '',
   confirmPassword: ''
 })
-
 const loading = ref(false)
 const error = ref('')
-
 onMounted(() => {
   console.log('ChangePasswordForm mounted, auth state:', {
     isAuthenticated: authStore.isAuthenticated,
@@ -170,21 +160,16 @@ onMounted(() => {
     mustChangePassword: authStore.user?.must_change_password
   })
 })
-
 const validationErrors = computed(() => {
   const errors = []
-  
   if (form.newPassword && form.newPassword.length < 8) {
     errors.push('Le nouveau mot de passe doit contenir au moins 8 caractères')
   }
-  
   if (form.newPassword && form.confirmPassword && form.newPassword !== form.confirmPassword) {
     errors.push('Les mots de passe ne correspondent pas')
   }
-  
   return errors
 })
-
 const isValid = computed(() => {
   return (
     form.oldPassword.length > 0 &&
@@ -192,21 +177,17 @@ const isValid = computed(() => {
     form.newPassword === form.confirmPassword
   )
 })
-
 async function handleSubmit() {
   if (!isValid.value) {
     error.value = 'Veuillez corriger les erreurs avant de continuer'
     return
   }
-
   if (!authStore.user?.id) {
     error.value = 'Erreur : utilisateur non identifié'
     return
   }
-
   loading.value = true
   error.value = ''
-
   try {
     console.log('Submitting password change...')
     await authStore.changePassword(form.oldPassword, form.newPassword)

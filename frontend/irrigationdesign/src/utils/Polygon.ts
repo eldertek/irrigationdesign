@@ -16,36 +16,50 @@ export class Polygon extends L.Polygon {
       pmIgnore: false,
       interactive: true
     });
+    // Initialiser les propriétés avec des valeurs par défaut
     this.properties = {
       type: 'Polygon',
-      style: options || {}
+      style: {
+        color: options.color || '#3388ff',
+        weight: options.weight || 3,
+        opacity: options.opacity || 1,
+        fillColor: options.fillColor || '#3388ff',
+        fillOpacity: options.fillOpacity || 0.2,
+        dashArray: options.dashArray || ''
+      }
     };
     // Initialiser les propriétés au moment de la création
     this.updateProperties();
-    // Écouter uniquement les événements qui indiquent la fin d'une modification
-    this.on('add', () => {
-      this.updateProperties();
+    // Écouter les événements de modification
+    this.on({
+      add: () => this.updateProperties(),
+      edit: () => this.updateProperties(),
+      drag: () => this.updateProperties()
     });
   }
   /**
    * Calcule et met à jour les propriétés du polygone
    */
   updateProperties(): void {
-    const latLngs = this.getLatLngs()[0] as L.LatLng[];
-    if (!latLngs || latLngs.length < 3) {
-      console.warn('Polygon has less than 3 points, cannot calculate properties');
-      return;
-    }
-    // Convertir les points en format GeoJSON pour turf
-    const coordinates = latLngs.map((ll: L.LatLng) => [ll.lng, ll.lat]);
-    coordinates.push(coordinates[0]); // Fermer le polygone
     try {
+      const latLngs = this.getLatLngs()[0] as L.LatLng[];
+      if (!latLngs || latLngs.length < 3) {
+        console.warn('Polygon has less than 3 points, cannot calculate properties');
+        return;
+      }
+      // Convertir les points en format GeoJSON pour turf
+      const coordinates = latLngs.map((ll: L.LatLng) => [ll.lng, ll.lat]);
+      coordinates.push(coordinates[0]); // Fermer le polygone
       const polygonFeature = polygon([coordinates]);
       const areaValue = area(polygonFeature);
       const perimeterValue = length(lineString([...coordinates]), { units: 'meters' });
       // Calculer le centroid
       const centroidPoint = centroid(polygonFeature);
-      const center = L.latLng(centroidPoint.geometry.coordinates[1], centroidPoint.geometry.coordinates[0]);
+      const center = L.latLng(
+        centroidPoint.geometry.coordinates[1],
+        centroidPoint.geometry.coordinates[0]
+      );
+      // Mettre à jour les propriétés
       this.properties = {
         ...this.properties,
         area: areaValue,

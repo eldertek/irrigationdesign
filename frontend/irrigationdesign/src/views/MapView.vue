@@ -20,7 +20,6 @@
                   </svg>
                 </div>
               </div>
-              
               <!-- Textes explicatifs -->
               <h3 class="text-xl font-semibold text-gray-900 mb-2">
                 Génération de la synthèse
@@ -36,7 +35,6 @@
             </div>
           </div>
         </div>
-
       <!-- Vue d'accueil quand aucun plan n'est chargé -->
       <div v-if="!currentPlan" class="absolute inset-0 flex items-center justify-center bg-gray-50 z-[1000]">
         <div class="text-center max-w-lg mx-auto p-8">
@@ -72,7 +70,6 @@
           </div>
         </div>
       </div>
-
       <!-- Conteneur de la carte avec positionnement relatif -->
       <div class="relative h-full w-full overflow-hidden flex flex-col">
         <!-- Barre d'outils principale -->
@@ -90,14 +87,12 @@
             @generate-summary="generateSynthesis"
           />
         </div>
-        
         <!-- Conteneur principal avec carte et outils -->
         <div class="flex-1 flex overflow-hidden">
           <!-- Conteneur de la carte -->
           <div class="flex-1 relative">
             <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
           </div>
-          
           <!-- Panneau latéral d'outils de dessin -->
           <div v-if="currentPlan && !isGeneratingSynthesis" class="w-64 bg-white border-l border-gray-200 flex-shrink-0">
             <DrawingTools 
@@ -110,7 +105,6 @@
             />
           </div>
         </div>
-        
         <!-- Interface de synthèse -->
         <div v-if="isGeneratingSynthesis" class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-50">
           <div class="text-center">
@@ -125,7 +119,6 @@
           </div>
         </div>
       </div>
-
       <!-- Modal Nouveau Plan -->
       <NewPlanModal
         ref="newPlanModalRef"
@@ -134,7 +127,6 @@
         @dealerSelected="dealer => selectedDealer = dealer"
         @clientSelected="client => selectedClient = client"
       />
-
       <!-- Modal Charger un Plan -->
       <div v-if="showLoadPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
         <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
@@ -149,7 +141,6 @@
               </svg>
             </button>
           </div>
-
           <!-- Interface administrateur -->
           <div v-if="authStore.isAdmin" class="space-y-4">
             <!-- Étape 1: Sélection du concessionnaire -->
@@ -181,7 +172,6 @@
                 </template>
               </div>
             </div>
-
             <!-- Étape 2: Sélection du client -->
             <div v-else-if="!selectedClient" class="space-y-2">
               <div class="flex items-center mb-4">
@@ -226,7 +216,6 @@
                 </template>
               </div>
             </div>
-
             <!-- Étape 3: Liste des plans du client -->
             <div v-else class="space-y-2">
               <div class="flex items-center mb-4">
@@ -272,7 +261,6 @@
               </div>
             </div>
           </div>
-
           <!-- Interface concessionnaire -->
           <div v-else-if="authStore.isDealer" class="space-y-4">
             <!-- Liste des clients -->
@@ -304,7 +292,6 @@
                 </template>
               </div>
             </div>
-
             <!-- Liste des plans du client -->
             <div v-else class="space-y-2">
               <div class="flex items-center mb-4">
@@ -350,7 +337,6 @@
               </div>
             </div>
           </div>
-
           <!-- Interface client -->
           <div v-else class="max-h-96 overflow-y-auto">
             <div v-if="irrigationStore.plans.length === 0" class="text-center py-8">
@@ -376,7 +362,6 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
   import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed } from 'vue';
 import type { LatLngTuple } from 'leaflet';
@@ -398,12 +383,10 @@ import api from '@/services/api';
 import NewPlanModal from '@/components/NewPlanModal.vue';
   import jsPDF from 'jspdf';
   import logo from '@/assets/logo.jpeg';
-
 const mapContainer = ref<HTMLElement | null>(null);
 const irrigationStore = useIrrigationStore();
 const drawingStore = useDrawingStore();
 const shapes = ref<any[]>([]);
-
 const {
   currentTool,
   selectedShape: selectedLeafletShape,
@@ -416,21 +399,17 @@ const {
   adjustView,
   clearActiveControlPoints,
 } = useMapDrawing();
-
 const {
   initMap: initState,
   changeBaseMap
 } = useMapState();
-
 // Ajout des refs pour les modals
 const showNewPlanModal = ref(false);
 const showLoadPlanModal = ref(false);
 const currentPlan = ref<Plan | null>(null);
-
 // État pour la sauvegarde
 const saving = ref(false);
 const saveStatus = ref<'saving' | 'success' | null>(null);
-
 // Ajout des imports et des refs nécessaires
 const authStore = useAuthStore();
 const dealers = ref<UserDetails[]>([]);
@@ -441,10 +420,8 @@ const selectedClient = ref<UserDetails | null>(null);
 const isLoadingDealers = ref(false);
 const isLoadingClients = ref(false);
 const isLoadingPlans = ref(false);
-
 // Référence vers le composant NewPlanModal
 const newPlanModalRef = ref<InstanceType<typeof NewPlanModal> | null>(null);
-
 // Computed pour les clients filtrés selon le concessionnaire sélectionné
 const filteredClients = computed(() => {
   console.log('[MapView][filteredClients] Computing with:', {
@@ -452,19 +429,14 @@ const filteredClients = computed(() => {
     selectedDealer: selectedDealer.value,
     dealerClients: dealerClients.value
   });
-
   if (authStore.user?.user_type === 'admin') {
     const clients = selectedDealer.value ? dealerClients.value : [];
-
     return clients;
   } else if (authStore.user?.user_type === 'dealer') {
-
     return dealerClients.value;
   }
-
   return [];
 });
-
 // Computed property to transform Leaflet Layer to ShapeType
 const selectedShape = computed((): ShapeType | null => {
   if (!selectedLeafletShape.value) return null;
@@ -474,7 +446,6 @@ const selectedShape = computed((): ShapeType | null => {
     layer: selectedLeafletShape.value
   };
 });
-
 // Fonction pour sauvegarder la position dans les cookies
 function saveMapPosition(mapInstance: L.Map) {
   const center = mapInstance.getCenter();
@@ -486,7 +457,6 @@ function saveMapPosition(mapInstance: L.Map) {
   };
   document.cookie = `mapState=${JSON.stringify(mapState)};max-age=2592000;path=/`; // expire dans 30 jours
 }
-
 // Fonction pour récupérer la position depuis les cookies
 function getMapPosition(): { lat: number; lng: number; zoom: number } | null {
   const cookies = document.cookie.split(';');
@@ -501,83 +471,83 @@ function getMapPosition(): { lat: number; lng: number; zoom: number } | null {
   }
   return null;
 }
-
 onMounted(async () => {
-  // Charger les plans
-  await irrigationStore.fetchPlans();
-  
-  // Récupérer la dernière position sauvegardée ou utiliser la position par défaut
-  const savedPosition = getMapPosition();
-  const center: LatLngTuple = savedPosition 
-    ? [savedPosition.lat, savedPosition.lng]
-    : [46.603354, 1.888334];
-  const zoom = savedPosition?.zoom ?? 6;
-
-  // Initialiser la carte une seule fois
-  if (mapContainer.value && !map.value) {
-    // Initialiser les outils de dessin (qui crée aussi la carte)
-    const mapInstance = initDrawing(mapContainer.value, center, zoom) as L.Map;
-    
-    // Configurer la langue française pour Leaflet-Geoman
-    mapInstance.pm.setLang('fr');
-    
-    // Désactiver les contrôles de rotation par défaut
-    mapInstance.pm.addControls({
-      rotateMode: false
-    });
-    
-    // Initialiser l'état de la carte avec l'instance existante
-    initState(mapInstance);
-    
-    // Sauvegarder la position quand la carte bouge
-    mapInstance.on('moveend', () => {
-      saveMapPosition(mapInstance);
-    });
-    
-    // Ajouter l'écouteur d'événement pour le changement de localisation
-    window.addEventListener('map-set-location', ((event: CustomEvent) => {
-      if (mapInstance && event.detail) {
-        const { lat, lng, zoom } = event.detail;
-        mapInstance.flyTo([lat, lng], zoom, {
-          duration: 1.5,
-          easeLinearity: 0.25
-        });
-      }
-    }) as EventListener);
-  }
-
-  // Récupérer l'ID du dernier plan ouvert depuis le localStorage
-  const lastPlanId = localStorage.getItem('lastPlanId');
-  
-  // Si un plan était ouvert précédemment, le charger
-  if (lastPlanId) {
-    try {
-      await loadPlan(parseInt(lastPlanId));
-    } catch (error) {
-      console.error('Error loading last plan:', error);
+  try {
+    // Charger les plans
+    await irrigationStore.fetchPlans();
+    // Récupérer la dernière position sauvegardée ou utiliser la position par défaut
+    const savedPosition = getMapPosition();
+    const center: LatLngTuple = savedPosition 
+      ? [savedPosition.lat, savedPosition.lng]
+      : [46.603354, 1.888334];
+    const zoom = savedPosition?.zoom ?? 6;
+    // Initialiser la carte une seule fois
+    if (mapContainer.value && !map.value) {
+      // Initialiser les outils de dessin (qui crée aussi la carte)
+      const mapInstance = initDrawing(mapContainer.value, center, zoom) as L.Map;
+      // Configurer la langue française pour Leaflet-Geoman
+      mapInstance.pm.setLang('fr');
+      // Désactiver les contrôles de rotation par défaut
+      mapInstance.pm.addControls({
+        rotateMode: false
+      });
+      // Initialiser l'état de la carte avec l'instance existante
+      initState(mapInstance);
+      // Sauvegarder la position quand la carte bouge
+      mapInstance.on('moveend', () => {
+        saveMapPosition(mapInstance);
+      });
+      // Ajouter l'écouteur d'événement pour le changement de localisation
+      window.addEventListener('map-set-location', ((event: CustomEvent) => {
+        if (mapInstance && event.detail) {
+          const { lat, lng, zoom } = event.detail;
+          mapInstance.flyTo([lat, lng], zoom, {
+            duration: 1.5,
+            easeLinearity: 0.25
+          });
+        }
+      }) as EventListener);
     }
-  }
-
-  // Charger les concessionnaires au montage du composant si l'utilisateur est admin
-  if (authStore.user?.user_type === 'admin') {
-
-    await loadDealers();
-  }
-
-  // Charger les clients si c'est un concessionnaire
-  if (authStore.user?.user_type === 'dealer') {
-
-    await loadDealerClients();
+    // Récupérer l'ID du dernier plan ouvert depuis le localStorage
+    const lastPlanId = localStorage.getItem('lastPlanId');
+    // Si un plan était ouvert précédemment, essayer de le charger
+    if (lastPlanId) {
+      try {
+        await loadPlan(parseInt(lastPlanId));
+      } catch (error) {
+        console.error('Error loading last plan:', error);
+        // S'assurer que l'état est réinitialisé en cas d'erreur
+        currentPlan.value = null;
+        irrigationStore.clearCurrentPlan();
+        drawingStore.clearCurrentPlan();
+        clearMap();
+        localStorage.removeItem('lastPlanId');
+      }
+    }
+    // Charger les concessionnaires au montage du composant si l'utilisateur est admin
+    if (authStore.user?.user_type === 'admin') {
+      await loadDealers();
+    }
+    // Charger les clients si c'est un concessionnaire
+    if (authStore.user?.user_type === 'dealer') {
+      await loadDealerClients();
+    }
+  } catch (error) {
+    console.error('Error during component mount:', error);
+    // S'assurer que l'état est propre en cas d'erreur
+    currentPlan.value = null;
+    irrigationStore.clearCurrentPlan();
+    drawingStore.clearCurrentPlan();
+    clearMap();
+    localStorage.removeItem('lastPlanId');
   }
 });
-
 // Surveiller les changements dans le dessin
 watch(() => drawingStore.hasUnsavedChanges, (newValue) => {
   if (newValue && currentPlan.value) {
     irrigationStore.markUnsavedChanges();
   }
 });
-
 // Surveiller l'initialisation de la carte
 watch(map, async (newMap) => {
   if (newMap && irrigationStore.currentPlan) {
@@ -586,26 +556,33 @@ watch(map, async (newMap) => {
     await loadPlan(irrigationStore.currentPlan.id);
   }
 });
-
 // Surveiller le plan courant dans le store
 watch(() => irrigationStore.currentPlan, async (newPlan) => {
-  if (newPlan) {
-    currentPlan.value = newPlan;
-    irrigationStore.setCurrentPlan(newPlan);
-    drawingStore.setCurrentPlan(newPlan.id);
-  } else {
+  try {
+    if (newPlan) {
+      currentPlan.value = newPlan;
+      irrigationStore.setCurrentPlan(newPlan);
+      drawingStore.setCurrentPlan(newPlan.id);
+    } else {
+      currentPlan.value = null;
+      clearMap();
+      irrigationStore.clearCurrentPlan();
+      drawingStore.clearCurrentPlan();
+    }
+  } catch (error) {
+    console.error('Error in currentPlan watcher:', error);
     currentPlan.value = null;
     clearMap();
+    irrigationStore.clearCurrentPlan();
+    drawingStore.clearCurrentPlan();
   }
 }, { immediate: true });
-
 // Nettoyer l'écouteur d'événement lors de la destruction du composant
 onBeforeUnmount(() => {
   if (map.value) {
     map.value.off('moveend');
   }
 });
-
 // Fonction pour nettoyer la carte
 function clearMap() {
   if (featureGroup.value) {
@@ -616,36 +593,28 @@ function clearMap() {
   selectedLeafletShape.value = null;
   currentTool.value = '';
 }
-
 // Fonction pour rafraîchir la carte avec un nouveau plan
 async function refreshMapWithPlan(planId: number) {
   try {
     // Nettoyer la carte actuelle
     clearMap();
-    
     // Charger les éléments du plan
     await drawingStore.loadPlanElements(planId);
-    
     // Récupérer le plan depuis le store
     const loadedPlan = irrigationStore.getPlanById(planId);
-    
     if (loadedPlan) {
       // Mettre à jour le plan courant
       currentPlan.value = loadedPlan;
       irrigationStore.setCurrentPlan(loadedPlan);
       drawingStore.setCurrentPlan(loadedPlan.id);
-      
       // Mettre à jour l'ID du dernier plan consulté
       localStorage.setItem('lastPlanId', loadedPlan.id.toString());
-
       // Ajouter les formes à la carte
       if (map.value && featureGroup.value) {
         drawingStore.getCurrentElements.forEach(element => {
           if (!featureGroup.value || !element.data) return;
-
           let layer: L.Layer | null = null;
           const { style = {}, ...otherData } = element.data;
-
           switch (element.type_forme) {
             case 'TEXTE': {
               const textData = element.data as TextData;
@@ -654,18 +623,15 @@ async function refreshMapWithPlan(planId: number) {
                 content: textData.content,
                 style: textData.style
               });
-
               if (!textData.bounds) {
                 console.error('Bounds manquants pour TextRectangle');
                 return;
               }
-
               // Créer les bounds pour le TextRectangle
               const bounds = L.latLngBounds(
                 L.latLng(textData.bounds.southWest[1], textData.bounds.southWest[0]),
                 L.latLng(textData.bounds.northEast[1], textData.bounds.northEast[0])
               );
-
               // Créer le TextRectangle avec les options complètes
               layer = new TextRectangle(bounds, textData.content || 'Double-cliquez pour éditer', {
                 color: textData.style?.color || '#3388ff',
@@ -684,12 +650,10 @@ async function refreshMapWithPlan(planId: number) {
                   italic: textData.style?.textStyle?.italic || false
                 }
               });
-
               // Appliquer la rotation si spécifiée
               if (textData.rotation && typeof (layer as any).setRotation === 'function') {
                 (layer as any).setRotation(textData.rotation);
               }
-
               // S'assurer que les propriétés sont correctement définies
               (layer as any).properties = {
                 type: 'TextRectangle',
@@ -697,10 +661,8 @@ async function refreshMapWithPlan(planId: number) {
                 style: textData.style,
                 rotation: textData.rotation || 0
               };
-
               break;
             }
-
             case 'CERCLE': {
               const circleData = otherData as CircleData;
               if (circleData.center && circleData.radius) {
@@ -711,7 +673,6 @@ async function refreshMapWithPlan(planId: number) {
               }
               break;
             }
-
             case 'RECTANGLE': {
               const rectData = otherData as RectangleData;
               if (rectData.bounds) {
@@ -722,7 +683,6 @@ async function refreshMapWithPlan(planId: number) {
               }
               break;
             }
-
             case 'DEMI_CERCLE': {
               const semiData = otherData as SemicircleData;
               if (semiData.center && semiData.radius) {
@@ -733,7 +693,6 @@ async function refreshMapWithPlan(planId: number) {
                   semiData.endAngle,
                   style
                 );
-                
                 // S'assurer que le type est correctement défini
                 (layer as any).properties = {
                   type: 'Semicircle',
@@ -742,42 +701,34 @@ async function refreshMapWithPlan(planId: number) {
                   stopAngle: semiData.endAngle,
                   style: style
                 };
-                
                 // Calculer les propriétés additionnelles
                 const area = Math.PI * Math.pow(semiData.radius, 2) * ((semiData.endAngle - semiData.startAngle) / 360);
                 const perimeter = 2 * semiData.radius + (Math.PI * semiData.radius * ((semiData.endAngle - semiData.startAngle) / 180));
                 const arcLength = Math.PI * semiData.radius * ((semiData.endAngle - semiData.startAngle) / 180);
-                
                 (layer as any).properties.area = area;
                 (layer as any).properties.perimeter = perimeter;
                 (layer as any).properties.arcLength = arcLength;
                 (layer as any).properties.openingAngle = semiData.endAngle - semiData.startAngle;
-                
                 console.log('[loadPlan] Demi-cercle restauré avec propriétés:', (layer as any).properties);
               }
               break;
             }
-
             case 'LIGNE': {
               const lineData = otherData as LineData;
               if (lineData.points) {
                 const points = lineData.points.map(p => L.latLng(p[1], p[0]));
                 layer = L.polyline(points, style);
-                
                 // S'assurer que le type est correctement défini
                 (layer as any).properties = {
                   type: 'Line',
                   style: style
                 };
-                
                 // Calculer la longueur de la ligne
                 let length = 0;
                 for (let i = 1; i < points.length; i++) {
                   length += points[i].distanceTo(points[i-1]);
                 }
-                
                 (layer as any).properties.length = length;
-                
                 // Vérifier si des dimensions existent dans les données
                 if (lineData.hasOwnProperty('dimensions') && (lineData as any).dimensions) {
                   (layer as any).properties.dimensions = (lineData as any).dimensions;
@@ -786,19 +737,15 @@ async function refreshMapWithPlan(planId: number) {
                     (layer as any).properties.surfaceInfluence = surfaceInfluence;
                   }
                 }
-                
                 console.log('[loadPlan] Ligne restaurée avec propriétés:', (layer as any).properties);
               }
               break;
             }
           }
-
           if (layer) {
             // Stocker l'ID de la base de données sur la couche
             (layer as any)._dbId = element.id;
-            
             featureGroup.value?.addLayer(layer);
-
             shapes.value.push({
               id: element.id,
               type: element.type_forme,
@@ -807,31 +754,25 @@ async function refreshMapWithPlan(planId: number) {
             });
           }
         });
-
         // Ajuster la vue après avoir ajouté toutes les formes
         adjustView();
       }
-      
       console.log(`Plan ${planId} chargé avec succès avec ${drawingStore.getCurrentElements.length} formes`);
     } else {
       console.error(`Plan ${planId} introuvable après chargement`);
     }
-    
     showLoadPlanModal.value = false;
   } catch (error) {
     console.error('Erreur lors du rafraîchissement de la carte:', error);
     throw error;
   }
 }
-
 // Modifier la fonction loadPlan pour utiliser refreshMapWithPlan
 async function loadPlan(planId: number) {
   try {
     console.log(`Tentative de chargement du plan ${planId}...`);
-    
     // Vérifier si le plan existe dans le store
     const plan = irrigationStore.getPlanById(planId);
-    
     // Si le plan n'existe pas dans le store, vérifier avec l'API
     if (!plan) {
       try {
@@ -840,49 +781,50 @@ async function loadPlan(planId: number) {
         if (error.response?.status === 404) {
           console.warn(`Plan ${planId} non trouvé - Suppression de la référence du localStorage`);
           localStorage.removeItem('lastPlanId');
+          currentPlan.value = null;
+          irrigationStore.clearCurrentPlan();
+          drawingStore.clearCurrentPlan();
+          clearMap();
         }
         throw error;
       }
     }
-    
     // Rafraîchir la carte avec le nouveau plan
     await refreshMapWithPlan(planId);
-    
     showLoadPlanModal.value = false;
     console.log(`Plan ${planId} chargé avec succès avec ${drawingStore.getCurrentElements.length} formes`);
   } catch (error) {
     console.error('Erreur lors du chargement du plan:', error);
+    // En cas d'erreur, réinitialiser complètement l'état
+    currentPlan.value = null;
+    irrigationStore.clearCurrentPlan();
+    drawingStore.clearCurrentPlan();
+    clearMap();
+    localStorage.removeItem('lastPlanId');
     throw error;
   }
 }
-
   // Modifier la fonction savePlan
 async function savePlan() {
   if (!currentPlan.value || !featureGroup.value) {
     console.warn('Aucun plan actif ou groupe de formes à sauvegarder');
     return;
   }
-
   saving.value = true;
   saveStatus.value = 'saving';
-  
   try {
     const elements: DrawingElement[] = [];
-    
     // Récupérer les identifiants existants dans la base de données
     const existingIds = new Set(drawingStore.getCurrentElements
       .filter(el => el.id !== undefined)
       .map(el => el.id as number));
-    
     // Identifiants actuellement présents sur la carte
     const currentLayerIds = new Set<number>();
-    
     featureGroup.value.eachLayer((layer: L.Layer) => {
       // Vérifier d'abord si c'est un TextRectangle
       if (layer instanceof TextRectangle) {
         const bounds = layer.getBounds();
         const text = layer.properties?.text || '';
-        
         // Préparer les données spécifiques au TextRectangle
         const data: TextData = {
           style: {
@@ -908,21 +850,18 @@ async function savePlan() {
           },
           content: text
         };
-
         // Ajouter l'élément avec le type TEXTE
         elements.push({
           id: (layer as any)._dbId,
           type_forme: 'TEXTE',
           data
         });
-
         // Ajouter l'ID à la liste des IDs actuels si présent
         if ((layer as any)._dbId) {
           currentLayerIds.add((layer as any)._dbId);
         }
         return;
       }
-
       const baseData = {
         style: {
           color: (layer as any).options?.color || '#3388ff',
@@ -932,10 +871,8 @@ async function savePlan() {
           opacity: (layer as any).options?.opacity || 1
         }
       };
-
       let type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | undefined;
       let data: any;
-
       if (layer instanceof L.Circle) {
         type_forme = 'CERCLE';
         data = {
@@ -965,11 +902,9 @@ async function savePlan() {
         } else {
           center = { lat: 0, lng: 0 };
         }
-        
         const radius = (layer as any).getRadius ? (layer as any).getRadius() : 0;
         const startAngle = (layer as any).properties?.style?.startAngle || 0;
         const endAngle = (layer as any).properties?.style?.stopAngle || 180;
-        
         data = {
           ...baseData,
           center: [center.lng, center.lat],
@@ -985,17 +920,14 @@ async function savePlan() {
           points: latLngs.map(ll => [ll.lng, ll.lat])
         };
       }
-
       if (type_forme && data) {
         let elementId: number | undefined = (layer as any)._elementId;
-        
         if ((layer as any)._dbId) {
           elementId = (layer as any)._dbId;
           if (typeof elementId === 'number') {
             currentLayerIds.add(elementId);
           }
         }
-        
         elements.push({
           id: elementId,
           type_forme,
@@ -1006,21 +938,16 @@ async function savePlan() {
         });
       }
     });
-    
     // Identifier les éléments supprimés
     const elementsToDelete = Array.from(existingIds).filter(id => !currentLayerIds.has(id));
-    
     console.log('Sauvegarde du plan:', {
       totalElements: elements.length,
       elementsToDelete: elementsToDelete.length,
       details: { elements, elementsToDelete }
     });
-    
     drawingStore.elements = elements;
-    
     // Passer les éléments à supprimer au store
     const updatedPlan = await drawingStore.saveToPlan(currentPlan.value.id, { elementsToDelete });
-    
     // Mettre à jour le plan courant avec les nouvelles données
     if (updatedPlan && currentPlan.value?.id) {
       const planId = currentPlan.value.id;
@@ -1030,13 +957,10 @@ async function savePlan() {
       };
       irrigationStore.updatePlanDetails(planId, updatedPlan);
     }
-    
     saveStatus.value = 'success';
-    
     setTimeout(() => {
       saveStatus.value = null;
     }, 3000);
-
   } catch (error) {
     console.error('Erreur lors de la sauvegarde du plan:', error);
     saveStatus.value = null;
@@ -1044,7 +968,6 @@ async function savePlan() {
     saving.value = false;
   }
 }
-
 // Nettoyer lors du démontage du composant
 onUnmounted(() => {
     // Si l'utilisateur n'est plus connecté
@@ -1054,24 +977,20 @@ onUnmounted(() => {
   irrigationStore.clearCurrentPlan();
   drawingStore.clearCurrentPlan();
 });
-
 // Fonction pour mettre à jour les propriétés d'une forme
 function updateShapeProperties(properties: any) {
   updatePropertiesFromDestruct(properties);
 }
-
 // Fonction pour formater la date de dernière sauvegarde
 function formatLastSaved(date: string): string {
   try {
     // Créer un objet Date à partir de la chaîne ISO
     const dateObj = new Date(date);
-    
     // Vérifier si la date est valide
     if (isNaN(dateObj.getTime())) {
       console.error('Date invalide reçue:', date);
       return 'Date invalide';
     }
-
     // Formater la date en utilisant l'API Intl avec la timezone de Paris
     return new Intl.DateTimeFormat('fr-FR', {
       day: '2-digit',
@@ -1086,17 +1005,14 @@ function formatLastSaved(date: string): string {
     return 'Date invalide';
   }
 }
-
 // Handlers pour les intégrations avec MapToolbar
 const handleAdjustView = () => {
   if (featureGroup.value) {
     adjustView();
   }
 };
-
 // La méthode generateSynthesis est déjà définie plus bas dans le composant et sera utilisée par MapToolbar
 // via l'événement @generate-summary="generateSynthesis"
-
 // Fonction pour supprimer la forme sélectionnée
 const deleteSelectedShape = () => {
   if (selectedLeafletShape.value && featureGroup.value) {
@@ -1105,7 +1021,6 @@ const deleteSelectedShape = () => {
     selectedLeafletShape.value = null;
   }
 };
-
 // Fonction pour charger les concessionnaires
 async function loadDealers() {
   isLoadingDealers.value = true;
@@ -1120,30 +1035,22 @@ async function loadDealers() {
     isLoadingDealers.value = false;
   }
 }
-
 // Fonction pour charger les clients d'un concessionnaire
 async function loadDealerClients() {
-
-
   isLoadingClients.value = true;
   try {
     // Pour un concessionnaire, utiliser son propre ID
     const dealerId = authStore.user?.id;
-
-
     if (!dealerId) {
       console.error('[loadDealerClients] No dealer ID available');
       return;
     }
-
     const response = await api.get('/users/', {
       params: { 
         role: 'UTILISATEUR',
         concessionnaire: dealerId
       }
     });
-
-    
     // S'assurer que nous avons toujours un tableau
     if (Array.isArray(response.data)) {
       dealerClients.value = response.data;
@@ -1152,8 +1059,6 @@ async function loadDealerClients() {
     } else {
       dealerClients.value = [];
     }
-    
-
   } catch (error) {
     console.error('[loadDealerClients] Error:', error);
     dealerClients.value = [];
@@ -1161,37 +1066,28 @@ async function loadDealerClients() {
     isLoadingClients.value = false;
   }
 }
-
 async function selectClient(client: UserDetails) {
-
   console.log('[MapView][selectClient] Current state:', {
     selectedDealer: selectedDealer.value,
     selectedClient: selectedClient.value,
     newPlanModalRef: !!newPlanModalRef.value
   });
-
   if (newPlanModalRef.value) {
-
     newPlanModalRef.value.selectClient(client);
     selectedClient.value = client;
-
-
     // Charger les plans du client avec les paramètres de filtrage
     isLoadingPlans.value = true;
     try {
       const params: any = {
         client: client.id
       };
-      
       // Ajouter le concessionnaire si présent
       if (selectedDealer.value) {
         params.concessionnaire = selectedDealer.value.id;
       }
-      
       const response = await api.get('/plans/', {
         params: params
       });
-
       clientPlans.value = response.data;
     } catch (error) {
       console.error('[MapView][selectClient] Error loading client plans:', error);
@@ -1203,7 +1099,6 @@ async function selectClient(client: UserDetails) {
     console.warn('[MapView][selectClient] NewPlanModal ref is not available');
   }
 }
-
 // Fonctions de navigation
 function backToDealerList() {
   selectedDealer.value = null;
@@ -1211,37 +1106,29 @@ function backToDealerList() {
   dealerClients.value = [];
   clientPlans.value = [];
 }
-
 function backToClientList() {
   selectedClient.value = null;
   clientPlans.value = [];
 }
-
 // Ajouter la fonction de callback
 async function onPlanCreated(planId: number) {
   console.log(`onPlanCreated - Tentative de chargement du plan ${planId}`);
-  
   // Actualiser la liste des plans pour s'assurer que le nouveau plan est bien présent
   await irrigationStore.fetchPlans();
-  
   const plan = irrigationStore.getPlanById(planId);
   if (plan) {
     console.log(`Plan ${planId} trouvé, chargement en cours...`);
-    
     // Mettre à jour l'ID du dernier plan consulté dans localStorage
     localStorage.setItem('lastPlanId', planId.toString());
-    
     currentPlan.value = plan;
     irrigationStore.setCurrentPlan(plan);
     drawingStore.setCurrentPlan(plan.id);
     showNewPlanModal.value = false;
-    
     console.log(`Plan ${planId} chargé avec succès`);
   } else {
     console.error(`Plan ${planId} introuvable après création! Vérifiez les permissions.`);
   }
 }
-
 // Fonctions de sélection
 async function selectDealer(dealer: UserDetails) {
   try {
@@ -1258,7 +1145,6 @@ async function selectDealer(dealer: UserDetails) {
     console.error('[MapView][selectDealer] Error:', error);
   }
 }
-
 // Ajouter un watcher pour charger les clients quand un concessionnaire est sélectionné
 watch(selectedDealer, async (newDealer) => {
   if (newDealer && authStore.user?.user_type === 'admin') {
@@ -1280,12 +1166,10 @@ watch(selectedDealer, async (newDealer) => {
     }
   }
 });
-
 // Ajouter une fonction pour nettoyer le localStorage lors de la déconnexion
 function clearLastPlan() {
   localStorage.removeItem('lastPlanId');
 }
-
   // Fonction pour formater les mesures
   function formatMeasure(value: number, unit: string = 'm'): string {
     if (unit === 'm²') {
@@ -1298,10 +1182,8 @@ function clearLastPlan() {
     }
     return `${value.toFixed(2)} ${unit}`;
   }
-
   // Fonction pour générer la synthèse
   const isGeneratingSynthesis = ref(false);
-
   // Fonction pour traduire le type de forme en français
   function getShapeTypeFr(type: string): string {
     const types: { [key: string]: string } = {
@@ -1314,37 +1196,29 @@ function clearLastPlan() {
     };
     return types[type] || type;
   }
-
   async function generateSynthesis() {
     if (!currentPlan.value || !map.value || !featureGroup.value) {
       return;
     }
-
     try {
       // Sauvegarder automatiquement le plan avant de générer la synthèse
       console.log('Sauvegarde automatique avant génération de la synthèse...');
       await savePlan();
-
       // Attendre un court instant pour s'assurer que la sauvegarde est bien prise en compte
       await new Promise(resolve => setTimeout(resolve, 1000));
-
       isGeneratingSynthesis.value = true;
-
       // Utiliser directement les détails du plan mis à jour
       const concessionnaireDetails = currentPlan.value.concessionnaire_details;
       const clientDetails = currentPlan.value.client_details;
-
       // Désélectionner toute forme active
       if (selectedLeafletShape.value) {
         clearActiveControlPoints();
         selectedLeafletShape.value = null;
       }
-
       // Créer le PDF en mode paysage
       const pdf = new jsPDF('l', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      
       // Page de garde
       const logoImg = new Image();
       logoImg.src = logo;
@@ -1352,18 +1226,14 @@ function clearLastPlan() {
         logoImg.onload = () => resolve();
         logoImg.onerror = () => resolve();
       });
-      
       // Logo centré en haut
       pdf.addImage(logoImg, 'JPEG', (pageWidth - 60) / 2, 20, 60, 60);
-      
       // Titre du plan
       pdf.setFontSize(24);
       pdf.setTextColor(0);
       pdf.text(currentPlan.value.nom || 'Sans titre', pageWidth/2, 100, { align: 'center' });
-      
       // Informations du plan
       let yPos = 120;
-
       // Informations du concessionnaire et client
       pdf.setFontSize(14);
       if (concessionnaireDetails) {
@@ -1373,7 +1243,6 @@ function clearLastPlan() {
         pdf.text(`${concessionnaireDetails.first_name} ${concessionnaireDetails.last_name}${concessionnaireDetails.company_name ? ` (${concessionnaireDetails.company_name})` : ''}`, 20, yPos + 8);
         yPos += 25;
       }
-      
       if (clientDetails) {
         pdf.setFont('helvetica', 'bold');
         pdf.text('Client:', 20, yPos);
@@ -1381,7 +1250,6 @@ function clearLastPlan() {
         pdf.text(`${clientDetails.first_name} ${clientDetails.last_name}${clientDetails.company_name ? ` (${clientDetails.company_name})` : ''}`, 20, yPos + 8);
         yPos += 25;
       }
-      
       // Description
       if (currentPlan.value.description) {
         pdf.setFont('helvetica', 'bold');
@@ -1391,18 +1259,14 @@ function clearLastPlan() {
         pdf.text(splitDescription, 20, yPos + 8);
         yPos += 10 * splitDescription.length + 15;
       }
-
       // Dates en bas de page
       pdf.setFontSize(10);
       pdf.setTextColor(100);
       pdf.text(`Date de création: ${formatLastSaved(currentPlan.value.date_creation)}`, 20, pageHeight - 20);
       pdf.text(`Dernière modification: ${formatLastSaved(currentPlan.value.date_modification)}`, pageWidth - 20, pageHeight - 20, { align: 'right' });
-
       // Récupérer les formes
       const layers: L.Layer[] = [];
       featureGroup.value.eachLayer((layer: L.Layer) => layers.push(layer));
-
-
       // Initialiser le screenshoter avec des options améliorées
       const screenshoter = L.simpleMapScreenshoter({
         hideElementsWithSelectors: [
@@ -1413,19 +1277,15 @@ function clearLastPlan() {
         ],
         preventDownload: true
       }).addTo(map.value as L.Map);
-
       // Attendre que la carte soit chargée avant la capture
       await new Promise(resolve => setTimeout(resolve, 3000));
-
       // Pour chaque forme, créer une nouvelle page
       for (let i = 0; i < layers.length; i++) {
         pdf.addPage();
-
         // Ajouter le logo en filigrane
         const logoWidth = 30;
         const logoHeight = 30;
         pdf.addImage(logoImg, 'JPEG', pageWidth - logoWidth - 10, 10, logoWidth, logoHeight);
-
         // Ajouter les informations du client et concessionnaire en en-tête
         pdf.setFontSize(8);
         pdf.setTextColor(100);
@@ -1437,15 +1297,12 @@ function clearLastPlan() {
         if (clientDetails) {
           pdf.text(`Client: ${clientDetails.first_name} ${clientDetails.last_name}${clientDetails.company_name ? ` (${clientDetails.company_name})` : ''}`, 20, yHeader);
         }
-
         // Ajouter une barre de séparation élégante
         pdf.setDrawColor(200, 200, 200);
         pdf.setLineWidth(0.5);
         pdf.line(20, 45, pageWidth - 20, 45);
-
         const layer = layers[i];
         const properties = (layer as any).properties;
-
         // Titre de la forme sous la ligne de séparation
         if (properties) {
           pdf.setTextColor(0);
@@ -1453,7 +1310,6 @@ function clearLastPlan() {
           pdf.setFont('helvetica', 'bold');
           pdf.text(getShapeTypeFr(properties.type), 20, 60);
         }
-
         // Ajuster la vue
         const bounds = (layer as any).getBounds?.() || (layer as any).getLatLng?.();
         if (bounds) {
@@ -1461,13 +1317,10 @@ function clearLastPlan() {
             padding: [50, 50]
           });
         }
-
         // Attendre que la carte soit complètement chargée
         await new Promise(resolve => setTimeout(resolve, 2000));
-
         // Forcer un rafraîchissement de la carte
         map.value.invalidateSize();
-
         // Attendre que toutes les tuiles soient chargées
         await new Promise<void>((resolve) => {
           const checkTiles = () => {
@@ -1476,10 +1329,8 @@ function clearLastPlan() {
               resolve();
               return;
             }
-
             const tiles = container.querySelectorAll('.leaflet-tile-loaded');
             const loading = container.querySelectorAll('.leaflet-tile-loading');
-
             if (loading.length === 0 && tiles.length > 0) {
               resolve();
             } else {
@@ -1488,7 +1339,6 @@ function clearLastPlan() {
           };
           checkTiles();
         });
-
         try {
           // Capturer la carte
           const dataUrl = await screenshoter.takeScreen('image');
@@ -1498,27 +1348,22 @@ function clearLastPlan() {
             img.onerror = (error) => reject(error);
             img.src = dataUrl as unknown as string;
           });
-
           // Calculer les dimensions pour 60% de la largeur
           const imgWidth = pageWidth * 0.6 - 30;
           let imgHeight = (mapImage.height * imgWidth) / mapImage.width;
-          
           if (imgHeight > pageHeight * 0.9) {
             imgHeight = pageHeight * 0.9;
           }
           // Ajuster le yOffset pour commencer après le titre de la forme (60 + marge)
           const yOffset = Math.max(80, (pageHeight - imgHeight) / 2);
           pdf.addImage(mapImage, 'PNG', 20, yOffset, imgWidth, imgHeight);
-
           // Section des propriétés (40% de la largeur)
           if (properties) {
             const propX = pageWidth * 0.6 + 10;
             let propY = 70; // Ajusté pour aligner avec le titre de la forme
-
             // Propriétés principales
             pdf.setFontSize(12);
             pdf.setFont('helvetica', 'normal');
-
             // Cercle
             if (properties.type === 'Circle') {
               pdf.text(`Rayon: ${formatMeasure(properties.radius)}`, propX, propY);
@@ -1538,7 +1383,6 @@ function clearLastPlan() {
                 propY += 10;
               }
             }
-
             // Rectangle
             else if (properties.type === 'Rectangle') {
               pdf.text(`Largeur: ${formatMeasure(properties.width)}`, propX, propY);
@@ -1558,7 +1402,6 @@ function clearLastPlan() {
                 propY += 10;
               }
             }
-
             // Ligne
             else if (properties.type === 'Line') {
               pdf.text(`Longueur: ${formatMeasure(properties.length)}`, propX, propY);
@@ -1572,7 +1415,6 @@ function clearLastPlan() {
                 propY += 10;
               }
             }
-
             // Polygone
             else if (properties.type === 'Polygon') {
               pdf.text(`Surface: ${formatMeasure(properties.area, 'm²')}`, propX, propY);
@@ -1588,7 +1430,6 @@ function clearLastPlan() {
                 propY += 10;
               }
             }
-
             // Demi-cercle
             else if (properties.type === 'Semicircle') {
               pdf.text(`Rayon: ${formatMeasure(properties.radius)}`, propX, propY);
@@ -1617,13 +1458,9 @@ function clearLastPlan() {
           console.error(`[generateSynthesis] Erreur capture forme ${i + 1}:`, error);
         }
       }
-
       // Retirer le screenshoter
       map.value.removeControl(screenshoter);
-      
-
       pdf.save(`synthese_${currentPlan.value.nom}.pdf`);
-
     } catch (error) {
       console.error('[generateSynthesis] Erreur:', error);
       alert('Une erreur est survenue lors de la génération de la synthèse. Veuillez réessayer.');
@@ -1632,16 +1469,13 @@ function clearLastPlan() {
     }
   }
 </script>
-
 <style>
 @import '../styles/MapView.css';
-
 .map-container {
   height: 100%;
   width: 100%;
   position: relative;
 }
-
 /* Style pour le wrapper des outils de dessin */
 .drawing-tools-wrapper {
   position: relative;

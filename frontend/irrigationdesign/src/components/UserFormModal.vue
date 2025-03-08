@@ -4,9 +4,7 @@
       <div class="fixed inset-0 transition-opacity" aria-hidden="true">
         <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
       </div>
-
       <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
       <div
         class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6"
         role="dialog"
@@ -43,7 +41,6 @@
                     />
                   </div>
                 </div>
-
                 <div>
                   <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
                   <input
@@ -54,7 +51,6 @@
                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
                   />
                 </div>
-
                 <div>
                   <label for="username" class="block text-sm font-medium text-gray-700">Nom d'utilisateur</label>
                   <input
@@ -72,7 +68,6 @@
                     Le nom d'utilisateur ne peut pas être modifié après la création.
                   </p>
                 </div>
-
                 <div>
                   <label for="company_name" class="block text-sm font-medium text-gray-700">Nom de l'entreprise</label>
                   <input
@@ -82,7 +77,6 @@
                     class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
                   />
                 </div>
-
                 <!-- Rôle et Concessionnaire -->
                 <div class="grid grid-cols-2 gap-4">
                   <div v-if="props.isAdmin">
@@ -116,7 +110,6 @@
                     </select>
                   </div>
                 </div>
-
                 <!-- Mot de passe -->
                 <div v-if="!user">
                   <div class="grid grid-cols-2 gap-4">
@@ -147,7 +140,6 @@
                     L'utilisateur devra changer son mot de passe à sa première connexion.
                   </p>
                 </div>
-
                 <!-- Message d'erreur -->
                 <div v-if="error" class="rounded-md bg-red-50 p-4">
                   <div class="flex">
@@ -161,7 +153,6 @@
                     </div>
                   </div>
                 </div>
-
                 <!-- Actions -->
                 <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
                   <button
@@ -208,11 +199,9 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, reactive, computed, type PropType } from 'vue'
 import { useAuthStore, formatUserName } from '@/stores/auth'
-
 interface UserData {
   first_name: string
   last_name: string
@@ -226,7 +215,6 @@ interface UserData {
   password_confirm?: string
   id?: number
 }
-
 interface Dealer {
   id: number
   first_name: string
@@ -234,7 +222,6 @@ interface Dealer {
   company_name?: string
   role: string
 }
-
 interface ApiError {
   response?: {
     data?: {
@@ -246,7 +233,6 @@ interface ApiError {
     }
   }
 }
-
 const props = defineProps({
   user: {
     type: Object as PropType<Record<string, any> | null>,
@@ -265,12 +251,10 @@ const props = defineProps({
     default: ''
   }
 })
-
 const emit = defineEmits(['close', 'save'])
 const authStore = useAuthStore()
 const loading = ref(false)
 const error = ref<string | null>(null)
-
 const canChangeRole = computed(() => {
   if (!props.isAdmin) return false
   if (props.user) {
@@ -279,7 +263,6 @@ const canChangeRole = computed(() => {
   }
   return true
 })
-
 const availableRoles = computed(() => {
   if (props.isAdmin) {
     return [
@@ -292,16 +275,13 @@ const availableRoles = computed(() => {
     { value: 'UTILISATEUR', label: 'Client' }
   ]
 })
-
 const showDealerSelect = computed(() => {
   if (!props.isAdmin) return true // Toujours afficher pour les concessionnaires
   return form.role === 'UTILISATEUR'
 })
-
 const availableDealers = computed(() => {
   return props.dealers.filter(dealer => dealer.role === 'CONCESSIONNAIRE')
 })
-
 const form = reactive<UserData>({
   first_name: props.user?.first_name || '',
   last_name: props.user?.last_name || '',
@@ -313,7 +293,6 @@ const form = reactive<UserData>({
   password: '',
   password_confirm: ''
 })
-
 const validateForm = () => {
   if (!form.first_name || !form.last_name) {
     error.value = 'Le prénom et le nom sont requis'
@@ -343,28 +322,23 @@ const validateForm = () => {
   }
   return true
 }
-
 const handleSubmit = async () => {
   error.value = null
   if (!validateForm()) return
-
   loading.value = true
   try {
     const userData = { ...form }
-    
     // Ne pas envoyer le mot de passe si on modifie un utilisateur existant
     if (props.user?.id) {
       userData.id = props.user.id
       delete userData.password
       delete userData.password_confirm
     }
-
     // Conversion du dealer en concessionnaire uniquement pour les clients
     if (userData.role === 'UTILISATEUR' && userData.dealer) {
       userData.concessionnaire = userData.dealer
     }
     delete userData.dealer
-
     await emit('save', userData)
     emit('close')
   } catch (err: any) {

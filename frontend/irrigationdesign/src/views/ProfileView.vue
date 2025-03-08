@@ -13,7 +13,6 @@
             </p>
           </div>
         </div>
-
         <div class="mt-5 md:mt-0 md:col-span-2">
           <form @submit.prevent="updateProfile">
             <div class="shadow sm:rounded-md sm:overflow-hidden">
@@ -62,7 +61,6 @@
                     </div>
                   </div>
                 </div>
-
                 <div>
                   <label
                     for="username"
@@ -82,7 +80,6 @@
                     <p class="mt-1 text-sm text-gray-500">Le nom d'utilisateur ne peut pas être modifié.</p>
                   </div>
                 </div>
-
                 <div>
                   <label
                     for="email"
@@ -101,7 +98,6 @@
                   </div>
                 </div>
               </div>
-
               <div class="px-4 py-3 bg-gray-50 text-right sm:px-6">
                 <button
                   type="submit"
@@ -115,13 +111,11 @@
           </form>
         </div>
       </div>
-
       <div class="hidden sm:block" aria-hidden="true">
         <div class="py-5">
           <div class="border-t border-gray-200"></div>
         </div>
       </div>
-
       <!-- Changement de mot de passe -->
       <div class="mt-10 sm:mt-0">
         <div class="md:grid md:grid-cols-3 md:gap-6">
@@ -135,7 +129,6 @@
               </p>
             </div>
           </div>
-
           <div class="mt-5 md:mt-0 md:col-span-2">
             <form @submit.prevent="changePassword">
               <div class="shadow sm:rounded-md sm:overflow-hidden">
@@ -180,7 +173,6 @@
                       </div>
                     </div>
                   </div>
-
                   <div>
                     <label
                       for="current-password"
@@ -199,7 +191,6 @@
                       />
                     </div>
                   </div>
-
                   <div>
                     <label
                       for="new-password"
@@ -218,7 +209,6 @@
                       />
                     </div>
                   </div>
-
                   <div>
                     <label
                       for="confirm-password"
@@ -238,7 +228,6 @@
                     </div>
                   </div>
                 </div>
-
                 <div class="px-4 py-3 bg-gray-50 text-right sm:px-6">
                   <button
                     type="submit"
@@ -256,41 +245,33 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-
 const authStore = useAuthStore()
-
 const profileLoading = ref(false)
 const passwordLoading = ref(false)
 const profileError = ref<string | null>(null)
 const passwordError = ref<string | null>(null)
 const passwordSuccess = ref<string | null>(null)
-
 const profileForm = reactive({
   username: '',
   email: ''
 })
-
 const passwordForm = reactive({
   old_password: '',
   new_password: '',
   confirm_password: ''
 })
-
 onMounted(() => {
   if (authStore.user) {
     profileForm.username = authStore.user.username
     profileForm.email = authStore.user.email
   }
 })
-
 async function updateProfile() {
   profileLoading.value = true
   profileError.value = null
-
   try {
     await authStore.updateUserEmail(profileForm.email)
     // Afficher un message de succès temporaire
@@ -326,29 +307,24 @@ async function updateProfile() {
     profileLoading.value = false
   }
 }
-
 async function changePassword() {
   if (passwordForm.new_password !== passwordForm.confirm_password) {
     passwordError.value = 'Les mots de passe ne correspondent pas'
     passwordSuccess.value = null
     return
   }
-
   passwordLoading.value = true
   passwordError.value = null
   passwordSuccess.value = null
-
   try {
     await authStore.changePassword(
       passwordForm.old_password,
       passwordForm.new_password
     )
-    
     // Réinitialiser le formulaire
     passwordForm.old_password = ''
     passwordForm.new_password = ''
     passwordForm.confirm_password = ''
-    
     // Afficher un message de succès temporaire
     passwordSuccess.value = 'Mot de passe modifié avec succès'
     setTimeout(() => {

@@ -4,7 +4,6 @@ import type { DrawingElement, TextData, ShapeData, RectangleData } from '@/types
 import L from 'leaflet';
 import { TextRectangle } from '@/utils/TextRectangle';
 import { Polygon } from '@/utils/Polygon';
-
 interface DrawingState {
   currentPlanId: number | null;
   elements: DrawingElement[];
@@ -22,7 +21,6 @@ interface DrawingState {
   };
   lastUsedType: string | null;
 }
-
 interface PolygonData {
   points: [number, number][];
   style: {
@@ -34,16 +32,13 @@ interface PolygonData {
     dashArray?: string;
   };
 }
-
 function isTextData(data: ShapeData): data is TextData {
   return 'content' in data && 'bounds' in data;
 }
-
 function isPolygonData(data: any): data is PolygonData {
   return data && Array.isArray(data.points) && data.points.length > 0 && 
          Array.isArray(data.points[0]) && data.points[0].length === 2;
 }
-
 function convertShapeToDrawingElement(shape: any): DrawingElement {
   console.log('[DrawingStore] Conversion de la forme en élément', { 
     type: shape.properties?.type,
@@ -51,10 +46,8 @@ function convertShapeToDrawingElement(shape: any): DrawingElement {
     bounds: shape.getBounds?.(),
     shape 
   });
-
   let type_forme: DrawingElement['type_forme'];
   let data: ShapeData;
-
   // Vérifier d'abord si c'est un TextRectangle
   if (shape instanceof TextRectangle || shape.properties?.type === 'TextRectangle') {
     type_forme = 'TEXTE';
@@ -80,16 +73,13 @@ function convertShapeToDrawingElement(shape: any): DrawingElement {
       },
       rotation: shape.properties.rotation || 0
     } as TextData;
-
     console.log('[DrawingStore] TextRectangle converti', {
       type_forme,
       data,
       originalProperties: shape.properties
     });
-    
     return { type_forme, data };
   }
-
   switch (shape.properties?.type) {
     case 'Polygon':
       type_forme = 'POLYGON';
@@ -106,7 +96,6 @@ function convertShapeToDrawingElement(shape: any): DrawingElement {
         }
       };
       break;
-
     case 'Rectangle':
       type_forme = 'RECTANGLE';
       data = {
@@ -117,39 +106,32 @@ function convertShapeToDrawingElement(shape: any): DrawingElement {
         style: shape.properties?.style || {}
       } as RectangleData;
       break;
-
     default:
       console.warn('[DrawingStore] Type de forme non géré:', shape.properties?.type);
       type_forme = 'UNKNOWN';
       data = {} as ShapeData;
   }
-
   console.log('[DrawingStore] Élément converti', { type_forme, data });
   return { type_forme, data };
 }
-
 function convertStoredElementToShape(element: DrawingElement): any {
   console.log('[DrawingStore] Conversion de l\'élément stocké en forme', { element });
-
   switch (element.type_forme) {
     case 'TEXTE': {
       if (!isTextData(element.data)) {
         console.error('[DrawingStore] Données invalides pour TextRectangle');
         return null;
       }
-
       const textData = element.data;
       if (!textData.bounds) {
         console.error('[DrawingStore] Données de bounds manquantes pour TextRectangle');
         return null;
       }
-
       // Créer les bounds pour le TextRectangle
       const bounds = new L.LatLngBounds(
         L.latLng(textData.bounds.southWest[1], textData.bounds.southWest[0]),
         L.latLng(textData.bounds.northEast[1], textData.bounds.northEast[0])
       );
-
       // Préparer les options pour le TextRectangle
       const options = {
         color: textData.style?.color || '#3388ff',
@@ -168,7 +150,6 @@ function convertStoredElementToShape(element: DrawingElement): any {
           italic: textData.style.textStyle?.italic || false
         }
       };
-
       return {
         type: 'TextRectangle',
         bounds,
@@ -182,14 +163,12 @@ function convertStoredElementToShape(element: DrawingElement): any {
         }
       };
     }
-
     case 'POLYGON': {
       const data = element.data;
       if (!isPolygonData(data)) {
         console.error('[DrawingStore] Données invalides pour Polygon');
         return null;
       }
-
       // Créer une instance de Polygon avec les points et le style
       const points = data.points.map((point: [number, number]) => 
         L.latLng(point[1], point[0])
@@ -203,19 +182,15 @@ function convertStoredElementToShape(element: DrawingElement): any {
         fillOpacity: data.style?.fillOpacity || 0.2,
         dashArray: data.style?.dashArray || ''
       });
-
       // Forcer la mise à jour des propriétés
       polygon.updateProperties();
-
       return polygon;
     }
-
     default:
       console.warn('[DrawingStore] Type non géré pour la restauration:', element.type_forme);
       return null;
   }
 }
-
 export const useDrawingStore = defineStore('drawing', {
   state: (): DrawingState => ({
     currentPlanId: null,
@@ -246,7 +221,6 @@ export const useDrawingStore = defineStore('drawing', {
     setCurrentPlan(planId: number | null) {
       // Émettre un événement personnalisé pour nettoyer les points de contrôle
       window.dispatchEvent(new CustomEvent('clearControlPoints'));
-      
       this.currentPlanId = planId;
       if (planId === null) {
         this.clearElements();
@@ -280,7 +254,6 @@ export const useDrawingStore = defineStore('drawing', {
     },
     addElement(element: DrawingElement | any) {
       console.log('[DrawingStore] Ajout d\'un élément', { element });
-
       // Si l'élément est une forme Leaflet (TextRectangle, Polygon, etc.)
       if (element.properties?.type) {
         const convertedElement = convertShapeToDrawingElement(element);
@@ -293,7 +266,6 @@ export const useDrawingStore = defineStore('drawing', {
         }
         this.elements.push(element);
       }
-      
       this.unsavedChanges = true;
       console.log('[DrawingStore] État après ajout', { 
         elements: this.elements,
@@ -333,12 +305,10 @@ export const useDrawingStore = defineStore('drawing', {
         console.log('[DrawingStore] Début du chargement du plan', { planId });
         const response = await api.get(`/plans/${planId}/`);
         const plan = response.data;
-        
         console.log('[DrawingStore] Données du plan reçues', {
           formes: plan.formes,
           preferences: plan.preferences
         });
-
         // Convertir les formes en éléments de dessin
         this.elements = plan.formes.map((forme: any) => {
           console.log('[DrawingStore] Traitement de la forme stockée', {
@@ -347,7 +317,6 @@ export const useDrawingStore = defineStore('drawing', {
             data: forme.data,
             isTextRectangle: forme.type_forme === 'TEXTE' || (forme.data && isTextData(forme.data))
           });
-
           // Si la forme a déjà été convertie en élément de dessin
           if (forme.type_forme) {
             console.log('[DrawingStore] Forme déjà au format élément', {
@@ -360,7 +329,6 @@ export const useDrawingStore = defineStore('drawing', {
               data: forme.data || {}
             };
           }
-
           // Sinon, tenter de convertir la forme
           try {
             const convertedShape = convertStoredElementToShape(forme);
@@ -378,7 +346,6 @@ export const useDrawingStore = defineStore('drawing', {
               forme
             });
           }
-
           // En cas d'échec, retourner la forme telle quelle
           console.warn('[DrawingStore] Utilisation de la forme sans conversion', {
             type_forme: forme.type_forme,
@@ -386,7 +353,6 @@ export const useDrawingStore = defineStore('drawing', {
           });
           return forme;
         });
-
         console.log(`[DrawingStore] Plan ${planId} - Chargé ${this.elements.length} éléments`, {
           elements: this.elements.map(el => ({
             id: el.id,
@@ -394,10 +360,8 @@ export const useDrawingStore = defineStore('drawing', {
             isTextRectangle: el.type_forme === 'TEXTE' || isTextData(el.data)
           }))
         });
-
         this.currentPlanId = planId;
         this.unsavedChanges = false;
-
         // Charger les préférences du plan
         if (plan.preferences) {
           console.log('[DrawingStore] Chargement des préférences', plan.preferences);
@@ -411,7 +375,6 @@ export const useDrawingStore = defineStore('drawing', {
             this.lastUsedType = plan.preferences.lastUsedType;
           }
         }
-
         return this.elements;
       } catch (error) {
         console.error('[DrawingStore] Erreur lors du chargement des éléments:', error);
@@ -428,7 +391,6 @@ export const useDrawingStore = defineStore('drawing', {
         if (!targetPlanId) {
           throw new Error('Aucun plan sélectionné pour la sauvegarde');
         }
-
         console.log('[DrawingStore] Début de la sauvegarde', {
           planId: targetPlanId,
           elementsCount: this.elements.length,
@@ -438,7 +400,6 @@ export const useDrawingStore = defineStore('drawing', {
             isTextRectangle: el.type_forme === 'TEXTE' || isTextData(el.data)
           }))
         });
-
         const formesAvecType = this.elements.map(element => {
           console.log('[DrawingStore] Préparation de l\'élément pour sauvegarde', {
             id: element.id,
@@ -446,7 +407,6 @@ export const useDrawingStore = defineStore('drawing', {
             isTextRectangle: element.type_forme === 'TEXTE' || isTextData(element.data),
             dataType: element.data ? Object.keys(element.data) : null
           });
-
           // Vérifier si c'est un TextRectangle
           if (element.type_forme === 'TEXTE' && isTextData(element.data)) {
             console.log('[DrawingStore] Traitement spécial TextRectangle', {
@@ -455,15 +415,12 @@ export const useDrawingStore = defineStore('drawing', {
               style: element.data.style
             });
           }
-
           return {
             ...element,
             type_forme: element.type_forme || this.lastUsedType
           };
         });
-
         const elementsToDelete = options?.elementsToDelete || [];
-        
         console.log('[DrawingStore] Envoi de la sauvegarde', {
           planId: targetPlanId,
           formesCount: formesAvecType.length,
@@ -475,7 +432,6 @@ export const useDrawingStore = defineStore('drawing', {
             lastUsedType: this.lastUsedType
           }
         });
-
         const response = await api.post(`/plans/${targetPlanId}/save_with_elements/`, {
           formes: formesAvecType,
           connexions: [],
@@ -487,24 +443,20 @@ export const useDrawingStore = defineStore('drawing', {
             lastUsedType: this.lastUsedType
           }
         });
-
         console.log('[DrawingStore] Réponse de sauvegarde reçue', {
           formes: response.data.formes,
           status: response.status
         });
-
         this.elements = response.data.formes.map((forme: any) => {
           console.log('[DrawingStore] Mise à jour de l\'élément après sauvegarde', {
             forme,
             type_forme: forme.type_forme
           });
-
           return {
             ...forme,
             type_forme: forme.type_forme
           };
         });
-
         this.unsavedChanges = false;
         return response.data;
       } catch (error) {

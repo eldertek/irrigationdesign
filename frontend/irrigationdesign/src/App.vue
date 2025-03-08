@@ -4,34 +4,28 @@ import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import SearchBar from '@/components/SearchBar.vue'
-
 const router = useRouter()
 const authStore = useAuthStore()
 const showProfileMenu = ref(false)
 const showMobileMenu = ref(false)
 const isSmallScreen = ref(false)
-
 // Fonction pour détecter la taille de l'écran
 function checkScreenSize() {
   isSmallScreen.value = window.innerWidth < 768
 }
-
 // Écouter les changements de taille d'écran
 onMounted(() => {
   checkScreenSize()
   window.addEventListener('resize', checkScreenSize)
 })
-
 // Nettoyer l'écouteur d'événement
 onBeforeUnmount(() => {
   window.removeEventListener('resize', checkScreenSize)
 })
-
 // Données utilisateur depuis le store d'authentification
 const userName = computed(() => {
   const user = authStore.user
   if (!user) return ''
-  
   const fullName = `${user.first_name} ${user.last_name.toUpperCase()}`
   if (user.company_name) {
     return `${fullName} (${user.company_name})`
@@ -55,28 +49,22 @@ const userRole = computed(() => {
 const isAdmin = computed(() => authStore.user?.user_type === 'admin')
 const userAvatar = ref('')
 const isAuthenticated = computed(() => authStore.isAuthenticated)
-
 // Items de navigation de base
 const baseNavigationItems = [
   { name: 'Carte', to: '/' },
   { name: 'Plans', to: '/plans' }
 ]
-
 // Items de navigation avec condition pour l'onglet Utilisateurs et Clients
 const navigationItems = computed(() => {
   if (!isAuthenticated.value) return []
-  
   const items = [...baseNavigationItems]
-  
   if (isAdmin.value) {
     items.push({ name: 'Utilisateurs', to: '/users' })
   } else if (authStore.user?.user_type === 'dealer') {
     items.push({ name: 'Clients', to: '/clients' })
   }
-  
   return items
 })
-
 // Items du menu profil
 const profileMenuItems = computed(() => {
   if (!isAuthenticated.value) return []
@@ -84,13 +72,11 @@ const profileMenuItems = computed(() => {
     { name: 'Mon profil', to: '/profile' },
   ]
 })
-
 // Interface pour le paramètre de localisation
 interface Location {
   lat: number
   lng: number
 }
-
 async function handleLogout() {
   try {
     await authStore.logout()
@@ -99,7 +85,6 @@ async function handleLogout() {
     console.error('Erreur lors de la déconnexion:', error)
   }
 }
-
 // Fonction pour gérer la sélection d'une adresse
 function handleLocationSelect(location: Location) {
   // Émettre un événement personnalisé pour la carte
@@ -111,7 +96,6 @@ function handleLocationSelect(location: Location) {
     }
   }))
 }
-
 // Vérifier l'authentification au chargement
 onMounted(async () => {
   console.log('App mounted, checking auth...')
@@ -131,12 +115,10 @@ onMounted(async () => {
     router.push('/login')
   }
 })
-
 // Titre de la page
 const pageTitle = computed(() => {
   const baseTitle = 'IrrigationDesign'
   if (!isAuthenticated.value) return `${baseTitle} - Connexion`
-  
   const currentRoute = router.currentRoute.value
   const routeTitles: Record<string, string> = {
     home: 'Carte',
@@ -147,17 +129,14 @@ const pageTitle = computed(() => {
     changePassword: 'Changement de mot de passe',
     map: 'Carte'
   }
-  
   const routeTitle = routeTitles[currentRoute.name as string] || ''
   return routeTitle ? `${baseTitle} - ${routeTitle}` : baseTitle
 })
-
 // Mettre à jour le titre de la page
 watch(pageTitle, (newTitle) => {
   document.title = newTitle
 }, { immediate: true })
 </script>
-
 <template>
   <div class="h-screen flex flex-col">
     <!-- NavToolbar -->
@@ -172,7 +151,6 @@ watch(pageTitle, (newTitle) => {
               <span class="md:inline hidden">IrrigationDesign</span>
               <span class="md:hidden inline">ID</span>
             </router-link>
-            
             <div class="hidden md:flex space-x-6">
               <router-link
                 v-for="item in navigationItems"
@@ -189,13 +167,11 @@ watch(pageTitle, (newTitle) => {
               </router-link>
             </div>
           </div>
-
           <!-- Barre de recherche uniquement sur la carte -->
           <div v-if="$route.path === '/'" class="hidden md:block flex-1 mx-8">
             <SearchBar @select-location="handleLocationSelect" />
           </div>
           <div v-else class="flex-1"></div>
-
           <div class="flex items-center space-x-2 md:space-x-4">
             <div class="flex md:hidden">
               <button
@@ -227,7 +203,6 @@ watch(pageTitle, (newTitle) => {
                 </svg>
               </button>
             </div>
-
             <button
               class="hidden md:flex p-2 text-gray-400 hover:text-gray-500 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
             >
@@ -241,7 +216,6 @@ watch(pageTitle, (newTitle) => {
                 />
               </svg>
             </button>
-
             <div class="relative">
               <button
                 @click="showProfileMenu = !showProfileMenu"
@@ -257,7 +231,6 @@ watch(pageTitle, (newTitle) => {
                   :alt="userName"
                 />
               </button>
-
               <div
                 v-if="showProfileMenu"
                 class="absolute right-0 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-[3000]"
@@ -285,7 +258,6 @@ watch(pageTitle, (newTitle) => {
             </div>
           </div>
         </div>
-
         <div
           v-if="showMobileMenu"
           class="md:hidden"
@@ -313,7 +285,6 @@ watch(pageTitle, (newTitle) => {
         </div>
       </nav>
     </header>
-
     <!-- Main content -->
     <main class="flex-1 flex flex-col overflow-hidden">
       <div
@@ -350,12 +321,10 @@ watch(pageTitle, (newTitle) => {
     </main>
   </div>
 </template>
-
 <style>
 body {
   @apply bg-gray-50 h-screen overflow-hidden;
 }
-
 #app {
   @apply h-screen overflow-hidden;
 }

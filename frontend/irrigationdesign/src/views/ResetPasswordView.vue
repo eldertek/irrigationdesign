@@ -8,7 +8,6 @@
         Entrez votre nouveau mot de passe
       </p>
     </div>
-
     <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
       <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
         <form class="space-y-6" @submit.prevent="handleSubmit">
@@ -24,7 +23,6 @@
               </div>
             </div>
           </div>
-
           <div>
             <label for="password" class="block text-sm font-medium text-gray-700">
               Nouveau mot de passe
@@ -40,7 +38,6 @@
               />
             </div>
           </div>
-
           <div>
             <label for="confirmPassword" class="block text-sm font-medium text-gray-700">
               Confirmer le mot de passe
@@ -56,7 +53,6 @@
               />
             </div>
           </div>
-
           <div>
             <button
               type="submit"
@@ -92,38 +88,30 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-
 const route = useRoute()
 const router = useRouter()
-
 const loading = ref(false)
 const error = ref('')
-
 const form = reactive({
   password: '',
   confirmPassword: ''
 })
-
 onMounted(() => {
   // Vérifier que le token est présent dans l'URL
   if (!route.params.token) {
     router.push('/login')
   }
 })
-
 async function handleSubmit() {
   if (form.password !== form.confirmPassword) {
     error.value = 'Les mots de passe ne correspondent pas'
     return
   }
-
   loading.value = true
   error.value = ''
-
   try {
     // TODO: Implémenter la réinitialisation du mot de passe
     // await authStore.resetPassword(route.params.token as string, form.password)

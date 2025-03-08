@@ -8,7 +8,6 @@
         La page que vous recherchez n'existe pas ou a été déplacée.
       </p>
     </div>
-
     <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
       <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
         <div class="text-center">
@@ -23,7 +22,6 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 // Pas besoin de logique supplémentaire pour cette vue
 </script> 

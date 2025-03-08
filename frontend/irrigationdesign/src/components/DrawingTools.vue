@@ -5,7 +5,6 @@
     <div class="p-3 bg-gray-50 border-b border-gray-200">
       <h3 class="text-sm font-semibold text-gray-700">Outils de dessin</h3>
     </div>
-
     <!-- Outils de dessin - version compacte avec icônes -->
     <div class="p-3 border-b border-gray-200">
       <div class="grid grid-cols-4 gap-1">
@@ -20,7 +19,6 @@
           <span class="icon" v-html="getToolIcon(tool.type)"></span>
         </button>
       </div>
-      
       <!-- Bouton de suppression -->
       <button
         v-if="selectedShape"
@@ -34,7 +32,6 @@
         </svg>
       </button>
     </div>
-
     <!-- Sections collapsables pour les formes sélectionnées -->
     <div v-if="selectedShape && localProperties" class="flex-1 overflow-y-auto">
       <!-- Style - Section collapsable -->
@@ -67,7 +64,6 @@
             :title="color"
           ></button>
         </div>
-
         <!-- Contrôles de style pour les formes standards (non TextRectangle) -->
         <div v-if="localProperties.type !== 'TextRectangle'" class="space-y-4">
           <div class="flex items-center gap-4">
@@ -91,7 +87,6 @@
               />
             </div>
           </div>
-
           <!-- Style de trait -->
           <div class="flex items-center gap-4">
             <span class="w-20 text-sm font-semibold text-gray-700">Style</span>
@@ -105,7 +100,6 @@
               </option>
             </select>
           </div>
-
           <div v-if="showFillOptions" class="flex items-center gap-4">
             <span class="w-20 text-sm font-semibold text-gray-700">Remplir</span>
             <div class="flex items-center gap-2">
@@ -129,7 +123,6 @@
             </div>
           </div>
         </div>
-
         <!-- Options spécifiques au TextRectangle -->
         <div v-if="localProperties.type === 'TextRectangle'" class="space-y-4">
           <!-- Contour du rectangle avec texte -->
@@ -154,7 +147,6 @@
               />
             </div>
           </div>
-          
           <!-- Remplissage du rectangle -->
           <div class="flex items-center gap-4">
             <span class="w-20 text-sm font-semibold text-gray-700">Remplir</span>
@@ -178,7 +170,6 @@
               />
             </div>
           </div>
-
           <!-- Contrôles spécifiques au texte -->
           <div class="flex items-center gap-4">
             <span class="w-20 text-sm font-semibold text-gray-700">Texte</span>
@@ -192,7 +183,6 @@
               />
             </div>
           </div>
-          
           <!-- Police et alignement -->
           <div class="flex items-center gap-4">
             <span class="w-20 text-sm font-semibold text-gray-700">Police</span>
@@ -210,7 +200,6 @@
               </select>
             </div>
           </div>
-          
           <div class="flex items-center gap-4">
             <span class="w-20 text-sm font-semibold text-gray-700">Align.</span>
             <div class="flex items-center gap-2">
@@ -224,7 +213,6 @@
               >
                 <span v-html="align.icon"></span>
               </button>
-              
               <button
                 class="flex items-center justify-center p-2 rounded border"
                 :class="{ 'bg-blue-50 border-blue-200 text-blue-700': isBold }"
@@ -246,7 +234,6 @@
         </div>
       </div>
     </div>
-
     <!-- Propriétés - Section collapsable -->
     <div v-if="selectedShape && localProperties && localProperties.type !== 'TextRectangle'" class="p-3 border-t border-gray-200">
       <button 
@@ -275,7 +262,6 @@
               <span class="text-sm font-semibold text-gray-700">Surface :</span>
               <span class="text-sm font-medium text-gray-500">{{ formatArea(localProperties.area || 0) }}</span>
             </template>
-
             <!-- Rectangle -->
             <template v-else-if="localProperties.type === 'Rectangle'">
               <span class="text-sm font-semibold text-gray-700">Largeur :</span>
@@ -285,7 +271,6 @@
               <span class="text-sm font-semibold text-gray-700">Surface :</span>
               <span class="text-sm font-medium text-gray-500">{{ formatArea(localProperties.area || 0) }}</span>
             </template>
-
             <!-- Demi-cercle -->
             <template v-else-if="localProperties.type === 'Semicircle'">
               <span class="text-sm font-semibold text-gray-700">Rayon :</span>
@@ -295,13 +280,11 @@
               <span class="text-sm font-semibold text-gray-700">Angle :</span>
               <span class="text-sm font-medium text-gray-500">{{ formatAngle(localProperties.openingAngle || 0) }}</span>
             </template>
-
             <!-- Ligne -->
             <template v-else-if="localProperties.type === 'Line'">
               <span class="text-sm font-semibold text-gray-700">Longueur :</span>
               <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.length || 0) }}</span>
             </template>
-
             <!-- Polygone -->
             <template v-else-if="localProperties.type === 'Polygon'">
               <span class="text-sm font-semibold text-gray-700">Surface :</span>
@@ -318,10 +301,8 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-
 interface ShapeType {
   type: keyof typeof typeTranslations;
   properties: any;
@@ -335,7 +316,6 @@ interface ShapeType {
     dashArray?: string;
   };
 }
-
 interface ShapeProperties {
   type: string;
   radius?: number;
@@ -355,42 +335,35 @@ interface ShapeProperties {
   rotation?: number;
   text?: string;
 }
-
 const props = defineProps<{
   currentTool: string;
   selectedShape: ShapeType | null;
 }>();
-
 const emit = defineEmits<{
   (e: 'tool-change', tool: string): void;
   (e: 'style-update', style: any): void;
   (e: 'delete-shape'): void;
 }>();
-
 // Variables réactives pour les propriétés et styles
 const localProperties = ref<ShapeProperties | null>(null);
 const textContent = ref('Double-cliquez pour éditer');
-
 // Style
 const fillColor = ref('#3B82F6');
 const fillOpacity = ref(0.2);
 const strokeColor = ref('#2563EB');
 const strokeWidth = ref(2);
 const strokeStyle = ref('solid');
-
 // Styles spécifiques au texte
 const textColor = ref('#000000');
 const fontFamily = ref('Arial, sans-serif');
 const textAlign = ref('center');
 const isBold = ref(false);
 const isItalic = ref(false);
-
 // Sections collapsables
 const sectionsCollapsed = ref({
   style: false,
   properties: false
 });
-
 // Computed pour l'alignement actuel
 const currentTextAlign = computed(() => {
   if (!props.selectedShape?.properties || props.selectedShape.properties.type !== 'TextRectangle') {
@@ -398,7 +371,6 @@ const currentTextAlign = computed(() => {
   }
   return props.selectedShape.properties.style?.textAlign || 'center';
 });
-
 // Watchers
 watch(
   () => props.selectedShape,
@@ -411,15 +383,12 @@ watch(
       textContent.value = 'Double-cliquez pour éditer';
       return;
     }
-
     console.log('[DrawingTools] Changement de forme sélectionnée', {
       newShape,
       properties: newShape?.properties,
     });
-
     if (newShape) {
       localProperties.value = { ...newShape.properties };
-      
       // Si c'est un TextRectangle, initialiser les propriétés de style de texte
       if (newShape.properties?.type === 'TextRectangle') {
         const style = newShape.properties?.style || {};
@@ -429,7 +398,6 @@ watch(
         isBold.value = style.bold || false;
         isItalic.value = style.italic || false;
         textContent.value = newShape.properties.text || 'Double-cliquez pour éditer';
-        
         console.log('[DrawingTools] Initialisation du TextRectangle', {
           text: textContent.value,
           style: style
@@ -441,7 +409,6 @@ watch(
   },
   { immediate: true }
 );
-
 // Watcher pour les changements de texte
 watch(
   () => props.selectedShape?.properties?.text,
@@ -453,7 +420,6 @@ watch(
   },
   { immediate: true }
 );
-
 // Watcher pour les changements de style
 watch(
   () => props.selectedShape?.properties?.style,
@@ -470,7 +436,6 @@ watch(
   },
   { deep: true }
 );
-
 // Debounce function to limit updates
 const debounce = (fn: Function, delay: number) => {
   let timeout: number | null = null;
@@ -484,40 +449,31 @@ const debounce = (fn: Function, delay: number) => {
     }, delay);
   };
 };
-
 // Flag to prevent unnecessary update loops
 let isUpdatingFromProps = false;
-
 // Helper function to determine if two objects are deeply equal
 const isEqual = (obj1: any, obj2: any): boolean => {
   if (obj1 === obj2) return true;
   if (obj1 === null || obj2 === null) return false;
   if (typeof obj1 !== 'object' || typeof obj2 !== 'object') return obj1 === obj2;
-  
   const keys1 = Object.keys(obj1);
   const keys2 = Object.keys(obj2);
-  
   if (keys1.length !== keys2.length) return false;
-  
   for (const key of keys1) {
     if (!keys2.includes(key)) return false;
     if (!isEqual(obj1[key], obj2[key])) return false;
   }
-  
   return true;
 };
-
 // Debounced handler for property changes to reduce log spam
 const handlePropertyChange = debounce((newProperties: any, oldProperties: any) => {
   if (isUpdatingFromProps) return;
-  
   console.log('[DrawingTools] Changement détecté dans localProperties', {
     newProperties,
     oldProperties,
     selectedShape: props.selectedShape
   });
 }, 300); // Debounce 300ms
-
 // Optimized watcher for local properties
 watch(
   () => localProperties.value,
@@ -528,7 +484,6 @@ watch(
   },
   { deep: true }
 );
-
 // Icônes pour les outils (SVG)
 const getToolIcon = (toolType: string) => {
   const icons: Record<string, string> = {
@@ -540,10 +495,8 @@ const getToolIcon = (toolType: string) => {
     'Line': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 19l18-14" /></svg>',
     'TextRectangle': '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" /><path d="M9 8h6m-3 0v8" /></svg>'
   };
-  
   return icons[toolType] || '';
 };
-
 const drawingTools = [
   { type: 'Circle', label: 'Cercle' },
   { type: 'Semicircle', label: 'Demi-cercle' },
@@ -553,7 +506,6 @@ const drawingTools = [
   { type: 'TextRectangle', label: 'Texte' },
   { type: 'delete', label: 'Supprimer' }
 ];
-
 // Couleurs prédéfinies
 const predefinedColors = [
   '#2563EB', // Bleu
@@ -563,7 +515,6 @@ const predefinedColors = [
   '#7C3AED', // Violet
   '#DB2777'  // Rose
 ];
-
 // Types de trait
 const strokeStyles = [
   { value: 'solid', label: 'Continu' },
@@ -571,14 +522,12 @@ const strokeStyles = [
   { value: 'dotted', label: 'Pointillé' },
   { value: 'dashdot', label: 'Tiret-point' }
 ];
-
 // Options d'alignement de texte
 const textAlignOptions = [
   { value: 'left', label: 'Aligné à gauche', icon: '&#8678;' },
   { value: 'center', label: 'Centré', icon: '&#8645;' },
   { value: 'right', label: 'Aligné à droite', icon: '&#8680;' }
 ];
-
 const showFillOptions = computed(() => {
   const shapeType = props.selectedShape?.properties?.type;
   console.log('[DrawingTools] Calcul de showFillOptions', {
@@ -588,12 +537,10 @@ const showFillOptions = computed(() => {
   if (!shapeType) return false;
   return ['Circle', 'Rectangle', 'Polygon', 'Semicircle'].includes(shapeType);
 });
-
 // Fonction pour basculer l'état des sections
 const toggleSection = (section: 'style' | 'properties') => {
   sectionsCollapsed.value[section] = !sectionsCollapsed.value[section];
 };
-
 const getDashArray = (style: string): string => {
   switch (style) {
     case 'dashed': return '10,10';
@@ -602,7 +549,6 @@ const getDashArray = (style: string): string => {
     default: return '';
   }
 };
-
 const selectPresetColor = (color: string) => {
   strokeColor.value = color;
   if (showFillOptions.value || localProperties.value?.type === 'TextRectangle') {
@@ -613,17 +559,14 @@ const selectPresetColor = (color: string) => {
     fillColor: (showFillOptions.value || localProperties.value?.type === 'TextRectangle') ? color : undefined
   });
 };
-
 const updateStyle = (style: any) => {
   const updatedStyle: any = {
     ...style
   };
-
   // Gérer le style de trait
   if (style.strokeStyle) {
     updatedStyle.dashArray = getDashArray(style.strokeStyle);
   }
-
   // Convertir les valeurs numériques
   if (style.fillOpacity !== undefined) {
     updatedStyle.fillOpacity = parseFloat(style.fillOpacity);
@@ -634,19 +577,15 @@ const updateStyle = (style: any) => {
   if (style.strokeWidth !== undefined) {
     updatedStyle.weight = parseInt(style.strokeWidth);
   }
-
   // Mapper les propriétés pour Leaflet
   if (style.strokeColor) {
     updatedStyle.color = style.strokeColor;
   }
-
   emit('style-update', updatedStyle);
 };
-
 // Fonction spécifique pour mettre à jour le style du texte
 const updateTextStyle = (style: any) => {
   if (props.selectedShape?.properties?.type !== 'TextRectangle') return;
-  
   // Créer un objet de style complet avec les valeurs actuelles
   const updatedStyle = {
     textColor: props.selectedShape.properties.style?.textColor,
@@ -656,22 +595,18 @@ const updateTextStyle = (style: any) => {
     italic: props.selectedShape.properties.style?.italic,
     ...style // Écraser avec les nouvelles valeurs
   };
-
   // Émettre l'événement avec le style complet
   emit('style-update', updatedStyle);
 };
-
 // Fonctions pour le texte
 const toggleBold = () => {
   isBold.value = !isBold.value;
   updateTextStyle({ bold: isBold.value });
 };
-
 const toggleItalic = () => {
   isItalic.value = !isItalic.value;
   updateTextStyle({ italic: isItalic.value });
 };
-
 // Ajouter les traductions des types
 const typeTranslations = {
   'Circle': 'Cercle',
@@ -682,7 +617,6 @@ const typeTranslations = {
   'TextRectangle': 'Rectangle avec texte',
   'unknown': 'Inconnu'
 } as const;
-
 // Fonction pour formater les mesures
 const formatMeasure = (value: number): string => {
   if (!value) return '0 m';
@@ -691,61 +625,48 @@ const formatMeasure = (value: number): string => {
   }
   return `${value.toFixed(2)} m`;
 };
-
 // Fonction pour formater les surfaces en hectares
 const formatArea = (value: number): string => {
   if (!value) return '0 ha';
   return `${(value / 10000).toFixed(2)} ha`;
 };
-
 // Fonction pour formater les angles
 const formatAngle = (angle: number): string => {
   if (!angle) return '0°';
   return `${((angle % 360 + 360) % 360).toFixed(1)}°`;
 };
 </script>
-
 <style scoped>
 .h-full {
   height: 100%;
 }
-
 .flex {
   display: flex;
 }
-
 .flex-col {
   flex-direction: column;
 }
-
 .bg-white {
   background-color: white;
 }
-
 .overflow-y-auto {
   overflow-y: auto;
 }
-
 .p-3 {
   padding: 1rem;
 }
-
 .border-b {
   border-bottom: 1px solid #e2e8f0;
 }
-
 .text-sm {
   font-size: 0.875rem;
 }
-
 .font-semibold {
   font-weight: 600;
 }
-
 .text-gray-700 {
   color: #334155;
 }
-
 .sidebar-header {
   padding: 10px;
   background-color: #f8fafc;
@@ -754,24 +675,20 @@ const formatAngle = (angle: number): string => {
   justify-content: space-between;
   align-items: center;
 }
-
 .sidebar-title {
   font-size: 16px;
   font-weight: 600;
   color: #334155;
   margin: 0;
 }
-
 .tools-section {
   padding: 10px;
 }
-
 .tools-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 5px;
 }
-
 .tool-button {
   display: flex;
   align-items: center;
@@ -783,17 +700,14 @@ const formatAngle = (angle: number): string => {
   color: #475569;
   transition: all 0.2s;
 }
-
 .tool-button:hover {
   background-color: #f1f5f9;
 }
-
 .tool-button.active {
   background-color: #e0f2fe;
   border-color: #7dd3fc;
   color: #0284c7;
 }
-
 .delete-button {
   display: flex;
   align-items: center;
@@ -807,35 +721,29 @@ const formatAngle = (angle: number): string => {
   color: #ef4444;
   transition: all 0.2s;
 }
-
 .delete-button:hover {
   background-color: #fecaca;
 }
-
 .delete-button.active {
   background-color: #fca5a5;
 }
-
 .sidebar-divider {
   height: 1px;
   background-color: #e2e8f0;
   margin: 0 10px;
 }
-
 .properties-container {
   padding: 10px;
   flex: 1;
   overflow-y: auto;
   max-height: calc(100vh - 200px); /* Ensure it doesn't overflow the viewport */
 }
-
 .sidebar-section {
   margin-bottom: 10px;
   border: 1px solid #e2e8f0;
   border-radius: 4px;
   overflow: hidden;
 }
-
 .section-header {
   display: flex;
   justify-content: space-between;
@@ -847,26 +755,22 @@ const formatAngle = (angle: number): string => {
   text-align: left;
   cursor: pointer;
 }
-
 .section-title {
   font-size: 14px;
   font-weight: 500;
   color: #334155;
 }
-
 .section-icon {
   width: 16px;
   height: 16px;
   transition: transform 0.2s;
 }
-
 .section-content {
   padding: 10px;
   background-color: white;
   max-height: 350px; /* Add max height to ensure it's scrollable */
   overflow-y: auto; /* Make it scrollable when content overflows */
 }
-
 /* Specific styles for text controls to ensure they're visible */
 .text-controls {
   display: flex;
@@ -874,19 +778,16 @@ const formatAngle = (angle: number): string => {
   gap: 8px;
   padding-bottom: 10px; /* Add padding to ensure last items are visible */
 }
-
 /* Ensure the style section expands when TextRectangle is selected */
 .sidebar-section:has(.text-controls) .section-content {
   min-height: 250px;
 }
-
 .color-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 5px;
   margin-bottom: 10px;
 }
-
 .color-button {
   width: 20px;
   height: 20px;
@@ -895,36 +796,30 @@ const formatAngle = (angle: number): string => {
   cursor: pointer;
   transition: transform 0.2s;
 }
-
 .color-button:hover {
   transform: scale(1.2);
 }
-
 .style-controls, .text-controls {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-
 .control-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-
 .control-label {
   width: 60px;
   font-size: 12px;
   color: #64748b;
 }
-
 .control-inputs {
   display: flex;
   flex: 1;
   gap: 5px;
   align-items: center;
 }
-
 .color-input {
   width: 20px;
   height: 20px;
@@ -932,12 +827,10 @@ const formatAngle = (angle: number): string => {
   border: 1px solid #e2e8f0;
   cursor: pointer;
 }
-
 .range-input {
   flex: 1;
   height: 4px;
 }
-
 .select-input {
   width: 100%;
   padding: 2px 5px;
@@ -946,14 +839,12 @@ const formatAngle = (angle: number): string => {
   border-radius: 3px;
   background-color: white;
 }
-
 .button-group {
   display: flex;
   border: 1px solid #e2e8f0;
   border-radius: 3px;
   overflow: hidden;
 }
-
 .align-button, .style-button {
   padding: 2px 6px;
   font-size: 12px;
@@ -961,84 +852,69 @@ const formatAngle = (angle: number): string => {
   border: none;
   border-right: 1px solid #e2e8f0;
 }
-
 .align-button:last-child, .style-button:last-child {
   border-right: none;
 }
-
 .align-button.active, .style-button.active {
   background-color: #e0f2fe;
   color: #0284c7;
 }
-
 .properties-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 5px;
 }
-
 .property-label {
   font-size: 12px;
   color: #64748b;
 }
-
 .property-value {
   font-size: 12px;
   font-weight: 500;
   color: #334155;
   text-align: right;
 }
-
 .no-properties {
   text-align: center;
   color: #94a3b8;
   font-size: 12px;
   padding: 10px 0;
 }
-
 /* Pour les écrans plus petits */
 @media (max-width: 640px) {
   .drawing-tools-sidebar {
     width: 200px;
   }
-  
   .sidebar-title {
     font-size: 14px;
   }
-  
   .tool-button, .color-button {
     width: 18px;
     height: 18px;
   }
-  
   .control-label {
     width: 50px;
     font-size: 10px;
   }
-  
   .property-label, .property-value {
     font-size: 10px;
   }
 }
-
 /* Animations */
 .rotate-180 {
   transform: rotate(180deg);
 }
-
 .toggle-switch {
   position: relative;
   display: inline-block;
   width: 100%;
   height: 24px;
 }
-
 .toggle-switch input {
   opacity: 0;
   width: 0;
   height: 0;
 }
-
 .switch-label {
   position: absolute;
   cursor: pointer;
@@ -1054,7 +930,6 @@ const formatAngle = (angle: number): string => {
   font-size: 12px;
   color: #475569;
 }
-
 .switch-label:before {
   position: absolute;
   content: "";
@@ -1066,16 +941,13 @@ const formatAngle = (angle: number): string => {
   border-radius: 50%;
   transition: .4s;
 }
-
 input:checked + .switch-label {
   background-color: #3b82f6;
   color: white;
 }
-
 input:checked + .switch-label:before {
   transform: translateX(calc(100% - 6px));
 }
-
 input:focus + .switch-label {
   box-shadow: 0 0 1px #3b82f6;
 }

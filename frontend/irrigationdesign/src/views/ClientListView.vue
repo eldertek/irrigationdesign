@@ -20,7 +20,6 @@
           </button>
         </div>
       </div>
-
       <!-- Liste des clients -->
       <div class="mt-8">
         <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
@@ -106,7 +105,6 @@
           </div>
         </div>
       </div>
-
       <!-- Modal création/édition client -->
       <UserFormModal
         v-if="showAddClientModal"
@@ -117,7 +115,6 @@
         @close="closeClientModal"
         @save="saveClient"
       />
-
       <!-- Modal de confirmation de suppression -->
       <ConfirmationModal
         v-if="showDeleteModal"
@@ -129,7 +126,6 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useAuthStore, formatUserName } from '@/stores/auth'
@@ -137,7 +133,6 @@ import { useRouter } from 'vue-router'
 import api from '@/services/api'
 import UserFormModal from '@/components/UserFormModal.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
-
 interface Client {
   id: number
   first_name: string
@@ -149,7 +144,6 @@ interface Client {
   last_plan_date: string | null
   last_plan_id?: number
 }
-
 const router = useRouter()
 const authStore = useAuthStore()
 const clients = ref<Client[]>([])
@@ -158,11 +152,9 @@ const showAddClientModal = ref(false)
 const showDeleteModal = ref(false)
 const selectedClient = ref<Client | null>(null)
 const clientToDelete = ref<Client | null>(null)
-
 onMounted(async () => {
   await fetchClients()
 })
-
 async function fetchClients() {
   try {
     const response = await api.get('/users/', {
@@ -179,35 +171,28 @@ async function fetchClients() {
     loading.value = false
   }
 }
-
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString()
 }
-
 function getInitials(firstName: string, lastName: string): string {
   return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase()
 }
-
 function editClient(client: Client) {
   selectedClient.value = client
   showAddClientModal.value = true
 }
-
 function closeClientModal() {
   showAddClientModal.value = false
   selectedClient.value = null
 }
-
 async function saveClient(userData: any) {
   try {
     const isUpdate = !!userData.id
     const endpoint = isUpdate ? `/users/${userData.id}/` : '/users/'
     const method = isUpdate ? 'patch' : 'post'
-
     // Ajouter automatiquement le concessionnaire et le rôle
     userData.role = 'UTILISATEUR'
     userData.concessionnaire = authStore.user?.id
-
     await api[method](endpoint, userData)
     await fetchClients()
     closeClientModal()
@@ -216,15 +201,12 @@ async function saveClient(userData: any) {
     throw error
   }
 }
-
 function deleteClient(client: Client) {
   clientToDelete.value = client
   showDeleteModal.value = true
 }
-
 async function confirmDelete() {
   if (!clientToDelete.value) return
-
   try {
     await api.delete(`/users/${clientToDelete.value.id}/`)
     await fetchClients()
@@ -235,7 +217,6 @@ async function confirmDelete() {
     throw error
   }
 }
-
 function viewPlan(client: Client) {
   if (client.last_plan_id) {
     router.push(`/plans/${client.last_plan_id}`)

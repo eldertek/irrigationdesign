@@ -9,7 +9,6 @@
           </svg>
         </button>
       </div>
-
       <!-- Sélection du concessionnaire (admin uniquement) -->
       <div v-if="authStore.isAdmin" class="mb-4">
         <label class="block text-sm font-medium text-gray-700 mb-2">Concessionnaire</label>
@@ -27,7 +26,6 @@
           </option>
         </select>
       </div>
-
       <!-- Sélection du client -->
       <div v-if="authStore.user?.user_type === 'admin' || authStore.user?.user_type === 'dealer'" class="mb-4">
         <label class="block text-sm font-medium text-gray-700 mb-2">Client</label>
@@ -46,7 +44,6 @@
           </option>
         </select>
       </div>
-
       <!-- Nom du plan -->
       <div class="mb-4">
         <label class="block text-sm font-medium text-gray-700 mb-2">Nom du plan</label>
@@ -57,7 +54,6 @@
           placeholder="Entrez le nom du plan"
         />
       </div>
-
       <!-- Description -->
       <div class="mb-6">
         <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
@@ -68,7 +64,6 @@
           placeholder="Entrez une description (optionnel)"
         ></textarea>
       </div>
-
       <!-- Boutons d'action -->
       <div class="flex justify-end space-x-3">
         <button
@@ -89,7 +84,6 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
@@ -97,22 +91,18 @@ import { useIrrigationStore } from '@/stores/irrigation';
 import type { UserDetails } from '@/types/user';
 import api from '@/services/api';
 import { useDrawingStore } from '@/stores/drawing';
-
 const props = defineProps<{
   modelValue: boolean;
 }>();
-
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'created', planId: number): void;
   (e: 'dealerSelected', dealer: UserDetails): void;
   (e: 'clientSelected', client: UserDetails): void;
 }>();
-
 const authStore = useAuthStore();
 const irrigationStore = useIrrigationStore();
 const drawingStore = useDrawingStore();
-
 const loading = ref(false);
 const isCreating = ref(false);
 const error = ref<string | null>(null);
@@ -122,14 +112,12 @@ const selectedDealer = ref<UserDetails | null>(null);
 const selectedClient = ref<UserDetails | null>(null);
 const isLoadingDealers = ref(false);
 const isLoadingClients = ref(false);
-
 const planData = ref({
   nom: '',
   description: '',
   concessionnaire: null as number | null,
   client: null as number | null
 });
-
 // Computed pour vérifier si le formulaire est valide
 const isFormValid = computed(() => {
   if (authStore.user?.user_type === 'admin') {
@@ -139,13 +127,10 @@ const isFormValid = computed(() => {
   }
   return planData.value.nom.trim();
 });
-
 // Watcher pour charger les clients quand un concessionnaire est sélectionné
 watch(() => planData.value.concessionnaire, async (newDealerId) => {
   // N'exécuter que si le modal est visible
   if (!props.modelValue) return;
-  
-
   if (newDealerId) {
     const dealer = dealers.value.find(d => d.id === newDealerId);
     if (dealer) {
@@ -158,7 +143,6 @@ watch(() => planData.value.concessionnaire, async (newDealerId) => {
     planData.value.client = null;
   }
 });
-
 // Watcher pour réinitialiser les données quand le modal s'ouvre ou se ferme
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
@@ -183,7 +167,6 @@ watch(() => props.modelValue, (isOpen) => {
     error.value = null;
   }
 });
-
 // Computed pour les clients disponibles selon le contexte
 const availableClients = computed(() => {
   if (authStore.user?.user_type === 'admin') {
@@ -193,16 +176,13 @@ const availableClients = computed(() => {
   }
   return dealerClients.value;
 });
-
 // Fonction pour charger les concessionnaires
 async function loadDealers() {
-
   isLoadingDealers.value = true;
   try {
     const response = await api.get('/users/', {
       params: { role: 'CONCESSIONNAIRE' }
     });
-
     dealers.value = response.data;
   } catch (error) {
     console.error('[NewPlanModal] Error loading dealers:', error);
@@ -210,10 +190,8 @@ async function loadDealers() {
     isLoadingDealers.value = false;
   }
 }
-
 // Fonction pour charger les clients d'un concessionnaire
 async function loadDealerClients(dealerId: number) {
-
   isLoadingClients.value = true;
   try {
     const response = await api.get('/users/', {
@@ -222,7 +200,6 @@ async function loadDealerClients(dealerId: number) {
         concessionnaire: dealerId
       }
     });
-
     dealerClients.value = Array.isArray(response.data) ? response.data : [response.data];
   } catch (error) {
     console.error('[NewPlanModal] Error loading clients:', error);
@@ -231,17 +208,13 @@ async function loadDealerClients(dealerId: number) {
     isLoadingClients.value = false;
   }
 }
-
 // Fonction pour sélectionner un concessionnaire
 async function selectDealer(dealer: UserDetails) {
   // N'exécuter que si le modal est visible
   if (!props.modelValue) return;
-
-
   selectedDealer.value = dealer;
   planData.value.concessionnaire = dealer.id;
   isLoadingClients.value = true;
-
   try {
     const response = await api.get('/users/', {
       params: {
@@ -249,7 +222,6 @@ async function selectDealer(dealer: UserDetails) {
         concessionnaire: dealer.id
       }
     });
-
     dealerClients.value = Array.isArray(response.data) ? response.data : [response.data];
   } catch (error) {
     console.error('[NewPlanModal] Error loading clients:', error);
@@ -258,18 +230,14 @@ async function selectDealer(dealer: UserDetails) {
     isLoadingClients.value = false;
   }
 }
-
 // Fonction pour sélectionner un client
 function selectClient(client: UserDetails) {
   // N'exécuter que si le modal est visible
   if (!props.modelValue) return;
-
-
   selectedClient.value = client;
   planData.value.client = client.id;
   emit('clientSelected', client);
 }
-
 // Fonction pour fermer le modal
 function closeModal() {
   emit('update:modelValue', false);
@@ -285,17 +253,14 @@ function closeModal() {
   dealerClients.value = [];
   error.value = null;
 }
-
 async function createPlan() {
   error.value = null;
   isCreating.value = true;
-
   try {
     const data: any = {
       nom: planData.value.nom.trim(),
       description: planData.value.description.trim()
     };
-
     // Gestion des IDs selon le type d'utilisateur
     if (authStore.user?.user_type === 'admin') {
       data.concessionnaire = planData.value.concessionnaire;
@@ -306,11 +271,9 @@ async function createPlan() {
     } else if (authStore.user?.user_type === 'client') {
       data.client = authStore.user.id;
     }
-
     // S'assurer que l'état est propre avant de créer un nouveau plan
     irrigationStore.clearCurrentPlan();
     drawingStore.setCurrentPlan(null);
-
     const newPlan = await irrigationStore.createPlan(data);
     emit('created', newPlan.id);
     closeModal();
@@ -321,7 +284,6 @@ async function createPlan() {
     isCreating.value = false;
   }
 }
-
 // Exposer les méthodes et données nécessaires
 defineExpose({
   dealers,

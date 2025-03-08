@@ -15,7 +15,6 @@
           {{ isAdmin ? 'Nouvel utilisateur' : 'Nouveau client' }}
         </button>
       </div>
-
       <!-- Filtres -->
       <div class="bg-white shadow rounded-lg mb-6 p-4">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -59,7 +58,6 @@
           </div>
         </div>
       </div>
-
       <!-- Liste des utilisateurs -->
       <div class="bg-white shadow rounded-lg">
         <div class="overflow-x-auto">
@@ -144,7 +142,6 @@
         </div>
       </div>
     </div>
-
     <!-- Modal de création/édition d'utilisateur -->
     <UserFormModal
       v-if="showUserModal"
@@ -155,7 +152,6 @@
       @close="closeUserModal"
       @save="saveUser"
     />
-
     <!-- Modal de confirmation de suppression -->
     <ConfirmationModal
       v-if="showDeleteModal"
@@ -166,16 +162,13 @@
     />
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useAuthStore, formatUserName } from '@/stores/auth'
 import UserFormModal from '@/components/UserFormModal.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
 import api from '@/services/api'
-
 const authStore = useAuthStore()
-
 interface User {
   id: number;
   username: string;
@@ -188,7 +181,6 @@ interface User {
   company_name?: string;
   is_active: boolean;
 }
-
 interface Dealer {
   id: number;
   first_name: string;
@@ -197,27 +189,22 @@ interface Dealer {
   full_name?: string;
   role: 'CONCESSIONNAIRE';
 }
-
 const users = ref<User[]>([])
 const dealers = ref<Dealer[]>([])
 const showUserModal = ref(false)
 const showDeleteModal = ref(false)
 const selectedUser = ref<User | null>(null)
 const userToDelete = ref<User | null>(null)
-
 const filters = reactive({
   role: '',
   search: '',
   dealer: ''
 })
-
 const isAdmin = computed(() => authStore.isAdmin)
 const isDealer = computed(() => authStore.isDealer)
-
 const availableDealers = computed(() => {
   return users.value.filter(user => user.role === 'CONCESSIONNAIRE')
 })
-
 // Filtrage des utilisateurs adapté au rôle
 const filteredUsers = computed(() => {
   console.log('Computing filtered users...')
@@ -225,9 +212,7 @@ const filteredUsers = computed(() => {
   console.log('Is admin:', isAdmin.value)
   console.log('Is dealer:', isDealer.value)
   console.log('Current filters:', filters)
-  
   let filtered = users.value
-
   // Pour les concessionnaires, ne montrer que leurs clients
   if (isDealer.value) {
     console.log('Filtering for dealer:', authStore.user?.id)
@@ -236,20 +221,17 @@ const filteredUsers = computed(() => {
     )
     console.log('Filtered users for dealer:', filtered)
   }
-
   // Pour les admins, appliquer les filtres normalement
   if (isAdmin.value) {
     if (filters.role) {
       filtered = filtered.filter(user => user.role === filters.role)
       console.log('Filtered by role:', filtered)
     }
-
     if (filters.dealer) {
       filtered = filtered.filter(user => String(user.dealer) === String(filters.dealer))
       console.log('Filtered by dealer:', filtered)
     }
   }
-
   // Filtre de recherche commun
   if (filters.search) {
     const search = filters.search.toLowerCase()
@@ -262,11 +244,9 @@ const filteredUsers = computed(() => {
     )
     console.log('Filtered by search:', filtered)
   }
-
   console.log('Final filtered users:', filtered)
   return filtered
 })
-
 // Chargement initial des données
 onMounted(async () => {
   await fetchUsers()
@@ -274,7 +254,6 @@ onMounted(async () => {
     await fetchDealers()
   }
 })
-
 // Récupération des utilisateurs
 async function fetchUsers() {
   try {
@@ -287,7 +266,6 @@ async function fetchUsers() {
     console.error('Erreur lors de la récupération des utilisateurs:', error)
   }
 }
-
 // Récupération des concessionnaires
 async function fetchDealers() {
   try {
@@ -299,48 +277,40 @@ async function fetchDealers() {
     console.error('Erreur lors de la récupération des concessionnaires:', error)
   }
 }
-
 // Gestion des modals
 function openCreateUserModal() {
   selectedUser.value = null
   showUserModal.value = true
 }
-
 function editUser(user: User) {
   selectedUser.value = { ...user }
   showUserModal.value = true
 }
-
 function closeUserModal() {
   showUserModal.value = false
   selectedUser.value = null
 }
-
 async function saveUser(userData: any) {
   try {
     let response;
     const isUpdate = !!userData.id;
     const payload = { ...userData };
-
     // Nettoyer les champs non nécessaires
     delete payload.dealer_name;
     delete payload.full_name;
     delete payload.user_type;
     delete payload.permissions;
-
     if (isUpdate) {
       response = await api.patch(`/users/${userData.id}/`, payload);
     } else {
       response = await api.post('/users/', payload);
     }
-    
     await fetchUsers();
     closeUserModal();
     return response.data;
   } catch (error: any) {
     const errorData = error.response?.data || {};
     let errorMessage = '';
-
     if (typeof errorData === 'object') {
       errorMessage = Object.entries(errorData)
         .map(([field, messages]) => {
@@ -352,24 +322,19 @@ async function saveUser(userData: any) {
         .filter(message => message)
         .join('\n');
     }
-
     if (!errorMessage) {
       errorMessage = 'Une erreur est survenue lors de la sauvegarde';
     }
-
     throw new Error(errorMessage);
   }
 }
-
 // Suppression d'utilisateur
 function confirmDeleteUser(user: User) {
   userToDelete.value = user
   showDeleteModal.value = true
 }
-
 async function deleteUser() {
   if (!userToDelete.value) return
-
   try {
     await api.delete(`/users/${userToDelete.value.id}/`)
     await fetchUsers()
@@ -380,32 +345,26 @@ async function deleteUser() {
     throw error
   }
 }
-
 // Helpers
 function getInitials(firstName: string, lastName: string): string {
   return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase()
 }
-
 const roleLabels: Record<string, string> = {
   'ADMIN': 'Admin',
   'CONCESSIONNAIRE': 'Concessionnaire',
   'UTILISATEUR': 'Client'
 }
-
 function getRoleLabel(role: string): string {
   return roleLabels[role] || role
 }
-
 function getRoleBadgeClass(role: string): string {
   return 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800'
 }
-
 function getStatusBadgeClass(isActive: boolean): string {
   return isActive
     ? 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800'
     : 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800'
 }
-
 function canDeleteUser(user: User): boolean {
   if (isAdmin.value) return true
   if (isDealer.value) return user.role === 'UTILISATEUR' && user.dealer === authStore.user?.id

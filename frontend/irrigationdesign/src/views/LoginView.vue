@@ -8,7 +8,6 @@
         alt="IrrigationDesign Logo"
         class="mx-auto h-40 w-auto transition-transform duration-300 hover:scale-110"
       />
-      
       <!-- Titre et sous-titre centrés -->
       <h2 class="mt-2 text-center text-3xl font-bold text-gray-800">
         IrrigationDesign
@@ -17,7 +16,6 @@
         Connectez-vous pour accéder à votre espace
       </p>
     </div>
-
     <!-- Carte de login avec ombre plus marquée et coins légèrement arrondis -->
     <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
       <div class="bg-white py-8 px-6 shadow-lg rounded-md sm:px-10">
@@ -44,7 +42,6 @@
               </div>
             </div>
           </div>
-
           <div>
             <label
               for="username"
@@ -65,7 +62,6 @@
               />
             </div>
           </div>
-
           <div>
             <label
               for="password"
@@ -114,7 +110,6 @@
               </button>
             </div>
           </div>
-
           <div class="flex items-center justify-between">
             <div class="flex items-center">
               <input
@@ -132,7 +127,6 @@
                 Se souvenir de moi
               </label>
             </div>
-
             <div class="text-sm">
               <router-link
                 to="/forgot-password"
@@ -142,7 +136,6 @@
               </router-link>
             </div>
           </div>
-
           <div>
             <button
               type="submit"
@@ -179,25 +172,20 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-
 const router = useRouter()
 const authStore = useAuthStore()
-
 const loading = ref(false)
 const error = ref<string | null>(null)
 const showPassword = ref(false)
-
 const form = reactive({
   username: '',
   password: '',
   rememberMe: false
 })
-
 onMounted(() => {
   console.log('LoginView mounted')
   console.log('INITIAL_STATE:', window.INITIAL_STATE)
@@ -207,19 +195,15 @@ onMounted(() => {
     router.push('/')
   }
 })
-
 async function handleSubmit() {
   loading.value = true
   error.value = null
-
   try {
     if (!form.username || !form.password) {
       error.value = 'Veuillez remplir tous les champs'
       return
     }
-
     await authStore.login(form.username, form.password)
-    
     if (authStore.user?.must_change_password) {
       router.push('/change-password')
     } else {
