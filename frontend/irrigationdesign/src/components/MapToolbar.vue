@@ -4,7 +4,7 @@
     <div class="hidden md:flex items-center space-x-2">
       <!-- Type de carte -->
       <div class="dropdown">
-        <button class="btn-toolbar dropdown-toggle">
+        <button class="btn-toolbar dropdown-toggle" @mouseover="updateDropdownPosition">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M12 1.586l-4 4V17h8V5.586l-4-4zM2 17V9.276l4-3.638V17H2zM2 8.162V3h4.5L12 8.5V17H6V5.638L2 8.162z" clip-rule="evenodd" />
           </svg>
@@ -239,6 +239,18 @@ const props = defineProps<{
 // État
 const selectedMapType = ref<'Ville' | 'Satellite' | 'Cadastre'>('Ville');
 const showMobileMenu = ref(false);
+
+// Ajout du positionnement du dropdown
+const updateDropdownPosition = (event: MouseEvent) => {
+  const button = event.currentTarget as HTMLElement;
+  const dropdown = button.nextElementSibling as HTMLElement;
+  if (dropdown && dropdown.classList.contains('dropdown-menu')) {
+    const rect = button.getBoundingClientRect();
+    dropdown.style.top = `${rect.bottom}px`;
+    dropdown.style.left = `${rect.left}px`;
+  }
+};
+
 // Types de carte disponibles
 const mapTypes: Record<'Ville' | 'Satellite' | 'Cadastre', string> = {
   Ville: 'Ville',
@@ -294,13 +306,14 @@ const closeMobileMenu = () => {
   border-bottom: 1px solid #e5e7eb;
   padding: 0.5rem 1rem;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  position: sticky;
-  top: 0;
-  z-index: 1000;
+  position: relative;
+  z-index: 3000;
+  overflow: visible;
 }
 .dropdown {
   position: relative;
   display: inline-block;
+  overflow: visible;
 }
 .dropdown-toggle {
   display: flex;
@@ -308,16 +321,15 @@ const closeMobileMenu = () => {
 }
 .dropdown-menu {
   display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 30;
+  position: fixed;
+  z-index: 3001;
   min-width: 10rem;
   padding: 0.5rem 0;
   background-color: white;
   border: 1px solid #e5e7eb;
   border-radius: 0.25rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  overflow: visible;
 }
 .dropdown:hover .dropdown-menu {
   display: block;

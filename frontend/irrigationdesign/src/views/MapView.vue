@@ -36,7 +36,7 @@
           </div>
         </div>
       <!-- Vue d'accueil quand aucun plan n'est chargé -->
-      <div v-if="!currentPlan" class="absolute inset-0 flex items-center justify-center bg-gray-50 z-[1000]">
+      <div v-if="!currentPlan" class="absolute inset-0 flex items-center justify-center bg-gray-50 z-[3000]">
         <div class="text-center max-w-lg mx-auto p-8">
           <div class="relative w-48 h-48 mx-auto mb-12 rounded-full bg-gradient-to-br from-primary-100 to-primary-50 p-8 shadow-lg ring-4 ring-white">
             <img 
@@ -71,9 +71,9 @@
         </div>
       </div>
       <!-- Conteneur de la carte avec positionnement relatif -->
-      <div class="relative h-full w-full overflow-hidden flex flex-col" v-show="currentPlan">
+      <div v-show="currentPlan" class="map-parent">
         <!-- Barre d'outils principale -->
-        <div v-if="currentPlan && !isGeneratingSynthesis" class="z-[1000]">
+        <div v-if="currentPlan && !isGeneratingSynthesis" class="z-[3000]">
           <MapToolbar 
             :last-save="currentPlan?.date_modification ? new Date(currentPlan.date_modification) : undefined"
             :plan-name="currentPlan?.nom"
@@ -88,13 +88,13 @@
           />
         </div>
         <!-- Conteneur principal avec carte et outils -->
-        <div class="flex-1 flex overflow-hidden">
+        <div class="map-content flex">
           <!-- Conteneur de la carte -->
           <div class="flex-1 relative">
-            <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
+            <div ref="mapContainer" class="absolute inset-0 z-[1000]"></div>
           </div>
           <!-- Panneau latéral d'outils de dessin -->
-          <div v-if="currentPlan && !isGeneratingSynthesis" class="w-64 bg-white border-l border-gray-200 flex-shrink-0">
+          <div v-if="currentPlan && !isGeneratingSynthesis" class="w-64 bg-white border-l border-gray-200 flex-shrink-0 z-[2000]">
             <DrawingTools 
               :current-tool="currentTool" 
               :selected-shape="selectedShape"
@@ -128,7 +128,7 @@
         @clientSelected="client => selectedClient = client"
       />
       <!-- Modal Charger un Plan -->
-      <div v-if="showLoadPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
+      <div v-if="showLoadPlanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[3000]">
         <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-semibold text-gray-900">Charger un plan existant</h2>
@@ -363,7 +363,7 @@
   </div>
 </template>
 <script setup lang="ts">
-  import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed } from 'vue';
+  import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed, nextTick } from 'vue';
 import type { LatLngTuple } from 'leaflet';
 import * as L from 'leaflet';
 import 'leaflet-simple-map-screenshoter';
@@ -517,15 +517,12 @@ onMounted(async () => {
         await loadPlan(parseInt(lastPlanId));
       } catch (error) {
         console.error('Error loading last plan:', error);
-        // Réinitialiser complètement l'état
+        // S'assurer que l'état est réinitialisé en cas d'erreur
         currentPlan.value = null;
         irrigationStore.clearCurrentPlan();
         drawingStore.clearCurrentPlan();
         clearMap();
         localStorage.removeItem('lastPlanId');
-        // Fermer les modals pour laisser apparaître l'interface d'accueil
-        showLoadPlanModal.value = false;
-        showNewPlanModal.value = false;
       }
     }
     // Charger les concessionnaires au montage du composant si l'utilisateur est admin
@@ -545,15 +542,12 @@ onMounted(async () => {
     }) as EventListener);
   } catch (error) {
     console.error('Error during component mount:', error);
-    // Réinitialiser complètement l'état
+    // S'assurer que l'état est propre en cas d'erreur
     currentPlan.value = null;
     irrigationStore.clearCurrentPlan();
     drawingStore.clearCurrentPlan();
     clearMap();
     localStorage.removeItem('lastPlanId');
-    // Fermer les modals pour laisser apparaître l'interface d'accueil
-    showLoadPlanModal.value = false;
-    showNewPlanModal.value = false;
   }
 });
 // Surveiller les changements dans le dessin
@@ -578,25 +572,17 @@ watch(() => irrigationStore.currentPlan, async (newPlan) => {
       irrigationStore.setCurrentPlan(newPlan);
       drawingStore.setCurrentPlan(newPlan.id);
     } else {
-      // Réinitialiser complètement l'état
       currentPlan.value = null;
       clearMap();
       irrigationStore.clearCurrentPlan();
       drawingStore.clearCurrentPlan();
-      // S'assurer que les modals sont dans le bon état
-      showLoadPlanModal.value = false;
-      showNewPlanModal.value = false;
     }
   } catch (error) {
     console.error('Error in currentPlan watcher:', error);
-    // Réinitialiser complètement l'état
     currentPlan.value = null;
     clearMap();
     irrigationStore.clearCurrentPlan();
     drawingStore.clearCurrentPlan();
-    // S'assurer que les modals sont dans le bon état
-    showLoadPlanModal.value = false;
-    showNewPlanModal.value = false;
   }
 }, { immediate: true });
 // Nettoyer l'écouteur d'événement lors de la destruction du composant
@@ -615,9 +601,6 @@ function clearMap() {
   clearActiveControlPoints();
   selectedLeafletShape.value = null;
   currentTool.value = '';
-  // Réinitialiser l'état de sauvegarde
-  saveStatus.value = null;
-  saving.value = false;
 }
 // Fonction pour rafraîchir la carte avec un nouveau plan
 async function refreshMapWithPlan(planId: number) {
@@ -810,7 +793,7 @@ async function refreshMapWithPlan(planId: number) {
     throw error;
   }
 }
-// Modifier la fonction loadPlan pour gérer correctement l'état
+// Modifier la fonction loadPlan pour utiliser refreshMapWithPlan
 async function loadPlan(planId: number) {
   try {
     console.log(`Tentative de chargement du plan ${planId}...`);
@@ -823,16 +806,11 @@ async function loadPlan(planId: number) {
       } catch (error: any) {
         if (error.response?.status === 404) {
           console.warn(`Plan ${planId} non trouvé - Suppression de la référence du localStorage`);
-          // Réinitialiser complètement l'état
           localStorage.removeItem('lastPlanId');
           currentPlan.value = null;
           irrigationStore.clearCurrentPlan();
           drawingStore.clearCurrentPlan();
           clearMap();
-          // Fermer les modals pour laisser apparaître l'interface d'accueil
-          showLoadPlanModal.value = false;
-          showNewPlanModal.value = false;
-          return;
         }
         throw error;
       }
@@ -840,18 +818,18 @@ async function loadPlan(planId: number) {
     // Rafraîchir la carte avec le nouveau plan
     await refreshMapWithPlan(planId);
     showLoadPlanModal.value = false;
+    // Invalider la taille de la carte après le chargement
+    invalidateMapSize();
     console.log(`Plan ${planId} chargé avec succès avec ${drawingStore.getCurrentElements.length} formes`);
   } catch (error) {
     console.error('Erreur lors du chargement du plan:', error);
-    // Réinitialiser complètement l'état
+    // En cas d'erreur, réinitialiser complètement l'état
     currentPlan.value = null;
     irrigationStore.clearCurrentPlan();
     drawingStore.clearCurrentPlan();
     clearMap();
     localStorage.removeItem('lastPlanId');
-    // Fermer les modals pour laisser apparaître l'interface d'accueil
-    showLoadPlanModal.value = false;
-    showNewPlanModal.value = false;
+    throw error;
   }
 }
   // Modifier la fonction savePlan
@@ -1266,6 +1244,8 @@ async function onPlanCreated(planId: number) {
     irrigationStore.setCurrentPlan(plan);
     drawingStore.setCurrentPlan(plan.id);
     showNewPlanModal.value = false;
+    // Invalider la taille de la carte après le chargement
+    invalidateMapSize();
     console.log(`Plan ${planId} chargé avec succès`);
   } else {
     console.error(`Plan ${planId} introuvable après création! Vérifiez les permissions.`);
@@ -1610,6 +1590,30 @@ function clearLastPlan() {
       isGeneratingSynthesis.value = false;
     }
   }
+
+  // Fonction pour invalider la taille de la carte
+  function invalidateMapSize() {
+    if (map.value) {
+      // Attendre que le DOM soit mis à jour
+      nextTick(() => {
+        map.value?.invalidateSize();
+        // Si des formes sont présentes, ajuster la vue
+        if (featureGroup.value?.getLayers().length) {
+          adjustView();
+        }
+      });
+    }
+  }
+
+  // Watcher pour currentPlan
+  watch(currentPlan, (newPlan) => {
+    if (newPlan) {
+      // Attendre que le DOM soit mis à jour après l'affichage de la carte
+      nextTick(() => {
+        invalidateMapSize();
+      });
+    }
+  });
 </script>
 <style>
 @import '../styles/MapView.css';
@@ -1618,10 +1622,36 @@ function clearLastPlan() {
   width: 100%;
   position: relative;
 }
+
 /* Style pour le wrapper des outils de dessin */
 .drawing-tools-wrapper {
   position: relative;
-  z-index: 999; /* Juste en dessous du MapToolbar qui est à 1000 */
+  z-index: 2000;
   height: 100%;
+}
+
+/* Ajout des styles pour la gestion des dimensions */
+.map-parent {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: visible;
+  position: relative;
+}
+
+.map-content {
+  flex: 1 1 auto;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: visible;
+}
+
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 1000 !important;
 }
 </style> 
