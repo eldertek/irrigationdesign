@@ -71,7 +71,7 @@
         </div>
       </div>
       <!-- Conteneur de la carte avec positionnement relatif -->
-      <div class="relative h-full w-full overflow-hidden flex flex-col">
+      <div class="relative h-full w-full overflow-hidden flex flex-col" v-show="currentPlan">
         <!-- Barre d'outils principale -->
         <div v-if="currentPlan && !isGeneratingSynthesis" class="z-[1000]">
           <MapToolbar 
@@ -363,7 +363,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed } from 'vue';
+  import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed } from 'vue';
 import type { LatLngTuple } from 'leaflet';
 import * as L from 'leaflet';
 import 'leaflet-simple-map-screenshoter';
@@ -379,11 +379,11 @@ import { CircleArc } from '@/utils/CircleArc';
 import { TextRectangle } from '@/utils/TextRectangle';
 import { Polygon } from '@/utils/Polygon';
 import { useAuthStore } from '@/stores/auth';
-import type { UserDetails } from '@/types/user';
+  import type { UserDetails } from '@/types/user';
 import api from '@/services/api';
 import NewPlanModal from '@/components/NewPlanModal.vue';
-import jsPDF from 'jspdf';
-import logo from '@/assets/logo.jpeg';
+  import jsPDF from 'jspdf';
+  import logo from '@/assets/logo.jpeg';
 const mapContainer = ref<HTMLElement | null>(null);
 const irrigationStore = useIrrigationStore();
 const drawingStore = useDrawingStore();
@@ -517,12 +517,15 @@ onMounted(async () => {
         await loadPlan(parseInt(lastPlanId));
       } catch (error) {
         console.error('Error loading last plan:', error);
-        // S'assurer que l'état est réinitialisé en cas d'erreur
+        // Réinitialiser complètement l'état
         currentPlan.value = null;
         irrigationStore.clearCurrentPlan();
         drawingStore.clearCurrentPlan();
         clearMap();
         localStorage.removeItem('lastPlanId');
+        // Fermer les modals pour laisser apparaître l'interface d'accueil
+        showLoadPlanModal.value = false;
+        showNewPlanModal.value = false;
       }
     }
     // Charger les concessionnaires au montage du composant si l'utilisateur est admin
@@ -542,12 +545,15 @@ onMounted(async () => {
     }) as EventListener);
   } catch (error) {
     console.error('Error during component mount:', error);
-    // S'assurer que l'état est propre en cas d'erreur
+    // Réinitialiser complètement l'état
     currentPlan.value = null;
     irrigationStore.clearCurrentPlan();
     drawingStore.clearCurrentPlan();
     clearMap();
     localStorage.removeItem('lastPlanId');
+    // Fermer les modals pour laisser apparaître l'interface d'accueil
+    showLoadPlanModal.value = false;
+    showNewPlanModal.value = false;
   }
 });
 // Surveiller les changements dans le dessin
@@ -572,17 +578,25 @@ watch(() => irrigationStore.currentPlan, async (newPlan) => {
       irrigationStore.setCurrentPlan(newPlan);
       drawingStore.setCurrentPlan(newPlan.id);
     } else {
+      // Réinitialiser complètement l'état
       currentPlan.value = null;
       clearMap();
       irrigationStore.clearCurrentPlan();
       drawingStore.clearCurrentPlan();
+      // S'assurer que les modals sont dans le bon état
+      showLoadPlanModal.value = false;
+      showNewPlanModal.value = false;
     }
   } catch (error) {
     console.error('Error in currentPlan watcher:', error);
+    // Réinitialiser complètement l'état
     currentPlan.value = null;
     clearMap();
     irrigationStore.clearCurrentPlan();
     drawingStore.clearCurrentPlan();
+    // S'assurer que les modals sont dans le bon état
+    showLoadPlanModal.value = false;
+    showNewPlanModal.value = false;
   }
 }, { immediate: true });
 // Nettoyer l'écouteur d'événement lors de la destruction du composant
@@ -601,6 +615,9 @@ function clearMap() {
   clearActiveControlPoints();
   selectedLeafletShape.value = null;
   currentTool.value = '';
+  // Réinitialiser l'état de sauvegarde
+  saveStatus.value = null;
+  saving.value = false;
 }
 // Fonction pour rafraîchir la carte avec un nouveau plan
 async function refreshMapWithPlan(planId: number) {
@@ -793,7 +810,7 @@ async function refreshMapWithPlan(planId: number) {
     throw error;
   }
 }
-// Modifier la fonction loadPlan pour utiliser refreshMapWithPlan
+// Modifier la fonction loadPlan pour gérer correctement l'état
 async function loadPlan(planId: number) {
   try {
     console.log(`Tentative de chargement du plan ${planId}...`);
@@ -806,11 +823,16 @@ async function loadPlan(planId: number) {
       } catch (error: any) {
         if (error.response?.status === 404) {
           console.warn(`Plan ${planId} non trouvé - Suppression de la référence du localStorage`);
+          // Réinitialiser complètement l'état
           localStorage.removeItem('lastPlanId');
           currentPlan.value = null;
           irrigationStore.clearCurrentPlan();
           drawingStore.clearCurrentPlan();
           clearMap();
+          // Fermer les modals pour laisser apparaître l'interface d'accueil
+          showLoadPlanModal.value = false;
+          showNewPlanModal.value = false;
+          return;
         }
         throw error;
       }
@@ -821,13 +843,15 @@ async function loadPlan(planId: number) {
     console.log(`Plan ${planId} chargé avec succès avec ${drawingStore.getCurrentElements.length} formes`);
   } catch (error) {
     console.error('Erreur lors du chargement du plan:', error);
-    // En cas d'erreur, réinitialiser complètement l'état
+    // Réinitialiser complètement l'état
     currentPlan.value = null;
     irrigationStore.clearCurrentPlan();
     drawingStore.clearCurrentPlan();
     clearMap();
     localStorage.removeItem('lastPlanId');
-    throw error;
+    // Fermer les modals pour laisser apparaître l'interface d'accueil
+    showLoadPlanModal.value = false;
+    showNewPlanModal.value = false;
   }
 }
   // Modifier la fonction savePlan
@@ -970,80 +994,80 @@ async function savePlan() {
           style: data.style
         });
       } else {
-        const baseData = {
-          style: {
-            color: (layer as any).options?.color || '#3388ff',
-            fillColor: (layer as any).options?.fillColor || '#3388ff',
-            fillOpacity: (layer as any).options?.fillOpacity || 0.2,
-            weight: (layer as any).options?.weight || 3,
-            opacity: (layer as any).options?.opacity || 1
+      const baseData = {
+        style: {
+          color: (layer as any).options?.color || '#3388ff',
+          fillColor: (layer as any).options?.fillColor || '#3388ff',
+          fillOpacity: (layer as any).options?.fillOpacity || 0.2,
+          weight: (layer as any).options?.weight || 3,
+          opacity: (layer as any).options?.opacity || 1
+        }
+      };
+      let type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | undefined;
+      let data: any;
+      if (layer instanceof L.Circle) {
+        type_forme = 'CERCLE';
+        data = {
+          ...baseData,
+          center: [(layer as L.Circle).getLatLng().lng, (layer as L.Circle).getLatLng().lat],
+          radius: layer.getRadius()
+        };
+      } else if (layer instanceof L.Rectangle) {
+        type_forme = 'RECTANGLE';
+        const bounds = layer.getBounds();
+        data = {
+          ...baseData,
+          bounds: {
+            southWest: [bounds.getSouthWest().lng, bounds.getSouthWest().lat],
+            northEast: [bounds.getNorthEast().lng, bounds.getNorthEast().lat]
           }
         };
-        let type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | undefined;
-        let data: any;
-        if (layer instanceof L.Circle) {
-          type_forme = 'CERCLE';
-          data = {
-            ...baseData,
-            center: [(layer as L.Circle).getLatLng().lng, (layer as L.Circle).getLatLng().lat],
-            radius: layer.getRadius()
-          };
-        } else if (layer instanceof L.Rectangle) {
-          type_forme = 'RECTANGLE';
-          const bounds = layer.getBounds();
-          data = {
-            ...baseData,
-            bounds: {
-              southWest: [bounds.getSouthWest().lng, bounds.getSouthWest().lat],
-              northEast: [bounds.getNorthEast().lng, bounds.getNorthEast().lat]
-            }
-          };
-        } else if ((layer as any).properties?.type === 'Semicircle') {
-          type_forme = 'DEMI_CERCLE';
-          let center;
-          if (typeof (layer as any).getLatLng === 'function') {
-            center = (layer as any).getLatLng();
-          } else if ((layer as any).getCenter && typeof (layer as any).getCenter === 'function') {
-            center = (layer as any).getCenter();
-          } else if ((layer as any)._latlng) {
-            center = (layer as any)._latlng;
-          } else {
-            center = { lat: 0, lng: 0 };
-          }
-          const radius = (layer as any).getRadius ? (layer as any).getRadius() : 0;
-          const startAngle = (layer as any).properties?.style?.startAngle || 0;
-          const endAngle = (layer as any).properties?.style?.stopAngle || 180;
-          data = {
-            ...baseData,
-            center: [center.lng, center.lat],
-            radius: radius,
-            startAngle: startAngle,
-            endAngle: endAngle
-          };
-        } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-          type_forme = 'LIGNE';
-          const latLngs = layer.getLatLngs() as L.LatLng[];
-          data = {
-            ...baseData,
-            points: latLngs.map(ll => [ll.lng, ll.lat])
-          };
+      } else if ((layer as any).properties?.type === 'Semicircle') {
+        type_forme = 'DEMI_CERCLE';
+        let center;
+        if (typeof (layer as any).getLatLng === 'function') {
+          center = (layer as any).getLatLng();
+        } else if ((layer as any).getCenter && typeof (layer as any).getCenter === 'function') {
+          center = (layer as any).getCenter();
+        } else if ((layer as any)._latlng) {
+          center = (layer as any)._latlng;
+        } else {
+          center = { lat: 0, lng: 0 };
         }
-        if (type_forme && data) {
-          let elementId: number | undefined = (layer as any)._elementId;
-          if ((layer as any)._dbId) {
-            elementId = (layer as any)._dbId;
-            if (typeof elementId === 'number') {
-              currentLayerIds.add(elementId);
-            }
+        const radius = (layer as any).getRadius ? (layer as any).getRadius() : 0;
+        const startAngle = (layer as any).properties?.style?.startAngle || 0;
+        const endAngle = (layer as any).properties?.style?.stopAngle || 180;
+        data = {
+          ...baseData,
+          center: [center.lng, center.lat],
+          radius: radius,
+          startAngle: startAngle,
+          endAngle: endAngle
+        };
+      } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+        type_forme = 'LIGNE';
+        const latLngs = layer.getLatLngs() as L.LatLng[];
+        data = {
+          ...baseData,
+          points: latLngs.map(ll => [ll.lng, ll.lat])
+        };
+      }
+      if (type_forme && data) {
+        let elementId: number | undefined = (layer as any)._elementId;
+        if ((layer as any)._dbId) {
+          elementId = (layer as any)._dbId;
+          if (typeof elementId === 'number') {
+            currentLayerIds.add(elementId);
           }
-          elements.push({
-            id: elementId,
-            type_forme,
-            data: {
-              ...data,
-              rotation: (layer as any).properties?.rotation || 0
-            }
-          });
+        }
+        elements.push({
+          id: elementId,
+          type_forme,
+          data: {
+            ...data,
+            rotation: (layer as any).properties?.rotation || 0
+          }
+        });
         }
       }
     });
@@ -1573,8 +1597,8 @@ function clearLastPlan() {
             }
           }
         } catch (error) {
-            console.error(`[generateSynthesis] Erreur capture forme ${i + 1}:`, error);
-          }
+          console.error(`[generateSynthesis] Erreur capture forme ${i + 1}:`, error);
+        }
       }
       // Retirer le screenshoter
       map.value.removeControl(screenshoter);

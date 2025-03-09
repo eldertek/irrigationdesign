@@ -34,7 +34,6 @@ const userName = computed(() => {
 })
 const userRole = computed(() => {
   const userType = authStore.user?.user_type
-  console.log('User type:', userType)
   switch (userType) {
     case 'admin':
       return 'Accès administrateur'
@@ -286,7 +285,7 @@ watch(pageTitle, (newTitle) => {
       </nav>
     </header>
     <!-- Main content -->
-    <main class="flex-1 flex flex-col overflow-hidden">
+    <main :class="[ $route.path === '/' ? 'overflow-hidden' : 'overflow-auto', 'flex-1 flex flex-col' ]">
       <div
         v-if="isSmallScreen && $route.path === '/'"
         class="fixed inset-0 bg-white z-[2001] flex flex-col items-center justify-center p-6 text-center"
