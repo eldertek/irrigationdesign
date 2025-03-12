@@ -37,10 +37,12 @@ const userRole = computed(() => {
   switch (userType) {
     case 'admin':
       return 'Accès administrateur'
-    case 'dealer':
+    case 'usine':
+      return 'Accès usine'
+    case 'concessionnaire':
       return 'Accès concessionnaire'
-    case 'client':
-      return 'Accès client'
+    case 'agriculteur':
+      return 'Accès agriculteur'
     default:
       return ''
   }
@@ -53,15 +55,16 @@ const baseNavigationItems = [
   { name: 'Carte', to: '/' },
   { name: 'Plans', to: '/plans' }
 ]
-// Items de navigation avec condition pour l'onglet Utilisateurs et Clients
+// Items de navigation avec condition pour l'onglet Utilisateurs
 const navigationItems = computed(() => {
   if (!isAuthenticated.value) return []
   const items = [...baseNavigationItems]
-  if (isAdmin.value) {
+  
+  // Ajouter l'accès aux utilisateurs pour admin et usine
+  if (isAdmin.value || authStore.user?.user_type === 'usine') {
     items.push({ name: 'Utilisateurs', to: '/users' })
-  } else if (authStore.user?.user_type === 'dealer') {
-    items.push({ name: 'Clients', to: '/clients' })
   }
+  
   return items
 })
 // Items du menu profil
@@ -124,7 +127,7 @@ const pageTitle = computed(() => {
     plans: 'Plans',
     users: 'Utilisateurs',
     profile: 'Mon profil',
-    selectDealer: 'Sélection du concessionnaire',
+    selectConcessionnaire: 'Sélection du concessionnaire',
     changePassword: 'Changement de mot de passe',
     map: 'Carte'
   }

@@ -1,5 +1,17 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/auth';
+
+// Types nécessaires
+export interface UserFilter {
+  role?: string;
+  usine?: number;
+  concessionnaire?: number;
+  include_plans?: boolean;
+  search?: string;
+  concessionnaire_id?: number;
+  include_details?: boolean;
+}
+
 // Configuration de base de l'API
 const api = axios.create({
   baseURL: '/api',
@@ -9,6 +21,7 @@ const api = axios.create({
   },
   withCredentials: true
 });
+
 // Fonction utilitaire pour obtenir un cookie
 function getCookie(name: string): string | null {
   const value = `; ${document.cookie}`;
@@ -16,6 +29,7 @@ function getCookie(name: string): string | null {
   if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
   return null;
 }
+
 // Intercepteur pour ajouter le token aux requêtes
 api.interceptors.request.use(
   (config) => {
@@ -37,6 +51,7 @@ api.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+
 // Intercepteur pour gérer les erreurs d'authentification
 api.interceptors.response.use(
   (response) => response,
@@ -66,6 +81,7 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
 // Service d'authentification
 export const authService = {
   async login(username: string, password: string) {
@@ -80,37 +96,216 @@ export const authService = {
     return await api.post('/register/', userData);
   },
 };
+
+// Fonction utilitaire centrale pour récupérer les utilisateurs selon leur rôle et hiérarchie
+export async function fetchUsersByHierarchy(params: {
+  role: string;
+  usineId?: number;
+  concessionnaireId?: number;
+  includeDetails?: boolean;
+  search?: string;
+}) {
+  const filters: UserFilter = { 
+    role: params.role 
+  };
+
+  if (params.usineId) {
+    filters.usine = params.usineId;
+  }
+
+  if (params.concessionnaireId) {
+    filters.concessionnaire = params.concessionnaireId;
+  }
+
+  if (params.includeDetails) {
+    filters.include_plans = true;
+  }
+
+  if (params.search) {
+    filters.search = params.search;
+  }
+
+  const response = await userService.getUsers(filters);
+  return response.data;
+}
+
+// Service pour les utilisateurs
+export const userService = {
+  // Récupérer tous les utilisateurs avec filtrage optionnel
+  async getUsers(filters: UserFilter = {}) {
+    return await api.get('/users/', { params: filters });
+  },
+  
+  // Récupérer un utilisateur spécifique
+  async getUser(userId: number) {
+    return await api.get(`/users/${userId}/`);
+  },
+  
+  // Créer un nouvel utilisateur
+  async createUser(userData: any) {
+    return await api.post('/users/', userData);
+  },
+  
+  // Mettre à jour un utilisateur existant
+  async updateUser(userId: number, userData: any) {
+    return await api.patch(`/users/${userId}/`, userData);
+  },
+  
+  // Supprimer un utilisateur
+  async deleteUser(userId: number) {
+    return await api.delete(`/users/${userId}/`);
+  },
+  
+  // Récupérer toutes les usines
+  async getUsines() {
+    return await api.get('/users/', { params: { role: 'USINE' } });
+  },
+  
+  // Récupérer tous les concessionnaires (optionnellement filtrés par usine)
+  async getConcessionnaires(usineId?: number) {
+    const params: UserFilter = { role: 'CONCESSIONNAIRE' };
+    if (usineId) {
+      params.usine = usineId;
+    }
+    return await api.get('/users/', { params });
+  },
+  
+  // Récupérer tous les agriculteurs d'un concessionnaire
+  async getConcessionnaireAgriculteurs(concessionnaireId: number) {
+    return await api.get('/users/', { 
+      params: { 
+        role: 'AGRICULTEUR',
+        concessionnaire: concessionnaireId 
+      } 
+    });
+  },
+  
+  // Récupérer tous les agriculteurs d'une usine
+  async getUsineAgriculteurs(usineId: number) {
+    return await api.get('/users/', { 
+      params: { 
+        role: 'AGRICULTEUR',
+        usine: usineId 
+      } 
+    });
+  },
+  
+  // Fonction unifiée pour récupérer les utilisateurs selon la hiérarchie
+  async getUsersByHierarchy(params: {
+    role: string;
+    usineId?: number;
+    concessionnaireId?: number;
+    includeDetails?: boolean;
+    search?: string;
+  }) {
+    const filters: UserFilter = { role: params.role };
+    
+    if (params.usineId) {
+      filters.usine = params.usineId;
+    }
+    
+    if (params.concessionnaireId) {
+      filters.concessionnaire = params.concessionnaireId;
+    }
+    
+    if (params.includeDetails) {
+      filters.include_plans = true;
+    }
+    
+    if (params.search) {
+      filters.search = params.search;
+    }
+    
+    return await api.get('/users/', { params: filters });
+  },
+  
+  // Récupérer les concessionnaires d'une usine spécifique
+  async getUsineConcessionnaires(usineId: number) {
+    return await api.get('/users/', { 
+      params: { 
+        role: 'CONCESSIONNAIRE',
+        usine: usineId 
+      } 
+    });
+  },
+  
+  // Récupérer tous les agriculteurs liés à un concessionnaire
+  async getAgriculteurs(concessionnaireId?: number, usineId?: number) {
+    const params: UserFilter = { role: 'AGRICULTEUR' };
+    
+    if (concessionnaireId) {
+      params.concessionnaire = concessionnaireId;
+    }
+    
+    if (usineId) {
+      params.usine = usineId;
+    }
+    
+    return await api.get('/users/', { params });
+  },
+  
+  // Assigner une usine à un concessionnaire
+  async assignUsineToConcessionnaire(concessionnaireId: number, usineId: number) {
+    return await api.patch(`/users/${concessionnaireId}/`, {
+      usine: usineId
+    });
+  },
+  
+  // Assigner un concessionnaire à un agriculteur
+  async assignConcessionnaireToAgriculteur(agriculteurId: number, concessionnaireId: number) {
+    return await api.patch(`/users/${agriculteurId}/`, {
+      concessionnaire: concessionnaireId
+    });
+  },
+};
+
 // Service pour les plans d'irrigation
 export const irrigationService = {
   async getPlans() {
     return await api.get('/plans/');
   },
+  
   async createPlan(planData: any) {
     return await api.post('/plans/', planData);
   },
+  
   async updatePlan(planId: number, planData: any) {
     return await api.put(`/plans/${planId}/`, planData);
   },
+  
   async deletePlan(planId: number) {
     return await api.delete(`/plans/${planId}/`);
   },
-  // Nouvelles méthodes pour les concessionnaires
-  async getDealers() {
-    return await api.get('/users/', { params: { role: 'CONCESSIONNAIRE' } });
+  
+  async getAgriculteurPlans(agriculteurId: number) {
+    return await api.get('/plans/', { params: { agriculteur: agriculteurId } });
   },
-  async getDealerClients(dealerId: number) {
-    return await api.get('/users/', { 
-      params: { 
-        role: 'UTILISATEUR',
-        concessionnaire: dealerId 
-      } 
-    });
-  },
-  async getClientPlans(clientId: number) {
-    return await api.get('/plans/', { params: { client: clientId } });
-  },
-  async createPlanForClient(planData: any) {
+  
+  async createPlanForAgriculteur(planData: any) {
     return await api.post('/plans/', planData);
+  },
+  
+  // Récupérer les plans d'une usine (inclut tous les plans des concessionnaires associés)
+  async getUsinePlans(usineId: number) {
+    return await api.get('/plans/', { params: { usine: usineId } });
+  },
+  
+  // Récupérer les plans d'un concessionnaire
+  async getConcessionnairePlans(concessionnaireId: number) {
+    return await api.get('/plans/', { params: { concessionnaire: concessionnaireId } });
+  },
+  
+  // Créer un plan pour un concessionnaire
+  async createPlanForConcessionnaire(planData: any, concessionnaireId: number) {
+    const data = { ...planData, concessionnaire: concessionnaireId };
+    return await api.post('/plans/', data);
+  },
+  
+  // Créer un plan pour une usine
+  async createPlanForUsine(planData: any, usineId: number) {
+    const data = { ...planData, usine: usineId };
+    return await api.post('/plans/', data);
   }
 };
+
 export default api; 

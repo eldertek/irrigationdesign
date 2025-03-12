@@ -1,7 +1,7 @@
 # Force l'utilisation de bash
 SHELL := /bin/bash
 
-.PHONY: install migrate run test shell clean frontend serve dev list-files
+.PHONY: install migrate run test shell clean frontend serve dev list-files cypress-tests cypress-admin cypress-usine cypress-concessionnaire cypress-agriculteur cypress-admin-ui cypress-usine-ui cypress-concessionnaire-ui cypress-agriculteur-ui cypress-open
 
 # Variables
 PYTHON = python
@@ -18,25 +18,45 @@ install:
 	cd frontend/irrigationdesign && $(NPM) install
 
 # Liste des fichiers pertinents
-list-files:
+files:
 	@echo "=== Liste des fichiers du projet ===" > out.txt
 	
+	# Frontend Vue.js
 	@echo "\n=== Frontend Vue.js ===" >> out.txt
 	
 	@echo "\n--- Composants et Vues Vue ---" >> out.txt
-	@for f in $$(find frontend/irrigationdesign/src -type f -name "*.vue" ! -path "*/node_modules/*"); do \
-		echo "\n$$f:" >> out.txt; \
-		echo "\`\`\`vue" >> out.txt; \
-		cat "$$f" >> out.txt; \
-		echo "\`\`\`" >> out.txt; \
+	@for f in $$(find frontend/irrigationdesign/src -type f -name "*.vue" ! -path "*/node_modules/*" ! -name "index.html" ! -name "README.md" ! -name "*.config.js" ! -name "*.json"); do \
+		if [ -s "$$f" ]; then \
+			echo "\n$$f:" >> out.txt; \
+			echo "\`\`\`vue" >> out.txt; \
+			cat "$$f" >> out.txt; \
+			echo "\`\`\`" >> out.txt; \
+		fi \
 	done
 	
 	@echo "\n--- Fichiers TypeScript ---" >> out.txt
-	@for f in $$(find frontend/irrigationdesign/src -type f -name "*.ts" ! -path "*/node_modules/*"); do \
-		echo "\n$$f:" >> out.txt; \
-		echo "\`\`\`typescript" >> out.txt; \
-		cat "$$f" >> out.txt; \
-		echo "\`\`\`" >> out.txt; \
+	@for f in $$(find frontend/irrigationdesign/src -type f -name "*.ts" ! -path "*/node_modules/*" ! -name "index.html" ! -name "README.md" ! -name "*.config.js" ! -name "*.json"); do \
+		if [ -s "$$f" ]; then \
+			echo "\n$$f:" >> out.txt; \
+			echo "\`\`\`typescript" >> out.txt; \
+			cat "$$f" >> out.txt; \
+			echo "\`\`\`" >> out.txt; \
+		fi \
+	done
+
+	# Backend Django
+	@echo "\n=== Backend Django ===" >> out.txt
+
+	@for dir in api authentication plans irrigation_design; do \
+		echo "\n--- Dossier $$dir ---" >> out.txt; \
+		for f in $$(find $$dir -type f -name "*.py" ! -name "settings.py" ! -name "urls.py" ! -name "wsgi.py" ! -name "asgi.py" ! -name "__init__.py" ! -path "*/__pycache__/*"); do \
+			if [ -s "$$f" ]; then \
+				echo "\n$$f:" >> out.txt; \
+				echo "\`\`\`python" >> out.txt; \
+				cat "$$f" >> out.txt; \
+				echo "\`\`\`" >> out.txt; \
+			fi \
+		done \
 	done
 	
 	@echo "\nContenu généré dans out.txt"
@@ -116,6 +136,44 @@ lint:
 format:
 	black .
 
+# Tests Cypress
+cypress-admin:
+	mkdir -p logs
+	cd frontend/irrigationdesign && npx cypress run --browser electron --spec "cypress/e2e/auth/admin.cy.ts" > ../../logs/admin-results.txt 2>&1
+
+cypress-usine:
+	mkdir -p logs
+	cd frontend/irrigationdesign && npx cypress run --browser electron --spec "cypress/e2e/auth/usine.cy.ts" > ../../logs/usine-results.txt 2>&1
+
+cypress-concessionnaire:
+	mkdir -p logs
+	cd frontend/irrigationdesign && npx cypress run --browser electron --spec "cypress/e2e/auth/concessionnaire.cy.ts" > ../../logs/concessionnaire-results.txt 2>&1
+
+cypress-agriculteur:
+	mkdir -p logs
+	cd frontend/irrigationdesign && npx cypress run --browser electron --spec "cypress/e2e/auth/agriculteur.cy.ts" > ../../logs/agriculteur-results.txt 2>&1
+
+# Mode visuel (avec interface graphique)
+cypress-admin-ui:
+	cd frontend/irrigationdesign && npx cypress run --browser electron --headed --no-exit --spec "cypress/e2e/auth/admin.cy.ts"
+
+cypress-usine-ui:
+	cd frontend/irrigationdesign && npx cypress run --browser electron --headed --no-exit --spec "cypress/e2e/auth/usine.cy.ts"
+
+cypress-concessionnaire-ui:
+	cd frontend/irrigationdesign && npx cypress run --browser electron --headed --no-exit --spec "cypress/e2e/auth/concessionnaire.cy.ts"
+
+cypress-agriculteur-ui:
+	cd frontend/irrigationdesign && npx cypress run --browser electron --headed --no-exit --spec "cypress/e2e/auth/agriculteur.cy.ts"
+
+# Ouvrir Cypress en mode interactif
+cypress-open:
+	cd frontend/irrigationdesign && npx cypress open
+
+# Exécute tous les tests Cypress séquentiellement
+cypress-tests: cypress-admin cypress-usine cypress-concessionnaire cypress-agriculteur
+	@echo "Tous les tests Cypress ont été exécutés. Les résultats sont disponibles dans le dossier /logs"
+
 # Aide
 help:
 	@echo "Commandes disponibles:"
@@ -134,4 +192,14 @@ help:
 	@echo "  make clean        - Nettoie les fichiers compilés"
 	@echo "  make createsuperuser - Crée un superutilisateur"
 	@echo "  make lint         - Vérifie la syntaxe du code"
-	@echo "  make format       - Formate le code avec black" 
+	@echo "  make format       - Formate le code avec black"
+	@echo "  make cypress-tests - Exécute tous les tests Cypress séquentiellement"
+	@echo "  make cypress-admin - Exécute uniquement les tests admin"
+	@echo "  make cypress-usine - Exécute uniquement les tests usine"
+	@echo "  make cypress-concessionnaire - Exécute uniquement les tests concessionnaire"
+	@echo "  make cypress-agriculteur - Exécute uniquement les tests agriculteur"
+	@echo "  make cypress-admin-ui - Exécute uniquement les tests admin en mode visuel"
+	@echo "  make cypress-usine-ui - Exécute uniquement les tests usine en mode visuel"
+	@echo "  make cypress-concessionnaire-ui - Exécute uniquement les tests concessionnaire en mode visuel"
+	@echo "  make cypress-agriculteur-ui - Exécute uniquement les tests agriculteur en mode visuel"
+	@echo "  make cypress-open - Ouvre Cypress en mode interactif" 

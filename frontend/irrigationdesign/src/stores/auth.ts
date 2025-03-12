@@ -1,20 +1,9 @@
 import { defineStore } from 'pinia';
-import api from '@/services/api';
+import api, { userService } from '@/services/api';
 // Configuration d'Axios pour les requêtes API
 api.defaults.baseURL = '/api';
 api.defaults.headers.common['Content-Type'] = 'application/json';
 api.defaults.withCredentials = true;
-// Fonction utilitaire pour les logs de debug
-const logRequestDetails = (config: any) => {
-  console.log('Request config:', {
-    url: config.url,
-    method: config.method,
-    headers: config.headers,
-    data: config.data,
-    withCredentials: config.withCredentials,
-    baseURL: api.defaults.baseURL
-  });
-};
 // Fonction utilitaire pour obtenir un cookie
 function getCookie(name: string): string | null {
   const value = `; ${document.cookie}`;
@@ -76,20 +65,37 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-interface User {
+// Types pour les utilisateurs
+export interface User {
   id: number;
   username: string;
   email: string;
-  user_type: 'admin' | 'dealer' | 'client';
-  dealer?: number;
-  dealer_name?: string;
+  user_type: 'admin' | 'usine' | 'concessionnaire' | 'agriculteur';
+  role?: string;
+  usine?: number | null;
+  usine_name?: string;
+  concessionnaire?: number | null;
+  concessionnaire_name?: string;
   first_name: string;
   last_name: string;
   company_name?: string;
   must_change_password?: boolean;
   plans_count?: number;
+  usine_ref?: UserReference | null;
+  concessionnaire_ref?: UserReference | null;
+  is_active?: boolean;
 }
-interface AuthState {
+export interface UserReference {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  company_name?: string;
+  role: string;
+  display_name?: string;
+  usine?: UserReference;
+}
+export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   mustChangePassword: boolean;
@@ -97,6 +103,9 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   concessionnaires: any[];
+  usines: UserReference[];
+  concessionnaires_list: UserReference[];
+  agriculteurs: UserReference[];
 }
 // Fonction utilitaire pour définir un cookie sécurisé
 function setSecureCookie(name: string, value: string, expiryDays: number = 1) {
@@ -105,15 +114,71 @@ function setSecureCookie(name: string, value: string, expiryDays: number = 1) {
   const expires = `expires=${date.toUTCString()}`;
   document.cookie = `${name}=${value};${expires};path=/;secure;samesite=Strict`;
 }
-// Fonction utilitaire pour supprimer un cookie
-function deleteCookie(name: string) {
-  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-}
 // Fonction utilitaire pour formater les noms d'utilisateurs
-export function formatUserName(user: { first_name: string; last_name: string; company_name?: string }): string {
-  if (!user) return 'Non spécifié';
-  const name = `${user.first_name} ${user.last_name.toUpperCase()}`;
-  return user.company_name ? `${name} (${user.company_name})` : name;
+export function formatUserName(user: { first_name?: string; last_name?: string; company_name?: string; role?: string }): string {
+  if (!user) return '-';
+  
+  const firstName = user.first_name || '';
+  const lastName = user.last_name ? user.last_name.toUpperCase() : '';
+  const fullName = `${firstName} ${lastName}`.trim();
+  
+  // Utiliser company_name ou role comme identifiant d'entreprise
+  const company = user.company_name || user.role || '';
+  
+  if (!fullName && !company) return '-';
+  if (!fullName) return `(${company})`;
+  if (!company) return fullName;
+  
+  return `${fullName} (${company})`;
+}
+// Fonction utilitaire pour obtenir les initiales d'un utilisateur
+export function getInitials(firstName: string = '', lastName: string = ''): string {
+  return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase();
+}
+// Fonction utilitaire pour obtenir les labels des rôles
+export const roleLabels: Record<string, string> = {
+  'ADMIN': 'Administrateur',
+  'USINE': 'Usine',
+  'CONCESSIONNAIRE': 'Concessionnaire',
+  'AGRICULTEUR': 'Agriculteur'
+};
+// Fonction pour obtenir le label d'un rôle
+export function getRoleLabel(role: string): string {
+  return roleLabels[role] || role;
+}
+// Fonction pour obtenir la classe CSS d'un badge de rôle
+export function getRoleBadgeClass(): string {
+  return 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800';
+}
+// Fonction pour obtenir la classe CSS d'un badge de statut
+export function getStatusBadgeClass(isActive: boolean): string {
+  return isActive
+    ? 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800'
+    : 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800';
+}
+// Fonction utilitaire pour récupérer les utilisateurs selon la hiérarchie
+export async function fetchUsersByHierarchy({ role, usineId, concessionnaireId, includeDetails = false }: {
+  role: string;
+  usineId?: number;
+  concessionnaireId?: number;
+  includeDetails?: boolean;
+}) {
+  const params: any = { role };
+  
+  if (usineId) {
+    params.usine = usineId;
+  }
+  
+  if (concessionnaireId) {
+    params.concessionnaire = concessionnaireId;
+  }
+  
+  if (includeDetails) {
+    params.include_plans = true;
+  }
+  
+  const response = await userService.getUsers(params);
+  return response.data;
 }
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
@@ -123,14 +188,19 @@ export const useAuthStore = defineStore('auth', {
     initialized: false,
     loading: false,
     error: null,
-    concessionnaires: []
+    concessionnaires: [],
+    usines: [],
+    concessionnaires_list: [],
+    agriculteurs: []
   }),
   getters: {
     isAdmin: (state) => state.user?.user_type === 'admin',
-    isDealer: (state) => state.user?.user_type === 'dealer',
-    isClient: (state) => state.user?.user_type === 'client',
+    isUsine: (state) => state.user?.user_type === 'usine',
+    isConcessionnaire: (state) => state.user?.user_type === 'concessionnaire',
+    isAgriculteur: (state) => state.user?.user_type === 'agriculteur',
     currentUser: (state) => state.user,
-    hasDealer: (state) => Boolean(state.user?.dealer)
+    hasConcessionnaire: (state) => Boolean(state.user?.concessionnaire),
+    hasUsine: (state) => Boolean(state.user?.usine)
   },
   actions: {
     async initialize(initialState: any) {
@@ -274,11 +344,142 @@ export const useAuthStore = defineStore('auth', {
         throw error;
       }
     },
-    async fetchConcessionnaires() {
+    // Récupérer tous les utilisateurs avec filtrage optionnel
+    async fetchUsers(filters = {}) {
+      this.loading = true;
+      try {
+        const response = await userService.getUsers(filters);
+        return response.data;
+      } catch (error) {
+        this.error = 'Erreur lors de la récupération des utilisateurs';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    // Récupérer toutes les usines
+    async fetchUsines() {
+      this.loading = true;
+      try {
+        const response = await userService.getUsines();
+        this.usines = response.data;
+        return this.usines;
+      } catch (error) {
+        this.error = 'Erreur lors de la récupération des usines';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    // Récupérer tous les concessionnaires d'une usine
+    async fetchUsineConcessionnaires(usineId: number) {
+      this.loading = true;
+      try {
+        const response = await userService.getUsineConcessionnaires(usineId);
+        this.concessionnaires_list = response.data;
+        return this.concessionnaires_list;
+      } catch (error) {
+        this.error = 'Erreur lors de la récupération des concessionnaires de l\'usine';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    // Récupérer les agriculteurs d'un concessionnaire
+    async fetchConcessionnaireAgriculteurs(concessionnaireId: number) {
+      this.loading = true;
+      try {
+        const response = await userService.getAgriculteurs(concessionnaireId);
+        this.agriculteurs = Array.isArray(response.data) ? response.data : [response.data];
+        return this.agriculteurs;
+      } catch (error) {
+        this.error = 'Erreur lors de la récupération des agriculteurs';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    // Récupérer les agriculteurs d'une usine
+    async fetchUsineAgriculteurs(usineId: number) {
+      this.loading = true;
+      try {
+        const response = await userService.getAgriculteurs(undefined, usineId);
+        return Array.isArray(response.data) ? response.data : [response.data];
+      } catch (error) {
+        this.error = 'Erreur lors de la récupération des agriculteurs de l\'usine';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    // Assigner une usine à un concessionnaire
+    async setUsineForConcessionnaire(concessionnaireId: number, usineId: number) {
+      this.loading = true;
+      try {
+        return await userService.assignUsineToConcessionnaire(concessionnaireId, usineId);
+      } catch (error) {
+        this.error = 'Erreur lors de l\'assignation de l\'usine au concessionnaire';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    // Assigner un concessionnaire à un agriculteur
+    async setConcessionnaireForAgriculteur(agriculteurId: number, concessionnaireId: number) {
+      this.loading = true;
+      try {
+        return await userService.assignConcessionnaireToAgriculteur(agriculteurId, concessionnaireId);
+      } catch (error) {
+        this.error = 'Erreur lors de l\'assignation du concessionnaire à l\'agriculteur';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    // Créer un nouvel utilisateur
+    async createUser(userData: any) {
+      this.loading = true;
+      try {
+        const response = await userService.createUser(userData);
+        return response.data;
+      } catch (error) {
+        this.error = 'Erreur lors de la création de l\'utilisateur';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    // Mettre à jour un utilisateur
+    async updateUser(userId: number, userData: any) {
+      this.loading = true;
+      try {
+        const response = await userService.updateUser(userId, userData);
+        return response.data;
+      } catch (error) {
+        this.error = 'Erreur lors de la mise à jour de l\'utilisateur';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    // Supprimer un utilisateur
+    async deleteUser(userId: number) {
+      this.loading = true;
+      try {
+        await userService.deleteUser(userId);
+        return true;
+      } catch (error) {
+        this.error = 'Erreur lors de la suppression de l\'utilisateur';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async fetchConcessionnairesLegacy() {
       this.loading = true;
       try {
         const response = await api.get('/users/', {
-          params: { role: 'dealer' }
+          params: { role: 'concessionnaire' }
         });
         this.concessionnaires = response.data;
       } catch (error) {
@@ -295,28 +496,10 @@ export const useAuthStore = defineStore('auth', {
           concessionnaire: concessionnaireId
         });
         if (this.user && this.user.id === userId) {
-          this.user.dealer = concessionnaireId;
+          this.user.concessionnaire = concessionnaireId;
         }
       } catch (error) {
         this.error = 'Erreur lors de la mise à jour du concessionnaire';
-        throw error;
-      } finally {
-        this.loading = false;
-      }
-    },
-    async createUser(userData: {
-      username: string;
-      email: string;
-      password: string;
-      role: string;
-      concessionnaire?: number;
-    }) {
-      this.loading = true;
-      try {
-        const response = await api.post('/users/', userData);
-        return response.data;
-      } catch (error) {
-        this.error = 'Erreur lors de la création de l\'utilisateur';
         throw error;
       } finally {
         this.loading = false;
@@ -359,6 +542,18 @@ export const useAuthStore = defineStore('auth', {
     checkAccess(requiredRole: string[]): boolean {
       if (!this.user) return false;
       return requiredRole.includes(this.user.user_type);
+    },
+    // Fonction unifiée pour récupérer les utilisateurs par hiérarchie
+    async fetchUsersByRole(params: { role: string; usineId?: number; concessionnaireId?: number; includeDetails?: boolean }) {
+      this.loading = true;
+      try {
+        return await fetchUsersByHierarchy(params);
+      } catch (error) {
+        console.error(`Error fetching ${params.role}:`, error);
+        throw error;
+      } finally {
+        this.loading = false;
+      }
     }
   }
 }); 

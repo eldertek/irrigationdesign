@@ -17,17 +17,77 @@
               {{ user ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur' }}
             </h3>
             <div class="mt-4">
-              <form @submit.prevent="handleSubmit" class="space-y-4">
-                <!-- Informations de base -->
-                <div class="grid grid-cols-2 gap-4">
+              <form @submit.prevent="saveUser" class="space-y-6">
+                <!-- Champ de type d'utilisateur (uniquement pour les admins) -->
+                <div v-if="isAdmin">
+                  <label for="role" class="block text-sm font-medium text-gray-700">Type d'utilisateur</label>
+                  <select
+                    id="role"
+                    v-model="form.role"
+                    class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                    required
+                  >
+                    <option value="ADMIN">Administrateur</option>
+                    <option value="USINE">Usine</option>
+                    <option value="CONCESSIONNAIRE">Concessionnaire</option>
+                    <option value="AGRICULTEUR">Agriculteur</option>
+                  </select>
+                </div>
+                
+                <!-- Sélection d'usine (uniquement pour les concessionnaires créés par un admin) -->
+                <div v-if="isAdmin && form.role === 'CONCESSIONNAIRE'">
+                  <label for="usine" class="block text-sm font-medium text-gray-700">Usine</label>
+                  <select
+                    id="usine"
+                    v-model="form.usine"
+                    class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                  >
+                    <option :value="null">-- Sélectionner une usine --</option>
+                    <option v-for="usine in usines" :key="usine.id" :value="usine.id">
+                      {{ usine.first_name }} {{ usine.last_name }} ({{ usine.company_name || 'Usine' }})
+                    </option>
+                  </select>
+                </div>
+
+                <!-- Champ de type d'utilisateur (pour les usines) -->
+                <div v-if="isUsine && !form.id">
+                  <label for="role" class="block text-sm font-medium text-gray-700">Type d'utilisateur</label>
+                  <select
+                    id="role"
+                    v-model="form.role"
+                    class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                    required
+                  >
+                    <option value="CONCESSIONNAIRE">Concessionnaire</option>
+                    <option value="AGRICULTEUR">Agriculteur</option>
+                  </select>
+                </div>
+                
+                <!-- Sélection de concessionnaire pour les agriculteurs (sauf si le créateur est un concessionnaire) -->
+                <div v-if="(isAdmin || isUsine) && form.role === 'AGRICULTEUR' && !currentConcessionnaire">
+                  <label for="concessionnaire" class="block text-sm font-medium text-gray-700">Concessionnaire</label>
+                  <select
+                    id="concessionnaire"
+                    v-model="form.concessionnaire"
+                    class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                    required
+                  >
+                    <option :value="null">-- Sélectionner un concessionnaire --</option>
+                    <option v-for="concessionnaire in concessionnaires" :key="concessionnaire.id" :value="concessionnaire.id">
+                      {{ concessionnaire.first_name }} {{ concessionnaire.last_name }} ({{ concessionnaire.company_name || 'Concessionnaire' }})
+                    </option>
+                  </select>
+                </div>
+                
+                <!-- Champs pour les informations générales de l'utilisateur -->
+                <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
                   <div>
                     <label for="first_name" class="block text-sm font-medium text-gray-700">Prénom</label>
                     <input
                       type="text"
                       id="first_name"
                       v-model="form.first_name"
-                      required
-                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                      class="mt-1 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                     />
                   </div>
                   <div>
@@ -36,11 +96,11 @@
                       type="text"
                       id="last_name"
                       v-model="form.last_name"
-                      required
-                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                      class="mt-1 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                     />
                   </div>
                 </div>
+                
                 <div>
                   <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
                   <input
@@ -48,9 +108,11 @@
                     id="email"
                     v-model="form.email"
                     required
-                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                    class="mt-1 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                   />
+                  <div v-if="emailError" class="mt-2 text-sm text-red-600">{{ emailError }}</div>
                 </div>
+                
                 <div>
                   <label for="username" class="block text-sm font-medium text-gray-700">Nom d'utilisateur</label>
                   <input
@@ -58,62 +120,22 @@
                     id="username"
                     v-model="form.username"
                     required
-                    :disabled="!!props.user"
-                    :class="[
-                      'mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm',
-                      { 'bg-gray-100': !!props.user }
-                    ]"
+                    class="mt-1 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                   />
-                  <p v-if="props.user" class="mt-1 text-sm text-gray-500">
-                    Le nom d'utilisateur ne peut pas être modifié après la création.
-                  </p>
+                  <div v-if="usernameError" class="mt-2 text-sm text-red-600">{{ usernameError }}</div>
                 </div>
+                
                 <div>
-                  <label for="company_name" class="block text-sm font-medium text-gray-700">Nom de l'entreprise</label>
+                  <label for="company_name" class="block text-sm font-medium text-gray-700">Entreprise</label>
                   <input
                     type="text"
                     id="company_name"
                     v-model="form.company_name"
-                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                    class="mt-1 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                   />
                 </div>
-                <!-- Rôle et Concessionnaire -->
-                <div class="grid grid-cols-2 gap-4">
-                  <div v-if="props.isAdmin">
-                    <label for="role" class="block text-sm font-medium text-gray-700">Rôle</label>
-                    <select
-                      id="role"
-                      v-model="form.role"
-                      required
-                      :disabled="!canChangeRole"
-                      class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
-                    >
-                      <option value="">Sélectionner un rôle</option>
-                      <option v-for="role in availableRoles" :key="role.value" :value="role.value">
-                        {{ role.label }}
-                      </option>
-                    </select>
-                  </div>
-                  <div v-if="showDealerSelect">
-                    <label for="dealer" class="block text-sm font-medium text-gray-700">Concessionnaire</label>
-                    <select
-                      id="dealer"
-                      v-model="form.dealer"
-                      required
-                      :disabled="!props.isAdmin"
-                      class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
-                    >
-                      <option value="">Sélectionner un concessionnaire</option>
-                      <option v-for="dealer in availableDealers" :key="dealer.id" :value="dealer.id">
-                        {{ formatUserName(dealer) }}
-                      </option>
-                    </select>
-                  </div>
-                </div>
-                <!-- Mot de passe -->
-                <div v-if="!user">
-                  <div class="grid grid-cols-2 gap-4">
-                    <div>
+                
+                <div v-if="!form.id">
                       <label for="password" class="block text-sm font-medium text-gray-700">Mot de passe</label>
                       <input
                         type="password"
@@ -121,74 +143,56 @@
                         v-model="form.password"
                         required
                         autocomplete="new-password"
-                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                    class="mt-1 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                       />
                     </div>
-                    <div>
+                
+                <div v-if="!form.id">
                       <label for="password_confirm" class="block text-sm font-medium text-gray-700">Confirmer le mot de passe</label>
                       <input
                         type="password"
                         id="password_confirm"
-                        v-model="form.password_confirm"
+                    v-model="passwordConfirm"
                         required
                         autocomplete="new-password"
-                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                      />
-                    </div>
-                  </div>
-                  <p class="mt-1 text-sm text-gray-500">
-                    L'utilisateur devra changer son mot de passe à sa première connexion.
-                  </p>
+                    class="mt-1 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                  />
+                  <div v-if="passwordError" class="mt-2 text-sm text-red-600">{{ passwordError }}</div>
                 </div>
-                <!-- Message d'erreur -->
-                <div v-if="error" class="rounded-md bg-red-50 p-4">
-                  <div class="flex">
-                    <div class="flex-shrink-0">
-                      <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                      </svg>
-                    </div>
-                    <div class="ml-3">
-                      <h3 class="text-sm font-medium text-red-800">{{ error }}</h3>
-                    </div>
-                  </div>
+                
+                <div class="flex items-center">
+                  <input
+                    id="is_active"
+                    type="checkbox"
+                    v-model="form.is_active"
+                    class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  />
+                  <label for="is_active" class="ml-2 block text-sm text-gray-900">
+                    Utilisateur actif
+                  </label>
                 </div>
-                <!-- Actions -->
-                <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+                
+                <div class="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    @click="$emit('close')"
+                    class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                  >
+                    Annuler
+                  </button>
                   <button
                     type="submit"
                     :disabled="loading"
-                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:col-start-2 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                   >
-                    <svg
-                      v-if="loading"
-                      class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    {{ loading ? 'Enregistrement...' : 'Enregistrer' }}
-                  </button>
-                  <button
-                    type="button"
-                    class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:col-start-1 sm:text-sm"
-                    @click="$emit('close')"
-                  >
-                    Annuler
+                    <span v-if="loading" class="mr-2">
+                      <!-- Spinner -->
+                      <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </span>
+                    {{ form.id ? 'Mettre à jour' : 'Créer' }}
                   </button>
                 </div>
               </form>
@@ -200,150 +204,223 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, reactive, computed, type PropType } from 'vue'
+import { ref, reactive, computed, type PropType, watch, watchEffect, onMounted } from 'vue'
 import { useAuthStore, formatUserName } from '@/stores/auth'
-interface UserData {
-  first_name: string
-  last_name: string
-  email: string
-  username: string
-  company_name: string
-  role: string
-  dealer?: string
-  concessionnaire?: string
-  password?: string
-  password_confirm?: string
+
+// Types
+interface User {
   id?: number
+  first_name?: string
+  last_name?: string
+  username: string
+  email: string
+  password?: string
+  company_name?: string
+  role?: string
+  concessionnaire?: number | UserReference | null
+  concessionnaire_id?: number | null
+  usine?: number | UserReference | null
+  usine_id?: number | null
+  is_active?: boolean
 }
-interface Dealer {
+
+interface UserReference {
   id: number
   first_name: string
   last_name: string
+  username: string
   company_name?: string
   role: string
 }
-interface ApiError {
-  response?: {
-    data?: {
-      username?: string[]
-      email?: string[]
-      password?: string[]
-      concessionnaire?: string[]
-      [key: string]: string[] | undefined
-    }
-  }
-}
+
+// Props du composant
 const props = defineProps({
   user: {
-    type: Object as PropType<Record<string, any> | null>,
-    default: null
+    type: Object as PropType<Partial<User>>,
+    default: () => ({})
   },
-  dealers: {
-    type: Array as PropType<Array<Dealer>>,
+  concessionnaires: {
+    type: Array as PropType<UserReference[]>,
+    default: () => []
+  },
+  usines: {
+    type: Array as PropType<UserReference[]>,
     default: () => []
   },
   isAdmin: {
     type: Boolean,
-    required: true
+    default: false
   },
-  currentDealer: {
+  isUsine: {
+    type: Boolean,
+    default: false
+  },
+  currentConcessionnaire: {
     type: String,
-    default: ''
+    default: undefined
+  },
+  currentUsine: {
+    type: String, 
+    default: undefined
   }
 })
+
+// Emits
 const emit = defineEmits(['close', 'save'])
-const authStore = useAuthStore()
+
+// État du composant
 const loading = ref(false)
-const error = ref<string | null>(null)
-const canChangeRole = computed(() => {
-  if (!props.isAdmin) return false
-  if (props.user) {
-    // Un admin ne peut pas changer son propre rôle
-    return props.user.id !== authStore.user?.id
-  }
-  return true
-})
-const availableRoles = computed(() => {
-  if (props.isAdmin) {
-    return [
-      { value: 'ADMIN', label: 'Administrateur' },
-      { value: 'CONCESSIONNAIRE', label: 'Concessionnaire' },
-      { value: 'UTILISATEUR', label: 'Client' }
-    ]
-  }
-  return [
-    { value: 'UTILISATEUR', label: 'Client' }
-  ]
-})
-const showDealerSelect = computed(() => {
-  if (!props.isAdmin) return true // Toujours afficher pour les concessionnaires
-  return form.role === 'UTILISATEUR'
-})
-const availableDealers = computed(() => {
-  return props.dealers.filter(dealer => dealer.role === 'CONCESSIONNAIRE')
-})
-const form = reactive<UserData>({
-  first_name: props.user?.first_name || '',
-  last_name: props.user?.last_name || '',
-  email: props.user?.email || '',
-  username: props.user?.username || '',
-  company_name: props.user?.company_name || '',
-  role: props.user?.role || (props.isAdmin ? '' : 'UTILISATEUR'),
-  dealer: props.user?.concessionnaire || props.currentDealer,
+const emailError = ref('')
+const usernameError = ref('')
+const passwordError = ref('')
+const passwordConfirm = ref('')
+
+// Formulaire
+const form = reactive({
+  id: undefined as number | undefined,
+  first_name: '',
+  last_name: '',
+  username: '',
+  email: '',
   password: '',
-  password_confirm: ''
+  company_name: '',
+  role: props.isUsine ? 'CONCESSIONNAIRE' : (props.isAdmin ? 'ADMIN' : 'AGRICULTEUR'),
+  concessionnaire: null as number | null,
+  usine: null as number | null,
+  is_active: true
 })
-const validateForm = () => {
-  if (!form.first_name || !form.last_name) {
-    error.value = 'Le prénom et le nom sont requis'
-    return false
-  }
-  if (!form.email) {
-    error.value = 'L\'email est requis'
-    return false
-  }
-  if (!form.username) {
-    error.value = 'Le nom d\'utilisateur est requis'
-    return false
-  }
-  if (!props.user) {
-    if (!form.password) {
-      error.value = 'Le mot de passe est requis'
-      return false
+
+// Initialiser le formulaire avec les valeurs de l'utilisateur existant
+onMounted(() => {
+  if (props.user?.id) {
+    form.id = props.user.id
+    form.first_name = props.user.first_name || ''
+    form.last_name = props.user.last_name || ''
+    form.username = props.user.username || ''
+    form.email = props.user.email || ''
+    form.company_name = props.user.company_name || ''
+    form.role = props.user.role || 'AGRICULTEUR'
+    form.is_active = props.user.is_active ?? true
+    
+    // Gérer les relations
+    if (props.user.concessionnaire) {
+      if (typeof props.user.concessionnaire === 'object') {
+    form.concessionnaire = props.user.concessionnaire.id
+      } else {
+        form.concessionnaire = props.user.concessionnaire
+      }
+    } else if (props.user.concessionnaire_id) {
+      form.concessionnaire = props.user.concessionnaire_id
+    } else if (props.currentConcessionnaire) {
+      form.concessionnaire = parseInt(props.currentConcessionnaire)
     }
-    if (form.password !== form.password_confirm) {
-      error.value = 'Les mots de passe ne correspondent pas'
-      return false
+    
+    if (props.user.usine) {
+      if (typeof props.user.usine === 'object') {
+    form.usine = props.user.usine.id
+      } else {
+        form.usine = props.user.usine
+      }
+    } else if (props.user.usine_id) {
+      form.usine = props.user.usine_id
+    } else if (props.currentUsine) {
+      form.usine = parseInt(props.currentUsine)
+    }
+  } else {
+    // Pour un nouvel utilisateur, définir des valeurs par défaut
+    if (props.currentConcessionnaire) {
+      form.concessionnaire = parseInt(props.currentConcessionnaire)
+    }
+    if (props.currentUsine) {
+      form.usine = parseInt(props.currentUsine)
+    }
+    // Si l'utilisateur est une usine, le rôle par défaut est concessionnaire
+    if (props.isUsine) {
+      form.role = 'CONCESSIONNAIRE'
+    }
+    // Si l'utilisateur est un concessionnaire, le rôle par défaut est agriculteur
+    else if (!props.isAdmin) {
+      form.role = 'AGRICULTEUR'
     }
   }
-  if (form.role === 'UTILISATEUR' && !form.dealer) {
-    error.value = 'Un concessionnaire doit être sélectionné pour un client'
-    return false
+})
+
+// Surveiller les changements de rôle pour réinitialiser les relations
+watchEffect(() => {
+  if (form.role === 'ADMIN' || form.role === 'USINE') {
+    form.concessionnaire = null
+    form.usine = null
+  } else if (form.role === 'CONCESSIONNAIRE') {
+    form.concessionnaire = null
+    // Si l'utilisateur est une usine, définir automatiquement l'usine
+    if (props.isUsine && props.currentUsine) {
+      form.usine = parseInt(props.currentUsine)
+    }
   }
-  return true
-}
-const handleSubmit = async () => {
-  error.value = null
-  if (!validateForm()) return
+})
+
+// Valider et envoyer le formulaire
+async function saveUser() {
+  // Réinitialiser les erreurs
+  emailError.value = ''
+  usernameError.value = ''
+  passwordError.value = ''
+  
+  // Valider le formulaire
+  let isValid = true
+  
+  // Valider les mots de passe pour un nouvel utilisateur
+  if (!form.id) {
+    if (form.password !== passwordConfirm.value) {
+      passwordError.value = 'Les mots de passe ne correspondent pas'
+      isValid = false
+    } else if (form.password.length < 8) {
+      passwordError.value = 'Le mot de passe doit contenir au moins 8 caractères'
+      isValid = false
+    }
+  }
+  
+  if (!isValid) return
+  
   loading.value = true
+  
   try {
-    const userData = { ...form }
-    // Ne pas envoyer le mot de passe si on modifie un utilisateur existant
-    if (props.user?.id) {
-      userData.id = props.user.id
+    // Préparer les données à envoyer
+    const userData: Record<string, any> = { ...form }
+    
+    // Si c'est une mise à jour, ne pas envoyer le mot de passe
+    if (form.id) {
       delete userData.password
-      delete userData.password_confirm
     }
-    // Conversion du dealer en concessionnaire uniquement pour les clients
-    if (userData.role === 'UTILISATEUR' && userData.dealer) {
-      userData.concessionnaire = userData.dealer
+    
+    // Si le rôle est défini par le contexte, s'assurer qu'il est correct
+    if (props.isUsine && ['CONCESSIONNAIRE', 'AGRICULTEUR'].includes(form.role)) {
+      userData.usine_id = props.currentUsine ? parseInt(props.currentUsine) : undefined
     }
-    delete userData.dealer
-    await emit('save', userData)
-    emit('close')
-  } catch (err: any) {
-    console.error('Erreur formulaire:', err)
-    error.value = err.message
+    
+    if (props.currentConcessionnaire && form.role === 'AGRICULTEUR') {
+      userData.concessionnaire_id = parseInt(props.currentConcessionnaire)
+    }
+    
+    emit('save', userData)
+    
+  } catch (error: any) {
+    // Gérer les erreurs spécifiques
+    if (error.response?.data) {
+      const errors = error.response.data
+      if (errors.email) {
+        emailError.value = errors.email[0]
+      }
+      if (errors.username) {
+        usernameError.value = errors.username[0]
+      }
+      if (errors.password) {
+        passwordError.value = errors.password[0]
+      }
+    } else {
+      console.error('Erreur lors de la sauvegarde:', error)
+    }
+  } finally {
     loading.value = false
   }
 }

@@ -2,6 +2,7 @@ from django.contrib.gis.db import models
 from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from authentication.models import Utilisateur
 
 class Plan(models.Model):
     """
@@ -17,6 +18,15 @@ class Plan(models.Model):
         related_name='plans',
         verbose_name='Créateur'
     )
+    usine = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='plans_usine',
+        verbose_name='Usine assignée',
+        limit_choices_to={'role': Utilisateur.Role.USINE}
+    )
     concessionnaire = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -24,16 +34,16 @@ class Plan(models.Model):
         blank=True,
         related_name='plans_concessionnaire',
         verbose_name='Concessionnaire assigné',
-        limit_choices_to={'role': 'CONCESSIONNAIRE'}
+        limit_choices_to={'role': Utilisateur.Role.CONCESSIONNAIRE}
     )
-    client = models.ForeignKey(
+    agriculteur = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='plans_client',
-        verbose_name='Client assigné',
-        limit_choices_to={'role': 'UTILISATEUR'}
+        related_name='plans_agriculteur',
+        verbose_name='Agriculteur assigné',
+        limit_choices_to={'role': Utilisateur.Role.AGRICULTEUR}
     )
     preferences = models.JSONField(
         default=dict,
@@ -66,6 +76,40 @@ class Plan(models.Model):
         """Force la mise à jour de la date de modification."""
         self.date_modification = timezone.now()
         self.save(update_fields=['date_modification'])
+
+    def clean(self):
+        """Valide les relations entre usine, concessionnaire et agriculteur."""
+        super().clean()
+        
+        # Si un agriculteur est assigné, il doit avoir un concessionnaire
+        if self.agriculteur and not self.concessionnaire:
+            raise ValidationError({
+                'concessionnaire': 'Un concessionnaire doit être assigné si un agriculteur est spécifié.'
+            })
+        
+        # Si un concessionnaire est assigné, il doit avoir une usine
+        if self.concessionnaire and not self.usine:
+            raise ValidationError({
+                'usine': 'Une usine doit être assignée si un concessionnaire est spécifié.'
+            })
+        
+        # Vérifier que le concessionnaire appartient à l'usine
+        if self.concessionnaire and self.usine and self.concessionnaire.usine != self.usine:
+            raise ValidationError({
+                'concessionnaire': 'Le concessionnaire doit appartenir à l\'usine spécifiée.'
+            })
+        
+        # Vérifier que l'agriculteur appartient au concessionnaire
+        if self.agriculteur and self.concessionnaire and self.agriculteur.concessionnaire != self.concessionnaire:
+            raise ValidationError({
+                'agriculteur': 'L\'agriculteur doit appartenir au concessionnaire spécifié.'
+            })
+        
+        # Vérifier que l'agriculteur appartient indirectement à l'usine
+        if self.agriculteur and self.usine and (not self.agriculteur.concessionnaire or self.agriculteur.concessionnaire.usine != self.usine):
+            raise ValidationError({
+                'agriculteur': 'L\'agriculteur doit appartenir à un concessionnaire rattaché à l\'usine spécifiée.'
+            })
 
 class FormeGeometrique(models.Model):
     """

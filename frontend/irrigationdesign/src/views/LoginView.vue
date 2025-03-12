@@ -211,10 +211,20 @@ async function handleSubmit() {
     }
   } catch (err: any) {
     console.error('Login error:', err)
-    error.value = err?.response?.data?.detail || 
-                 err?.response?.data?.non_field_errors?.[0] ||
-                 err?.message ||
-                 'Erreur lors de la connexion'
+    // Gestion améliorée des erreurs
+    if (err?.response?.status === 500) {
+      error.value = 'Le service est temporairement indisponible. Veuillez réessayer dans quelques instants.'
+    } else if (err?.response?.status === 401 || err?.response?.status === 403) {
+      error.value = 'Identifiants incorrects. Veuillez vérifier votre nom d\'utilisateur et mot de passe.'
+    } else if (err?.response?.data?.detail) {
+      error.value = err.response.data.detail
+    } else if (err?.response?.data?.non_field_errors?.[0]) {
+      error.value = err.response.data.non_field_errors[0]
+    } else if (err?.message === 'Network Error') {
+      error.value = 'Impossible de se connecter au serveur. Veuillez vérifier votre connexion internet.'
+    } else {
+      error.value = 'Une erreur est survenue lors de la connexion. Veuillez réessayer.'
+    }
   } finally {
     loading.value = false
   }

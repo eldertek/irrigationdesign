@@ -52,3 +52,17 @@ node_modules/
 npm-debug.log
 yarn-debug.log
 yarn-error.log
+
+# Cypress
+logs/
+frontend/irrigationdesign/cypress/screenshots/
+frontend/irrigationdesign/cypress/videos/
+frontend/irrigationdesign/cypress/downloads/
+frontend/irrigationdesign/cypress/fixtures/example.json
+*.mp4
+*.png
+cypress.env.json
+*-results.json
+*-results.txt
+.nyc_output
+coverage/

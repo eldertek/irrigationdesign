@@ -19,47 +19,61 @@
       </div>
       <!-- Interface Admin -->
       <div v-if="authStore.isAdmin" class="mt-8">
-        <!-- Sélection du concessionnaire -->
+        <!-- Sélection de l'usine -->
         <div class="mb-6">
-          <label for="dealer-filter" class="block text-sm font-medium text-gray-700">Filtrer par concessionnaire</label>
+          <label for="usine-filter" class="block text-sm font-medium text-gray-700">Filtrer par usine</label>
           <select
-            id="dealer-filter"
-            v-model="selectedDealer"
+            id="usine-filter"
+            v-model="selectedUsine"
             class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
           >
-            <option :value="null">Tous les concessionnaires</option>
-            <option v-for="dealer in dealers" :key="dealer.id" :value="dealer.id">
-              {{ dealer.first_name }} {{ dealer.last_name }} ({{ dealer.company_name }})
+            <option :value="null">Toutes les usines</option>
+            <option v-for="usine in usines" :key="usine.id" :value="usine.id">
+              {{ formatUserDisplay(usine) }}
             </option>
           </select>
         </div>
-        <!-- Sélection du client si un concessionnaire est sélectionné -->
-        <div v-if="selectedDealer" class="mb-6">
-          <label for="client-filter" class="block text-sm font-medium text-gray-700">Filtrer par client</label>
+        <!-- Sélection du concessionnaire -->
+        <div class="mb-6">
+          <label for="concessionnaire-filter" class="block text-sm font-medium text-gray-700">Filtrer par concessionnaire</label>
           <select
-            id="client-filter"
+            id="concessionnaire-filter"
+            v-model="selectedConcessionnaire"
+            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+          >
+            <option :value="null">{{ filteredConcessionnaires.length ? 'Tous les concessionnaires' : 'Aucun concessionnaire disponible' }}</option>
+            <option v-for="concessionnaire in filteredConcessionnaires" :key="concessionnaire.id" :value="concessionnaire.id">
+              {{ formatUserDisplay(concessionnaire) }}
+            </option>
+          </select>
+        </div>
+        <!-- Sélection de l'agriculteur si un concessionnaire est sélectionné -->
+        <div v-if="selectedConcessionnaire" class="mb-6">
+          <label for="agriculteur-filter" class="block text-sm font-medium text-gray-700">Filtrer par agriculteur</label>
+          <select
+            id="agriculteur-filter"
             v-model="selectedClient"
             class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
           >
-            <option :value="null">Tous les clients</option>
+            <option :value="null">{{ filteredClients.length ? 'Tous les agriculteurs' : 'Aucun agriculteur disponible' }}</option>
             <option v-for="client in filteredClients" :key="client.id" :value="client.id">
-              {{ client.first_name }} {{ client.last_name }} ({{ client.company_name }})
+              {{ formatUserDisplay(client) }}
             </option>
           </select>
         </div>
       </div>
       <!-- Interface Concessionnaire -->
-      <div v-else-if="authStore.isDealer" class="mt-8">
+      <div v-else-if="authStore.isConcessionnaire" class="mt-8">
         <div class="mb-6">
-          <label for="client-filter" class="block text-sm font-medium text-gray-700">Filtrer par client</label>
+          <label for="agriculteur-filter" class="block text-sm font-medium text-gray-700">Filtrer par agriculteur</label>
           <select
-            id="client-filter"
+            id="agriculteur-filter"
             v-model="selectedClient"
             class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
           >
-            <option :value="null">Tous les clients</option>
+            <option :value="null">Tous les agriculteurs</option>
             <option v-for="client in clients" :key="client.id" :value="client.id">
-              {{ client.first_name }} {{ client.last_name }} ({{ client.company_name }})
+              {{ formatUserDisplay(client) }}
             </option>
           </select>
         </div>
@@ -96,40 +110,21 @@
                   <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                     Description
                   </th>
-                  <th v-if="!authStore.isDealer" scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Concessionnaire
-                  </th>
-                  <th v-if="!authStore.isClient" scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Client
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    Usine
                   </th>
                   <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    <button 
-                      @click="toggleSort('date_creation')" 
-                      class="group inline-flex items-center"
-                    >
-                      Créé le
-                      <span class="ml-2 flex-none rounded">
-                        <svg 
-                          class="h-5 w-5" 
-                          :class="{
-                            'text-gray-900': sortField === 'date_creation',
-                            'text-gray-400': sortField !== 'date_creation',
-                            'rotate-180': sortField === 'date_creation' && sortDirection === 'asc'
-                          }"
-                          viewBox="0 0 20 20" 
-                          fill="currentColor"
-                        >
-                          <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-                        </svg>
-                      </span>
-                    </button>
+                    Concessionnaire
+                  </th>
+                  <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    Agriculteur
                   </th>
                   <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                     <button 
                       @click="toggleSort('date_modification')" 
                       class="group inline-flex items-center"
                     >
-                      Modifié le
+                      Dernière modification
                       <span class="ml-2 flex-none rounded">
                         <svg 
                           class="h-5 w-5" 
@@ -164,38 +159,59 @@
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                     {{ plan.description || '-' }}
                   </td>
-                  <td v-if="!authStore.isDealer" class="px-3 py-4 text-sm text-gray-900">
-                    <div v-if="plan.concessionnaire_details" class="flex items-center">
+                  <!-- Usine -->
+                  <td class="px-3 py-4 text-sm text-gray-900">
+                    <div v-if="plan.usine && typeof plan.usine === 'object'" class="flex items-center">
                       <div class="h-8 w-8 flex-shrink-0">
                         <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
                           <span class="text-primary-700 font-medium text-sm">
-                            {{ getInitials(plan.concessionnaire_details) }}
+                            {{ getInitials(plan.usine) }}
                           </span>
                         </div>
                       </div>
                       <div class="ml-3">
-                        <div class="font-medium">{{ formatUserName(plan.concessionnaire_details) }}</div>
+                        <div class="font-medium">{{ formatUserName(plan.usine) }}</div>
                       </div>
                     </div>
-                    <div v-else class="text-gray-500">-</div>
+                    <div v-else class="text-gray-500">
+                      Non assigné
+                    </div>
                   </td>
-                  <td v-if="!authStore.isClient" class="px-3 py-4 text-sm text-gray-900">
-                    <div v-if="plan.client_details" class="flex items-center">
+                  <!-- Concessionnaire -->
+                  <td class="px-3 py-4 text-sm text-gray-900">
+                    <div v-if="plan.concessionnaire && typeof plan.concessionnaire === 'object'" class="flex items-center">
                       <div class="h-8 w-8 flex-shrink-0">
                         <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
                           <span class="text-primary-700 font-medium text-sm">
-                            {{ getInitials(plan.client_details) }}
+                            {{ getInitials(plan.concessionnaire) }}
                           </span>
                         </div>
                       </div>
                       <div class="ml-3">
-                        <div class="font-medium">{{ formatUserName(plan.client_details) }}</div>
+                        <div class="font-medium">{{ formatUserName(plan.concessionnaire) }}</div>
                       </div>
                     </div>
-                    <div v-else class="text-gray-500">-</div>
+                    <div v-else class="text-gray-500">
+                      Non assigné
+                    </div>
                   </td>
-                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    {{ formatDate(plan.date_creation) }}
+                  <!-- Agriculteur -->
+                  <td class="px-3 py-4 text-sm text-gray-900">
+                    <div v-if="plan.agriculteur && typeof plan.agriculteur === 'object'" class="flex items-center">
+                      <div class="h-8 w-8 flex-shrink-0">
+                        <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
+                          <span class="text-primary-700 font-medium text-sm">
+                            {{ getInitials(plan.agriculteur) }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="ml-3">
+                        <div class="font-medium">{{ formatUserName(plan.agriculteur) }}</div>
+                      </div>
+                    </div>
+                    <div v-else class="text-gray-500">
+                      Non assigné
+                    </div>
                   </td>
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                     {{ formatDate(plan.date_modification) }}
@@ -230,7 +246,7 @@
       <!-- Modal nouveau plan -->
       <NewPlanModal
         v-model="showNewPlanModal"
-        :dealers="dealers"
+        :concessionnaires="concessionnaires"
         :clients="clients"
         @created="onPlanCreated"
       />
@@ -257,7 +273,8 @@
                 type="text"
                 id="edit-nom"
                 v-model="editPlanData.nom"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                :disabled="loading"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                 required
               />
             </div>
@@ -268,12 +285,29 @@
               <textarea
                 id="edit-description"
                 v-model="editPlanData.description"
+                :disabled="loading"
                 rows="3"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
               ></textarea>
             </div>
-            <!-- Assignation concessionnaire/client (admin uniquement) -->
+            <!-- Assignation usine/concessionnaire/agriculteur (admin uniquement) -->
             <div v-if="authStore.isAdmin" class="space-y-4">
+              <div>
+                <label for="edit-usine" class="block text-sm font-medium text-gray-700">
+                  Usine
+                </label>
+                <select
+                  id="edit-usine"
+                  v-model="editPlanData.usine"
+                  :disabled="loading"
+                  class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option :value="null">Sélectionner une usine</option>
+                  <option v-for="usine in usines" :key="usine.id" :value="usine.id">
+                    {{ formatUserDisplay(usine) }}
+                  </option>
+                </select>
+              </div>
               <div>
                 <label for="edit-concessionnaire" class="block text-sm font-medium text-gray-700">
                   Concessionnaire
@@ -281,28 +315,36 @@
                 <select
                   id="edit-concessionnaire"
                   v-model="editPlanData.concessionnaire"
-                  class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                  :disabled="!editPlanData.usine || loading"
+                  class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
-                  <option :value="null">Aucun</option>
-                  <option v-for="dealer in dealers" :key="dealer.id" :value="dealer.id">
-                    {{ formatUserName(dealer) }}
+                  <option :value="null">Sélectionner un concessionnaire</option>
+                  <option v-for="concessionnaire in filteredConcessionnairesForEdit" :key="concessionnaire.id" :value="concessionnaire.id">
+                    {{ formatUserDisplay(concessionnaire) }}
                   </option>
                 </select>
+                <p v-if="!editPlanData.usine" class="mt-1 text-sm text-gray-500">
+                  Veuillez d'abord sélectionner une usine
+                </p>
               </div>
               <div>
-                <label for="edit-client" class="block text-sm font-medium text-gray-700">
-                  Client
+                <label for="edit-agriculteur" class="block text-sm font-medium text-gray-700">
+                  Agriculteur
                 </label>
                 <select
-                  id="edit-client"
-                  v-model="editPlanData.client"
-                  class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                  id="edit-agriculteur"
+                  v-model="editPlanData.agriculteur"
+                  :disabled="!editPlanData.usine || !editPlanData.concessionnaire || loading"
+                  class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
-                  <option :value="null">Aucun</option>
-                  <option v-for="client in filteredClients" :key="client.id" :value="client.id">
-                    {{ formatUserName(client) }}
+                  <option :value="null">Sélectionner un agriculteur</option>
+                  <option v-for="client in filteredClientsForEdit" :key="client.id" :value="client.id">
+                    {{ formatUserDisplay(client) }}
                   </option>
                 </select>
+                <p v-if="!editPlanData.concessionnaire" class="mt-1 text-sm text-gray-500">
+                  Veuillez d'abord sélectionner un concessionnaire
+                </p>
               </div>
             </div>
             <div v-if="error" class="mt-4 bg-red-50 p-4 rounded-md">
@@ -363,10 +405,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useIrrigationStore } from '@/stores/irrigation'
+import { useIrrigationStore, type UserDetails } from '@/stores/irrigation'
 import { useAuthStore, formatUserName } from '@/stores/auth'
-import type { Plan as StorePlan } from '@/stores/irrigation'
-import api from '@/services/api'
+import { fetchUsersByHierarchy } from '@/services/api'
 import NewPlanModal from '@/components/NewPlanModal.vue'
 interface LocalUser {
   id: number
@@ -376,20 +417,50 @@ interface LocalUser {
   email: string
   company_name?: string
   role: string
-  concessionnaire?: number | null
+  concessionnaire?: number | LocalUser | null
+  usine?: LocalUser | null
 }
-interface LocalPlan extends Omit<StorePlan, 'client' | 'concessionnaire'> {
-  client: number | null
-  concessionnaire: number | null
-  client_details?: LocalUser | null
-  concessionnaire_details?: LocalUser | null
+
+interface Usine extends LocalUser {
+  role: 'USINE'
+}
+
+interface Concessionnaire extends LocalUser {
+  usine_id?: number
+  role: 'CONCESSIONNAIRE'
+}
+
+interface ClientWithConcessionnaire extends LocalUser {
+  concessionnaire_id?: number
+  concessionnaire_ref?: number | LocalUser | null
+}
+
+interface LocalPlan {
+  id: number
+  nom: string
+  description: string
+  date_creation: string
+  date_modification: string
+  createur: { 
+    id: number
+    username: string
+    first_name: string
+    last_name: string
+    email: string
+    company_name?: string
+    role: string
+  }
+  usine: UserDetails | null
+  concessionnaire: UserDetails | null
+  agriculteur: UserDetails | null
 }
 const router = useRouter()
 const irrigationStore = useIrrigationStore()
 const authStore = useAuthStore()
 const plans = ref<LocalPlan[]>([])
-const dealers = ref<LocalUser[]>([])
-const clients = ref<LocalUser[]>([])
+const concessionnaires = ref<Concessionnaire[]>([])
+const usines = ref<Usine[]>([])
+const clients = ref<ClientWithConcessionnaire[]>([])
 const showNewPlanModal = ref(false)
 const showEditPlanModal = ref(false)
 const newPlan = ref({
@@ -401,40 +472,89 @@ const editPlanData = ref({
   id: 0,
   nom: '',
   description: '',
+  usine: null as number | null,
   concessionnaire: null as number | null,
-  client: null as number | null
+  agriculteur: null as number | null
 })
 const loading = ref(false)
 const error = ref<string | null>(null)
 // Ajout des refs pour la sélection
-const selectedDealer = ref<number | null>(null);
+const selectedConcessionnaire = ref<number | null>(null);
 const selectedClient = ref<number | null>(null);
 // Ajout des refs pour le tri
 const sortField = ref<'nom' | 'date_creation' | 'date_modification'>('date_modification')
 const sortDirection = ref<'asc' | 'desc'>('desc')
+// Ajout de la ref pour la sélection de l'usine
+const selectedUsine = ref<number | null>(null);
 // Computed pour les clients filtrés selon le concessionnaire sélectionné
 const filteredClients = computed(() => {
-  if (!selectedDealer.value) return clients.value;
-  return clients.value.filter(client => client.concessionnaire === selectedDealer.value);
+  if (!selectedConcessionnaire.value) return clients.value;
+  return clients.value.filter(client => {
+    if (typeof client.concessionnaire === 'object' && client.concessionnaire) {
+      return client.concessionnaire.id === selectedConcessionnaire.value;
+    }
+    return client.concessionnaire === selectedConcessionnaire.value || 
+           client.concessionnaire_id === selectedConcessionnaire.value;
+  });
 });
 // Computed pour les plans filtrés
 const filteredPlans = computed(() => {
   let filtered = plans.value;
+  
+  console.log('\n[PlansView] Filtering plans:', filtered.map(plan => ({
+    id: plan.id,
+    usine: plan.usine,
+    concessionnaire: plan.concessionnaire,
+    agriculteur: plan.agriculteur
+  })));
+  
   if (authStore.isAdmin) {
-    if (selectedDealer.value) {
-      filtered = filtered.filter(plan => plan.concessionnaire === selectedDealer.value);
+    if (selectedUsine.value) {
+      filtered = filtered.filter(plan => {
+        if (typeof plan.usine === 'object') {
+          return plan.usine?.id === selectedUsine.value;
+        }
+        return plan.usine === selectedUsine.value;
+      });
+    }
+    
+    if (selectedConcessionnaire.value) {
+      filtered = filtered.filter(plan => {
+        if (typeof plan.concessionnaire === 'object') {
+          return plan.concessionnaire?.id === selectedConcessionnaire.value;
+        }
+        return plan.concessionnaire === selectedConcessionnaire.value;
+      });
+      
       if (selectedClient.value) {
-        filtered = filtered.filter(plan => plan.client === selectedClient.value);
+        filtered = filtered.filter(plan => {
+          if (typeof plan.agriculteur === 'object') {
+            return plan.agriculteur?.id === selectedClient.value;
+          }
+          return plan.agriculteur === selectedClient.value;
+        });
       }
     }
-  } else if (authStore.isDealer) {
-    filtered = filtered.filter(plan => plan.concessionnaire === authStore.user?.id);
+  } else if (authStore.isConcessionnaire) {
+    filtered = filtered.filter(plan => {
+      if (typeof plan.concessionnaire === 'object') {
+        return plan.concessionnaire?.id === authStore.user?.id;
+      }
+      return plan.concessionnaire === authStore.user?.id;
+    });
+    
     if (selectedClient.value) {
-      filtered = filtered.filter(plan => plan.client === selectedClient.value);
+      filtered = filtered.filter(plan => {
+        if (typeof plan.agriculteur === 'object') {
+          return plan.agriculteur?.id === selectedClient.value;
+        }
+        return plan.agriculteur === selectedClient.value;
+      });
     }
   }
+  
   // Appliquer le tri
-  return [...filtered].sort((a, b) => {
+  const sorted = [...filtered].sort((a, b) => {
     if (sortField.value === 'nom') {
       return sortDirection.value === 'asc' 
         ? a.nom.localeCompare(b.nom)
@@ -445,6 +565,15 @@ const filteredPlans = computed(() => {
       return sortDirection.value === 'asc' ? dateA - dateB : dateB - dateA;
     }
   });
+  
+  console.log('[PlansView] Final filtered and sorted plans:', sorted.map(plan => ({
+    id: plan.id,
+    usine: plan.usine,
+    concessionnaire: plan.concessionnaire,
+    agriculteur: plan.agriculteur
+  })));
+  
+  return sorted;
 });
 // Computed properties pour le filtrage des plans
 const plansList = computed(() => {
@@ -454,33 +583,87 @@ const plansList = computed(() => {
       description: "Liste complète des plans",
       plans: plans.value
     }
-  } else if (authStore.isDealer) {
+  } else if (authStore.isConcessionnaire) {
     return {
-      title: "Plans des clients",
+      title: "Plans des agriculteurs",
       description: "Plans où vous êtes assigné comme concessionnaire",
-      plans: plans.value.filter(plan => plan.concessionnaire === authStore.user?.id)
+      plans: plans.value.filter(plan => {
+        if (typeof plan.concessionnaire === 'object') {
+          return plan.concessionnaire?.id === authStore.user?.id;
+        }
+        return plan.concessionnaire === authStore.user?.id;
+      })
     }
   } else {
-    // Client
+    // Agriculteur
     return {
       title: "Mes plans",
       description: "Plans qui vous sont assignés ou que vous avez créés",
-      plans: plans.value.filter(plan => 
-        plan.client === authStore.user?.id || 
-        plan.createur.id === authStore.user?.id
-      )
+      plans: plans.value.filter(plan => {
+        const isCreator = plan.createur.id === authStore.user?.id;
+        let isAgriculteur = false;
+        
+        if (typeof plan.agriculteur === 'object') {
+          isAgriculteur = plan.agriculteur?.id === authStore.user?.id;
+        } else {
+          isAgriculteur = plan.agriculteur === authStore.user?.id;
+        }
+        
+        return isAgriculteur || isCreator;
+      })
     }
   }
 })
+
+// Computed pour filtrer les concessionnaires selon l'usine sélectionnée dans le dropdown
+const filteredConcessionnaires = computed(() => {
+  if (!selectedUsine.value) return concessionnaires.value;
+  
+  return concessionnaires.value.filter(concessionnaire => {
+    if (typeof concessionnaire.usine === 'object') {
+      return concessionnaire.usine?.id === selectedUsine.value;
+    }
+    return concessionnaire.usine_id === selectedUsine.value;
+  });
+});
+
+// Computed pour filtrer les concessionnaires dans le modal d'édition
+const filteredConcessionnairesForEdit = computed(() => {
+  if (!editPlanData.value.usine) return [];
+  
+  return concessionnaires.value.filter(concessionnaire => {
+    if (typeof concessionnaire.usine === 'object') {
+      return concessionnaire.usine?.id === editPlanData.value.usine;
+    }
+    return concessionnaire.usine_id === editPlanData.value.usine;
+  });
+});
+
+// Computed pour filtrer les clients selon le concessionnaire sélectionné pour l'édition
+const filteredClientsForEdit = computed(() => {
+  if (!editPlanData.value.usine || !editPlanData.value.concessionnaire) {
+    return [];
+  }
+  
+  return clients.value.filter(client => {
+    if (typeof client.concessionnaire === 'object' && client.concessionnaire) {
+      return client.concessionnaire.id === editPlanData.value.concessionnaire;
+    }
+    return client.concessionnaire === editPlanData.value.concessionnaire || 
+           client.concessionnaire_id === editPlanData.value.concessionnaire;
+  });
+});
+
 onMounted(async () => {
   await loadPlans()
   if (authStore.isAdmin) {
-    await loadDealersAndClients()
-  } else if (authStore.isDealer) {
-    // Charger les clients du concessionnaire
-    await loadClientsForDealer(authStore.user?.id || 0)
+    await loadAllUsines()
+  } else if (authStore.isConcessionnaire) {
+    // Charger les agriculteurs du concessionnaire
+    await loadAgriculteurs(authStore.user?.id || 0)
   }
 })
+
 async function loadPlans() {
   try {
     const response = await irrigationStore.fetchPlansWithDetails()
@@ -489,22 +672,53 @@ async function loadPlans() {
     console.error('Erreur lors du chargement des plans:', error)
   }
 }
-async function loadDealersAndClients() {
+
+// Utilisation des fonctions centralisées pour charger les usines
+async function loadAllUsines() {
   try {
-    const [dealersResponse, clientsResponse] = await Promise.all([
-      api.get('/users/', {
-        params: { role: 'CONCESSIONNAIRE' }
-      }),
-      api.get('/users/', {
-        params: { role: 'UTILISATEUR' }
-      })
-    ])
-    dealers.value = dealersResponse.data
-    clients.value = clientsResponse.data
+    console.log('Chargement des usines...');
+    usines.value = await authStore.fetchUsines() as unknown as Usine[];
+    console.log('Usines chargées:', usines.value);
   } catch (error) {
-    console.error('Erreur lors du chargement des dealers et clients:', error)
+    console.error('Erreur lors du chargement des usines:', error);
   }
 }
+
+// Utilisation des fonctions centralisées pour charger les concessionnaires par usine
+async function loadConcessionnaires(usineId?: number) {
+  try {
+    console.log('Chargement des concessionnaires pour l\'usine:', usineId);
+    // Utiliser fetchUsersByRole quand usineId est undefined
+    if (usineId === undefined) {
+      const result = await authStore.fetchUsersByRole({ role: 'CONCESSIONNAIRE' });
+      concessionnaires.value = result as unknown as Concessionnaire[];
+    } else {
+      concessionnaires.value = await authStore.fetchUsineConcessionnaires(usineId) as unknown as Concessionnaire[];
+    }
+    console.log('Concessionnaires chargés:', concessionnaires.value);
+  } catch (error) {
+    console.error('Erreur lors du chargement des concessionnaires:', error);
+  }
+}
+
+// Utilisation des fonctions centralisées pour charger les agriculteurs par concessionnaire
+async function loadAgriculteurs(concessionnaireId: number) {
+  try {
+    console.log('Chargement des agriculteurs pour le concessionnaire:', concessionnaireId);
+    const result = await fetchUsersByHierarchy({
+      role: 'AGRICULTEUR',
+      concessionnaireId
+    });
+    clients.value = result.map((agriculteur: any) => ({
+      ...agriculteur,
+      concessionnaire_id: concessionnaireId
+    }));
+    console.log('Agriculteurs chargés:', clients.value);
+  } catch (error) {
+    console.error('Erreur lors du chargement des agriculteurs:', error);
+  }
+}
+
 function openNewPlanModal() {
   showNewPlanModal.value = true
   newPlan.value = {
@@ -513,6 +727,7 @@ function openNewPlanModal() {
     client: null
   }
 }
+
 async function editPlan(plan: LocalPlan) {
   try {
     // Définir le plan courant dans le store
@@ -526,6 +741,7 @@ async function editPlan(plan: LocalPlan) {
     alert('Une erreur est survenue lors du chargement du plan');
   }
 }
+
 async function deletePlan(plan: LocalPlan) {
   if (!plan?.id) return
   if (confirm('Êtes-vous sûr de vouloir supprimer ce plan ?')) {
@@ -542,6 +758,7 @@ async function deletePlan(plan: LocalPlan) {
     }
   }
 }
+
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString('fr-FR', {
     year: 'numeric',
@@ -551,39 +768,56 @@ function formatDate(dateString: string) {
     minute: '2-digit'
   })
 }
-function getInitials(user: LocalUser | null): string {
-  if (!user) return ''
-  return (user.first_name.charAt(0) + user.last_name.charAt(0)).toUpperCase()
+
+function getInitials(user: UserDetails | LocalUser | null): string {
+  if (!user) return '';
+  const firstName = user.first_name || '';
+  const lastName = user.last_name || '';
+  return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
 }
-function openEditPlanModal(plan: LocalPlan) {
-  editPlanData.value = {
-    id: plan.id,
-    nom: plan.nom,
-    description: plan.description,
-    concessionnaire: plan.concessionnaire || null,
-    client: plan.client || null
-  }
-  // Si un concessionnaire est déjà assigné, charger ses clients
-  if (plan.concessionnaire) {
-    loadClientsForDealer(plan.concessionnaire);
-  }
-  showEditPlanModal.value = true;
-}
-// Fonction pour charger les clients d'un concessionnaire spécifique
-async function loadClientsForDealer(dealerId: number) {
+
+async function openEditPlanModal(plan: LocalPlan) {
+  loading.value = true;
+  error.value = null;
+  
   try {
-    const response = await api.get('/users/', {
-      params: { 
-        role: 'UTILISATEUR',
-        concessionnaire: dealerId
-      }
-    })
-    clients.value = response.data;
-  } catch (error) {
-    console.error('Erreur lors du chargement des clients:', error)
-    clients.value = [];
+    // S'assurer que les données sont chargées
+    if (authStore.isAdmin && (!usines.value.length)) {
+      await loadAllUsines();
+    }
+    
+    const usineId = typeof plan.usine === 'object' && plan.usine ? plan.usine.id : plan.usine;
+    const concessionnaireId = typeof plan.concessionnaire === 'object' && plan.concessionnaire ? plan.concessionnaire.id : plan.concessionnaire;
+    const agriculteurId = typeof plan.agriculteur === 'object' && plan.agriculteur ? plan.agriculteur.id : plan.agriculteur;
+    
+    editPlanData.value = {
+      id: plan.id,
+      nom: plan.nom,
+      description: plan.description,
+      usine: usineId || null,
+      concessionnaire: concessionnaireId || null,
+      agriculteur: agriculteurId || null
+    };
+    
+    // Charger les concessionnaires de l'usine si nécessaire
+    if (usineId) {
+      await loadConcessionnaires(usineId);
+    }
+    
+    // Charger les agriculteurs du concessionnaire si nécessaire
+    if (concessionnaireId) {
+      await loadAgriculteurs(concessionnaireId);
+    }
+    
+    showEditPlanModal.value = true;
+  } catch (err) {
+    console.error('Erreur lors de l\'ouverture du modal:', err);
+    error.value = 'Erreur lors du chargement des données';
+  } finally {
+    loading.value = false;
   }
 }
+
 // Fonction de validation avant la mise à jour
 async function updatePlan() {
   error.value = null
@@ -592,16 +826,33 @@ async function updatePlan() {
     if (!editPlanData.value.nom.trim()) {
       throw new Error('Le nom du plan est requis')
     }
-    // Validation de la logique client/concessionnaire
-    if (editPlanData.value.client && !editPlanData.value.concessionnaire) {
-      throw new Error('Un concessionnaire doit être sélectionné pour assigner un client')
+    // Validation de la logique hiérarchique
+    if (editPlanData.value.agriculteur && !editPlanData.value.concessionnaire) {
+      throw new Error('Un concessionnaire doit être sélectionné pour assigner un agriculteur')
     }
+    if (editPlanData.value.concessionnaire && !editPlanData.value.usine) {
+      throw new Error('Une usine doit être sélectionnée pour assigner un concessionnaire')
+    }
+
+    console.log('Données envoyées pour la mise à jour:', {
+      id: editPlanData.value.id,
+      nom: editPlanData.value.nom.trim(),
+      description: editPlanData.value.description.trim(),
+      usine_id: editPlanData.value.usine,
+      concessionnaire_id: editPlanData.value.concessionnaire,
+      agriculteur_id: editPlanData.value.agriculteur
+    });
+
     const response = await irrigationStore.updatePlanDetails(editPlanData.value.id, {
       nom: editPlanData.value.nom.trim(),
       description: editPlanData.value.description.trim(),
-      concessionnaire: editPlanData.value.concessionnaire,
-      client: editPlanData.value.client
-    })
+      usine_id: editPlanData.value.usine,
+      concessionnaire_id: editPlanData.value.concessionnaire,
+      agriculteur_id: editPlanData.value.agriculteur
+    });
+
+    console.log('Réponse de la mise à jour:', response);
+
     if (response) {
       showEditPlanModal.value = false
       await loadPlans()
@@ -624,23 +875,71 @@ async function updatePlan() {
     loading.value = false
   }
 }
-// Ajout d'un watcher pour charger les clients quand le concessionnaire change dans le modal d'édition
-watch(() => editPlanData.value.concessionnaire, async (newDealerId) => {
-  if (newDealerId) {
-    await loadClientsForDealer(newDealerId);
+
+// Watchers pour gérer les dépendances et le rechargement des données
+watch(() => selectedUsine.value, async (newUsineId) => {
+  selectedConcessionnaire.value = null;
+  selectedClient.value = null;
+  
+  if (newUsineId) {
+    await loadConcessionnaires(newUsineId);
   } else {
-    clients.value = [];
-    editPlanData.value.client = null;
+    // Si aucune usine n'est sélectionnée, charger tous les concessionnaires
+    await loadConcessionnaires();
   }
 });
+
+watch(() => selectedConcessionnaire.value, async (newConcessionnaireId) => {
+  selectedClient.value = null;
+  
+  if (newConcessionnaireId) {
+    await loadAgriculteurs(newConcessionnaireId);
+  }
+});
+
+watch(() => editPlanData.value.usine, async (newUsineId) => {
+  if (newUsineId === null) {
+    editPlanData.value.concessionnaire = null;
+    editPlanData.value.agriculteur = null;
+  } else {
+    // Charger les concessionnaires pour cette usine
+    await loadConcessionnaires(newUsineId);
+  }
+});
+
+watch(() => editPlanData.value.concessionnaire, async (newConcessionnaireId) => {
+  editPlanData.value.agriculteur = null;
+  
+  if (newConcessionnaireId) {
+    // Charger les agriculteurs pour ce concessionnaire
+    await loadAgriculteurs(newConcessionnaireId);
+  }
+});
+
 // Fonction pour déterminer si l'utilisateur peut supprimer un plan
 function canDeletePlan(plan: LocalPlan): boolean {
   const user = authStore.user
   if (!user) return false
   if (user.user_type === 'admin') return true
-  if (user.user_type === 'dealer') return plan.concessionnaire === user.id
-  return plan.client === user.id || plan.createur.id === user.id
+  if (user.user_type === 'concessionnaire') {
+    if (typeof plan.concessionnaire === 'object') {
+      return plan.concessionnaire?.id === user.id;
+    }
+    return plan.concessionnaire === user.id;
+  }
+  
+  const isCreator = plan.createur.id === user.id;
+  let isAgriculteur = false;
+  
+  if (typeof plan.agriculteur === 'object') {
+    isAgriculteur = plan.agriculteur?.id === user.id;
+  } else {
+    isAgriculteur = plan.agriculteur === user.id;
+  }
+  
+  return isAgriculteur || isCreator;
 }
+
 // Ajouter la fonction de callback
 async function onPlanCreated(planId: number) {
   await loadPlans();
@@ -650,6 +949,7 @@ async function onPlanCreated(planId: number) {
   // Rediriger vers l'éditeur avec le nouveau plan
   router.push('/');
 }
+
 // Fonction pour gérer le tri
 function toggleSort(field: 'nom' | 'date_creation' | 'date_modification') {
   if (sortField.value === field) {
@@ -658,5 +958,11 @@ function toggleSort(field: 'nom' | 'date_creation' | 'date_modification') {
     sortField.value = field;
     sortDirection.value = 'desc';
   }
+}
+
+// Fonction pour formater l'affichage des utilisateurs
+function formatUserDisplay(user: any): string {
+  if (!user) return '';
+  return formatUserName(user);
 }
 </script> 

@@ -1,246 +1,377 @@
-  import { defineStore } from 'pinia';
-  import api from '@/services/api';
-  import { useAuthStore } from './auth';
-  interface PlanHistory {
-    id: number;
-    plan_id: number;
-    date_modification: string;
-    modifications: any;
-    utilisateur: number;
-  }
-  export interface UserDetails {
-    id: number;
-    username: string;
-    email: string;
-    first_name: string;
-    last_name: string;
-    role: string;
-    company_name?: string;
-    phone?: string | null;
-    concessionnaire?: number | null;
-  }
-  export interface Plan {
-    id: number;
-    nom: string;
-    description: string;
-    date_creation: string;
-    date_modification: string;
-    createur: UserDetails;
-    concessionnaire: number | null;
-    client: number | null;
-    concessionnaire_details?: UserDetails | null;
-    client_details?: UserDetails | null;
-    preferences?: any;
-    elements?: any[];
-    historique?: PlanHistory[];
-    version?: number;
-  }
-  interface NewPlan {
-    nom: string;
-    description: string;
-    client?: number | null;
-    concessionnaire?: number | null;
-  }
-  export const useIrrigationStore = defineStore('irrigation', {
-    state: () => ({
-      plans: [] as Plan[],
-      currentPlan: null as Plan | null,
-      loading: false,
-      error: null as string | null,
-      autoSaveInterval: null as any,
-      unsavedChanges: false,
-      planHistory: [] as PlanHistory[]
-    }),
-    getters: {
-      getPlanById: (state) => (id: number) => {
-        return state.plans.find(plan => plan.id === id);
-      },
-      hasUnsavedChanges: (state) => state.unsavedChanges,
-      getCurrentPlanHistory: (state) => state.planHistory
+import { defineStore } from 'pinia';
+import api, { irrigationService } from '@/services/api';
+import { useAuthStore } from './auth';
+
+interface PlanHistory {
+  id: number;
+  plan_id: number;
+  date_modification: string;
+  modifications: any;
+  utilisateur: number;
+}
+
+export interface UserDetails {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  company_name?: string;
+  phone?: string | null;
+  concessionnaire?: number | null;
+}
+
+export interface Plan {
+  id: number;
+  nom: string;
+  description: string;
+  date_creation: string;
+  date_modification: string;
+  createur: UserDetails;
+  usine: UserDetails | null;
+  usine_id?: number | null;
+  concessionnaire: UserDetails | null;
+  concessionnaire_id?: number | null;
+  agriculteur: UserDetails | null;
+  agriculteur_id?: number | null;
+  preferences?: any;
+  elements?: any[];
+  historique?: PlanHistory[];
+  version?: number;
+}
+
+export interface NewPlan {
+  nom: string;
+  description: string;
+  usine?: number | null;
+  usine_id?: number | null;
+  agriculteur?: number | null;
+  agriculteur_id?: number | null;
+  concessionnaire?: number | null;
+  concessionnaire_id?: number | null;
+}
+
+export const useIrrigationStore = defineStore('irrigation', {
+  state: () => ({
+    plans: [] as Plan[],
+    currentPlan: null as Plan | null,
+    loading: false,
+    error: null as string | null,
+    autoSaveInterval: null as any,
+    unsavedChanges: false,
+    planHistory: [] as PlanHistory[]
+  }),
+  
+  getters: {
+    getPlanById: (state) => (id: number) => {
+      return state.plans.find(plan => plan.id === id);
     },
-    actions: {
-      async fetchPlans() {
-        const authStore = useAuthStore();
-        this.loading = true;
-        try {
-          let url = '/plans/';
-          if (authStore.isDealer) {
-            url += '?concessionnaire=' + authStore.user?.id;
-          } else if (authStore.isClient) {
-            url += '?utilisateur=' + authStore.user?.id;
-          }
-          const response = await api.get(url);
-          this.plans = response.data;
-        } catch (error) {
-          this.error = 'Erreur lors du chargement des plans';
-          throw error;
-        } finally {
-          this.loading = false;
+    hasUnsavedChanges: (state) => state.unsavedChanges,
+    getCurrentPlanHistory: (state) => state.planHistory
+  },
+  
+  actions: {
+    // Récupérer tous les plans selon les filtres appliqués
+    async fetchPlans() {
+      const authStore = useAuthStore();
+      this.loading = true;
+      try {
+        let url = '/plans/';
+        const params: Record<string, any> = {};
+        
+        if (authStore.isConcessionnaire) {
+          params.concessionnaire = authStore.user?.id;
+        } else if (authStore.isAgriculteur) {
+          params.agriculteur = authStore.user?.id;
         }
-      },
-      async fetchPlansWithDetails() {
-        const authStore = useAuthStore();
-        this.loading = true;
-        try {
-          let url = '/plans/';
-          const params: Record<string, any> = {
-            include_details: true
+        
+        const response = await api.get(url, { params });
+        this.plans = response.data;
+      } catch (error) {
+        this.error = 'Erreur lors du chargement des plans';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // Récupérer les plans avec tous les détails
+    async fetchPlansWithDetails() {
+      const authStore = useAuthStore();
+      this.loading = true;
+      try {
+        let url = '/plans/';
+        const params: Record<string, any> = {
+          include_details: true
+        };
+        
+        if (authStore.isConcessionnaire) {
+          params.concessionnaire = authStore.user?.id;
+        } else if (authStore.isAgriculteur) {
+          params.agriculteur = authStore.user?.id;
+        }
+        
+        console.log('[IrrigationStore] Fetching plans with params:', params);
+        const response = await api.get(url, { params });
+        console.log('[IrrigationStore] Plans received (raw):', JSON.stringify(response.data, null, 2));
+        
+        // Vérification structurelle des plans
+        response.data.forEach((plan: any, index: number) => {
+          console.log(`\n[IrrigationStore] Plan ${index + 1} (ID: ${plan.id || 'N/A'}) types:`, {
+            usine: typeof plan.usine,
+            concessionnaire: typeof plan.concessionnaire,
+            agriculteur: typeof plan.agriculteur,
+            usineValue: plan.usine,
+            concessionnaireValue: plan.concessionnaire,
+            agriculteurValue: plan.agriculteur
+          });
+        });
+        
+        // Transformer les données pour s'assurer qu'elles sont dans le bon format
+        const processedPlans = response.data.map((plan: any) => {
+          const processedPlan = {
+            ...plan,
+            // Garder seulement les objets, pas les IDs numériques
+            usine: typeof plan.usine === 'object' ? plan.usine : null,
+            concessionnaire: typeof plan.concessionnaire === 'object' ? plan.concessionnaire : null,
+            agriculteur: typeof plan.agriculteur === 'object' ? plan.agriculteur : null
           };
-          if (authStore.isDealer) {
-            params.concessionnaire = authStore.user?.id;
-          } else if (authStore.isClient) {
-            params.utilisateur = authStore.user?.id;
-          }
-          const response = await api.get(url, { params });
-          this.plans = response.data;
-          return response;
-        } catch (error) {
-          this.error = 'Erreur lors du chargement des plans';
-          throw error;
-        } finally {
-          this.loading = false;
-        }
-      },
-      async createPlan(planData: NewPlan) {
-        this.clearCurrentPlan();
-        this.loading = true;
-        try {
-          const response = await api.post('/plans/', planData);
-          this.plans.push(response.data);
-          return response.data;
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          console.error('Error creating plan:', errorMessage);
-          this.error = 'Erreur lors de la création du plan';
-          throw error;
-        } finally {
-          this.loading = false;
-        }
-      },
-      startAutoSave() {
-        if (this.autoSaveInterval) return;
-        this.autoSaveInterval = setInterval(async () => {
-          if (this.unsavedChanges && this.currentPlan) {
-            await this.savePlan(this.currentPlan.id);
-          }
-        }, 30000); // Sauvegarde toutes les 30 secondes
-      },
-      stopAutoSave() {
-        if (this.autoSaveInterval) {
-          clearInterval(this.autoSaveInterval);
-          this.autoSaveInterval = null;
-        }
-      },
-      async savePlan(planId: number) {
-        if (!this.unsavedChanges) return;
-        this.loading = true;
-        try {
-          const response = await api.patch(`/plans/${planId}/`, {
-            ...this.currentPlan,
-            version: this.currentPlan?.version || 1
+          
+          console.log(`[IrrigationStore] Plan ${plan.id} traité:`, {
+            usine: processedPlan.usine,
+            concessionnaire: processedPlan.concessionnaire,
+            agriculteur: processedPlan.agriculteur
           });
-          // Mettre à jour le plan dans la liste
-          const index = this.plans.findIndex(p => p.id === planId);
-          if (index !== -1) {
-            this.plans[index] = response.data;
-          }
-          // Mettre à jour le plan courant
-          if (this.currentPlan?.id === planId) {
-            this.currentPlan = response.data;
-          }
-          this.unsavedChanges = false;
-          return response.data;
-        } catch (error) {
-          this.error = 'Erreur lors de la sauvegarde du plan';
-          throw error;
-        } finally {
-          this.loading = false;
+          
+          return processedPlan;
+        });
+        
+        this.plans = processedPlans;
+        return { data: processedPlans };
+      } catch (error) {
+        console.error('[IrrigationStore] Error fetching plans:', error);
+        this.error = 'Erreur lors du chargement des plans';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // Récupérer les plans d'un client spécifique
+    async fetchClientPlans(clientId: number) {
+      this.loading = true;
+      try {
+        const response = await irrigationService.getClientPlans(clientId);
+        return response.data;
+      } catch (error) {
+        this.error = 'Erreur lors du chargement des plans du client';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // Créer un nouveau plan
+    async createPlan(planData: NewPlan) {
+      this.clearCurrentPlan();
+      this.loading = true;
+      try {
+        const response = await irrigationService.createPlan(planData);
+        this.plans.push(response.data);
+        return response.data;
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('Error creating plan:', errorMessage);
+        this.error = 'Erreur lors de la création du plan';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // Créer un plan pour un client spécifique
+    async createPlanForClient(planData: NewPlan, clientId: number) {
+      this.clearCurrentPlan();
+      this.loading = true;
+      try {
+        const data = { ...planData, agriculteur: clientId };
+        const response = await irrigationService.createPlanForClient(data);
+        this.plans.push(response.data);
+        return response.data;
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('Error creating plan for client:', errorMessage);
+        this.error = 'Erreur lors de la création du plan pour le client';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // Démarrer la sauvegarde automatique
+    startAutoSave() {
+      if (this.autoSaveInterval) return;
+      this.autoSaveInterval = setInterval(async () => {
+        if (this.unsavedChanges && this.currentPlan) {
+          await this.savePlan(this.currentPlan.id);
         }
-      },
-      async updatePlanDetails(planId: number, planData: Partial<Plan>) {
-        try {
-          const response = await api.patch(`/plans/${planId}/`, planData);
-          // Mettre à jour le plan dans la liste
-          const index = this.plans.findIndex(p => p.id === planId);
-          if (index !== -1) {
-            this.plans[index] = { ...this.plans[index], ...response.data };
-          }
-          // Mettre à jour le plan courant si c'est celui qui est modifié
-          if (this.currentPlan?.id === planId) {
-            this.currentPlan = { ...this.currentPlan, ...response.data };
-          }
-          return response.data;
-        } catch (error) {
-          console.error('Erreur lors de la mise à jour du plan:', error);
-          throw error;
+      }, 30000); // Sauvegarde toutes les 30 secondes
+    },
+    
+    // Arrêter la sauvegarde automatique
+    stopAutoSave() {
+      if (this.autoSaveInterval) {
+        clearInterval(this.autoSaveInterval);
+        this.autoSaveInterval = null;
+      }
+    },
+    
+    // Sauvegarder un plan
+    async savePlan(planId: number) {
+      if (!this.unsavedChanges) return;
+      this.loading = true;
+      try {
+        const response = await api.patch(`/plans/${planId}/`, {
+          ...this.currentPlan,
+          version: this.currentPlan?.version || 1
+        });
+        // Mettre à jour le plan dans la liste
+        const index = this.plans.findIndex(p => p.id === planId);
+        if (index !== -1) {
+          this.plans[index] = response.data;
         }
-      },
-      async fetchPlanHistory(planId: number) {
-        this.loading = true;
-        try {
-          const response = await api.get(`/plans/${planId}/historique/`);
-          this.planHistory = response.data;
-          return response.data;
-        } catch (error) {
-          this.error = 'Erreur lors de la récupération de l\'historique';
-          throw error;
-        } finally {
-          this.loading = false;
+        // Mettre à jour le plan courant
+        if (this.currentPlan?.id === planId) {
+          this.currentPlan = response.data;
         }
-      },
-      async restorePlanVersion(planId: number, versionId: number) {
-        this.loading = true;
-        try {
-          const response = await api.post(`/plans/${planId}/restaurer/`, {
-            version_id: versionId
-          });
-          // Mettre à jour le plan restauré
-          if (this.currentPlan?.id === planId) {
-            this.currentPlan = response.data;
-          }
-          const index = this.plans.findIndex(p => p.id === planId);
-          if (index !== -1) {
-            this.plans[index] = response.data;
-          }
-          return response.data;
-        } catch (error) {
-          this.error = 'Erreur lors de la restauration de la version';
-          throw error;
-        } finally {
-          this.loading = false;
-        }
-      },
-      setCurrentPlan(plan: Plan) {
-        this.currentPlan = plan;
-        this.startAutoSave();
-      },
-      clearCurrentPlan() {
-        this.currentPlan = null;
         this.unsavedChanges = false;
-        if (this.autoSaveInterval) {
-          clearInterval(this.autoSaveInterval);
-          this.autoSaveInterval = null;
+        return response.data;
+      } catch (error) {
+        this.error = 'Erreur lors de la sauvegarde du plan';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // Mettre à jour les détails d'un plan
+    async updatePlanDetails(planId: number, planData: Partial<Plan>) {
+      console.log('Mise à jour du plan avec les données:', planData);
+      const { agriculteur_id, concessionnaire_id, usine_id, ...otherData } = planData;
+      
+      try {
+        const data: Record<string, any> = { ...otherData };
+        
+        if (agriculteur_id !== undefined) {
+          data.agriculteur_id = agriculteur_id;
         }
-      },
-      markUnsavedChanges() {
-        this.unsavedChanges = true;
-      },
-      async deletePlan(planId: number) {
-        this.loading = true;
-        try {
-          await api.delete(`/plans/${planId}/`);
-          // Retirer le plan de la liste locale
-          this.plans = this.plans.filter(p => p.id !== planId);
-          // Si c'était le plan courant, le nettoyer
-          if (this.currentPlan?.id === planId) {
-            this.clearCurrentPlan();
-          }
-        } catch (error) {
-          this.error = 'Erreur lors de la suppression du plan';
-          throw error;
-        } finally {
-          this.loading = false;
+        
+        if (concessionnaire_id !== undefined) {
+          data.concessionnaire_id = concessionnaire_id;
         }
+        
+        if (usine_id !== undefined) {
+          data.usine_id = usine_id;
+        }
+        
+        const response = await api.patch(`/plans/${planId}/`, data);
+        
+        // Mettre à jour le plan en local si c'est le plan courant
+        if (this.currentPlan && this.currentPlan.id === planId) {
+          this.currentPlan = { ...this.currentPlan, ...response.data };
+        }
+        
+        // Mettre à jour le plan dans la liste
+        const index = this.plans.findIndex(p => p.id === planId);
+        if (index !== -1) {
+          this.plans[index] = { ...this.plans[index], ...response.data };
+        }
+        
+        return response.data;
+      } catch (error) {
+        console.error('Erreur lors de la mise à jour du plan:', error);
+        throw error;
+      }
+    },
+    
+    // Récupérer l'historique d'un plan
+    async fetchPlanHistory(planId: number) {
+      this.loading = true;
+      try {
+        const response = await api.get(`/plans/${planId}/historique/`);
+        this.planHistory = response.data;
+        return response.data;
+      } catch (error) {
+        this.error = 'Erreur lors de la récupération de l\'historique';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // Restaurer une version d'un plan
+    async restorePlanVersion(planId: number, versionId: number) {
+      this.loading = true;
+      try {
+        const response = await api.post(`/plans/${planId}/restaurer/`, {
+          version_id: versionId
+        });
+        // Mettre à jour le plan restauré
+        if (this.currentPlan?.id === planId) {
+          this.currentPlan = response.data;
+        }
+        const index = this.plans.findIndex(p => p.id === planId);
+        if (index !== -1) {
+          this.plans[index] = response.data;
+        }
+        return response.data;
+      } catch (error) {
+        this.error = 'Erreur lors de la restauration de la version';
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // Définir le plan courant
+    setCurrentPlan(plan: Plan) {
+      this.currentPlan = plan;
+      this.startAutoSave();
+    },
+    
+    // Effacer le plan courant
+    clearCurrentPlan() {
+      this.currentPlan = null;
+      this.unsavedChanges = false;
+      if (this.autoSaveInterval) {
+        clearInterval(this.autoSaveInterval);
+        this.autoSaveInterval = null;
+      }
+    },
+    
+    // Marquer des changements non sauvegardés
+    markUnsavedChanges() {
+      this.unsavedChanges = true;
+    },
+    
+    // Supprimer un plan
+    async deletePlan(planId: number) {
+      this.loading = true;
+      try {
+        await irrigationService.deletePlan(planId);
+        // Retirer le plan de la liste locale
+        this.plans = this.plans.filter(p => p.id !== planId);
+        // Si c'était le plan courant, le nettoyer
+        if (this.currentPlan?.id === planId) {
+          this.clearCurrentPlan();
+        }
+      } catch (error) {
+        this.error = 'Erreur lors de la suppression du plan';
+        throw error;
+      } finally {
+        this.loading = false;
       }
     }
-  }); 
+  }
+}); 

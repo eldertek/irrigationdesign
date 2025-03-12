@@ -124,7 +124,7 @@
         ref="newPlanModalRef"
         v-model="showNewPlanModal"
         @created="onPlanCreated"
-        @dealerSelected="dealer => selectedDealer = dealer"
+        @concessionnaireSelected="concessionnaire => selectedConcessionnaire = concessionnaire"
         @clientSelected="client => selectedClient = client"
       />
       <!-- Modal Charger un Plan -->
@@ -143,11 +143,11 @@
           </div>
           <!-- Interface administrateur -->
           <div v-if="authStore.isAdmin" class="space-y-4">
-            <!-- Étape 1: Sélection du concessionnaire -->
-            <div v-if="!selectedDealer" class="space-y-2">
-              <h3 class="font-medium text-gray-700">Sélectionnez un concessionnaire</h3>
+            <!-- Étape 1: Sélection de l'usine -->
+            <div v-if="!selectedUsine" class="space-y-2">
+              <h3 class="font-medium text-gray-700">Sélectionnez une usine</h3>
               <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
-                <template v-if="isLoadingDealers">
+                <template v-if="isLoadingUsines">
                   <div v-for="i in 3" :key="i" class="animate-pulse">
                     <div class="p-3 bg-white rounded-lg border border-gray-200">
                       <div class="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
@@ -157,13 +157,13 @@
                 </template>
                 <template v-else>
                   <button
-                    v-for="dealer in dealers"
-                    :key="dealer.id"
-                    @click="selectDealer(dealer)"
+                    v-for="usine in usines"
+                    :key="usine.id"
+                    @click="selectUsine(usine)"
                     class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
                   >
                     <div>
-                      <div class="font-medium text-gray-900">{{ dealer.first_name }} {{ dealer.last_name }} ({{ dealer.company_name }})</div>
+                      <div class="font-medium text-gray-900">{{ formatUserDisplay(usine) }}</div>
                     </div>
                     <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -172,11 +172,57 @@
                 </template>
               </div>
             </div>
-            <!-- Étape 2: Sélection du client -->
+
+            <!-- Étape 2: Sélection du concessionnaire -->
+            <div v-else-if="!selectedConcessionnaire" class="space-y-2">
+              <div class="flex items-center mb-4">
+                <button
+                  @click="backToUsineList"
+                  class="flex items-center text-sm text-gray-600 hover:text-gray-900"
+                >
+                  <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                  Retour à la liste des usines
+                </button>
+                <span class="mx-2 text-gray-400">|</span>
+                <span class="text-sm text-gray-600">
+                  {{ formatUserDisplay(selectedUsine) }}
+                </span>
+              </div>
+              <h3 class="font-medium text-gray-700">Sélectionnez un concessionnaire</h3>
+              <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
+                <template v-if="isLoadingConcessionnaires">
+                  <div v-for="i in 3" :key="i" class="animate-pulse">
+                    <div class="p-3 bg-white rounded-lg border border-gray-200">
+                      <div class="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <button
+                    v-for="concessionnaire in filteredConcessionnaires"
+                    :key="concessionnaire.id"
+                    @click="selectConcessionnaire(concessionnaire)"
+                    class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
+                  >
+                    <div>
+                      <div class="font-medium text-gray-900">{{ formatUserDisplay(concessionnaire) }}</div>
+                    </div>
+                    <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <!-- Étape 3: Sélection du client -->
             <div v-else-if="!selectedClient" class="space-y-2">
               <div class="flex items-center mb-4">
                 <button
-                  @click="backToDealerList"
+                  @click="backToConcessionnaireList"
                   class="flex items-center text-sm text-gray-600 hover:text-gray-900"
                 >
                   <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -186,10 +232,10 @@
                 </button>
                 <span class="mx-2 text-gray-400">|</span>
                 <span class="text-sm text-gray-600">
-                  {{ selectedDealer.first_name }} {{ selectedDealer.last_name }} ({{ selectedDealer.company_name }})
+                  {{ formatUserDisplay(selectedConcessionnaire) }}
                 </span>
               </div>
-              <h3 class="font-medium text-gray-700">Sélectionnez un client</h3>
+              <h3 class="font-medium text-gray-700">Sélectionnez un agriculteur</h3>
               <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
                 <template v-if="isLoadingClients">
                   <div v-for="i in 3" :key="i" class="animate-pulse">
@@ -207,7 +253,7 @@
                     class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
                   >
                     <div>
-                      <div class="font-medium text-gray-900">{{ client.first_name }} {{ client.last_name }} ({{ client.company_name }})</div>
+                      <div class="font-medium text-gray-900">{{ formatUserDisplay(client) }}</div>
                     </div>
                     <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -216,7 +262,8 @@
                 </template>
               </div>
             </div>
-            <!-- Étape 3: Liste des plans du client -->
+
+            <!-- Étape 4: Liste des plans du client -->
             <div v-else class="space-y-2">
               <div class="flex items-center mb-4">
                 <button
@@ -230,7 +277,7 @@
                 </button>
                 <span class="mx-2 text-gray-400">|</span>
                 <span class="text-sm text-gray-600">
-                  {{ selectedClient.first_name }} {{ selectedClient.last_name }} ({{ selectedClient.company_name }})
+                  {{ formatUserDisplay(selectedClient) }}
                 </span>
               </div>
               <h3 class="font-medium text-gray-700">Plans disponibles</h3>
@@ -262,10 +309,10 @@
             </div>
           </div>
           <!-- Interface concessionnaire -->
-          <div v-else-if="authStore.isDealer" class="space-y-4">
+          <div v-else-if="authStore.isConcessionnaire" class="space-y-4">
             <!-- Liste des clients -->
             <div v-if="!selectedClient" class="space-y-2">
-              <h3 class="font-medium text-gray-700">Sélectionnez un client</h3>
+              <h3 class="font-medium text-gray-700">Sélectionnez un agriculteur</h3>
               <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
                 <template v-if="isLoadingClients">
                   <div v-for="i in 3" :key="i" class="animate-pulse">
@@ -306,7 +353,7 @@
                 </button>
                 <span class="mx-2 text-gray-400">|</span>
                 <span class="text-sm text-gray-600">
-                  {{ selectedClient.first_name }} {{ selectedClient.last_name }}
+                  {{ selectedClient.first_name }} {{ selectedClient.last_name }} ({{ selectedClient.company_name }})
                 </span>
               </div>
               <h3 class="font-medium text-gray-700">Plans disponibles</h3>
@@ -363,7 +410,7 @@
   </div>
 </template>
 <script setup lang="ts">
-  import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed, nextTick } from 'vue';
+import { onMounted, ref, watch, onBeforeUnmount, onUnmounted, computed, nextTick } from 'vue';
 import type { LatLngTuple } from 'leaflet';
 import * as L from 'leaflet';
 import 'leaflet-simple-map-screenshoter';
@@ -379,11 +426,11 @@ import { CircleArc } from '@/utils/CircleArc';
 import { TextRectangle } from '@/utils/TextRectangle';
 import { Polygon } from '@/utils/Polygon';
 import { useAuthStore } from '@/stores/auth';
-  import type { UserDetails } from '@/types/user';
+import type { UserDetails } from '@/types/user';
 import api from '@/services/api';
 import NewPlanModal from '@/components/NewPlanModal.vue';
-  import jsPDF from 'jspdf';
-  import logo from '@/assets/logo.jpeg';
+import jsPDF from 'jspdf';
+import logo from '@/assets/logo.jpeg';
 const mapContainer = ref<HTMLElement | null>(null);
 const irrigationStore = useIrrigationStore();
 const drawingStore = useDrawingStore();
@@ -407,18 +454,18 @@ const {
 // Ajout des refs pour les modals
 const showNewPlanModal = ref(false);
 const showLoadPlanModal = ref(false);
-const currentPlan = ref<Plan | null>(null);
+const currentPlan = ref<ExtendedPlan | null>(null);
 // État pour la sauvegarde
 const saving = ref(false);
 const saveStatus = ref<'saving' | 'success' | null>(null);
 // Ajout des imports et des refs nécessaires
 const authStore = useAuthStore();
-const dealers = ref<UserDetails[]>([]);
-const dealerClients = ref<UserDetails[]>([]);
+const concessionnaires = ref<UserDetails[]>([]);
+const concessionnaireClients = ref<UserDetails[]>([]);
 const clientPlans = ref<Plan[]>([]);
-const selectedDealer = ref<UserDetails | null>(null);
+const selectedConcessionnaire = ref<UserDetails | null>(null);
 const selectedClient = ref<UserDetails | null>(null);
-const isLoadingDealers = ref(false);
+const isLoadingConcessionnaires = ref(false);
 const isLoadingClients = ref(false);
 const isLoadingPlans = ref(false);
 // Référence vers le composant NewPlanModal
@@ -427,14 +474,14 @@ const newPlanModalRef = ref<InstanceType<typeof NewPlanModal> | null>(null);
 const filteredClients = computed(() => {
   console.log('[MapView][filteredClients] Computing with:', {
     userType: authStore.user?.user_type,
-    selectedDealer: selectedDealer.value,
-    dealerClients: dealerClients.value
+    selectedConcessionnaire: selectedConcessionnaire.value,
+    concessionnaireClients: concessionnaireClients.value
   });
   if (authStore.user?.user_type === 'admin') {
-    const clients = selectedDealer.value ? dealerClients.value : [];
+    const clients = selectedConcessionnaire.value ? concessionnaireClients.value : [];
     return clients;
-  } else if (authStore.user?.user_type === 'dealer') {
-    return dealerClients.value;
+  } else if (authStore.user?.user_type === 'concessionnaire') {
+    return concessionnaireClients.value;
   }
   return [];
 });
@@ -476,6 +523,12 @@ onMounted(async () => {
   try {
     // Charger les plans
     await irrigationStore.fetchPlans();
+
+    // Si admin, charger les usines
+    if (authStore.isAdmin) {
+      await loadUsines();
+    }
+
     // Récupérer la dernière position sauvegardée ou utiliser la position par défaut
     const savedPosition = getMapPosition();
     const center: LatLngTuple = savedPosition 
@@ -509,29 +562,58 @@ onMounted(async () => {
         }
       }) as EventListener);
     }
-    // Récupérer l'ID du dernier plan ouvert depuis le localStorage
-    const lastPlanId = localStorage.getItem('lastPlanId');
-    // Si un plan était ouvert précédemment, essayer de le charger
-    if (lastPlanId) {
+
+    // Ne charger le dernier plan que si l'utilisateur n'est pas admin
+    if (!authStore.isAdmin) {
+      // Récupérer l'ID du dernier plan ouvert depuis le localStorage
+      const lastPlanId = localStorage.getItem('lastPlanId');
+      // Si un plan était ouvert précédemment, essayer de le charger
+      if (lastPlanId) {
+        try {
+          await loadPlan(parseInt(lastPlanId));
+        } catch (error) {
+          console.error('Error loading last plan:', error);
+          // S'assurer que l'état est réinitialisé en cas d'erreur
+          currentPlan.value = null;
+          irrigationStore.clearCurrentPlan();
+          drawingStore.clearCurrentPlan();
+          clearMap();
+          localStorage.removeItem('lastPlanId');
+        }
+      }
+    } else {
+      // Si c'est un admin, on s'assure que tout est propre
+      currentPlan.value = null;
+      irrigationStore.clearCurrentPlan();
+      drawingStore.clearCurrentPlan();
+      clearMap();
+      localStorage.removeItem('lastPlanId');
+    }
+
+    // Charger les concessionnaires au montage du composant si l'utilisateur est admin
+    if (authStore.isAdmin) {
+      isLoadingConcessionnaires.value = true;
       try {
-        await loadPlan(parseInt(lastPlanId));
+        const result = await authStore.fetchUsersByRole({ role: 'CONCESSIONNAIRE' });
+        concessionnaires.value = result;
       } catch (error) {
-        console.error('Error loading last plan:', error);
-        // S'assurer que l'état est réinitialisé en cas d'erreur
-        currentPlan.value = null;
-        irrigationStore.clearCurrentPlan();
-        drawingStore.clearCurrentPlan();
-        clearMap();
-        localStorage.removeItem('lastPlanId');
+        console.error('Error loading concessionnaires:', error);
+      } finally {
+        isLoadingConcessionnaires.value = false;
       }
     }
-    // Charger les concessionnaires au montage du composant si l'utilisateur est admin
-    if (authStore.user?.user_type === 'admin') {
-      await loadDealers();
-    }
+    
     // Charger les clients si c'est un concessionnaire
-    if (authStore.user?.user_type === 'dealer') {
-      await loadDealerClients();
+    if (authStore.isConcessionnaire) {
+      isLoadingClients.value = true;
+      try {
+        const result = await authStore.fetchConcessionnaireAgriculteurs(authStore.user?.id || 0);
+        concessionnaireClients.value = Array.isArray(result) ? result : [result];
+      } catch (error) {
+        console.error('Error loading clients:', error);
+      } finally {
+        isLoadingClients.value = false;
+      }
     }
 
     // Écouter l'événement de création de forme
@@ -1141,95 +1223,6 @@ const deleteSelectedShape = () => {
     selectedLeafletShape.value = null;
   }
 };
-// Fonction pour charger les concessionnaires
-async function loadDealers() {
-  isLoadingDealers.value = true;
-  try {
-    const response = await api.get('/users/', {
-      params: { role: 'CONCESSIONNAIRE' }
-    });
-    dealers.value = response.data;
-  } catch (error) {
-    console.error('Erreur lors du chargement des concessionnaires:', error);
-  } finally {
-    isLoadingDealers.value = false;
-  }
-}
-// Fonction pour charger les clients d'un concessionnaire
-async function loadDealerClients() {
-  isLoadingClients.value = true;
-  try {
-    // Pour un concessionnaire, utiliser son propre ID
-    const dealerId = authStore.user?.id;
-    if (!dealerId) {
-      console.error('[loadDealerClients] No dealer ID available');
-      return;
-    }
-    const response = await api.get('/users/', {
-      params: { 
-        role: 'UTILISATEUR',
-        concessionnaire: dealerId
-      }
-    });
-    // S'assurer que nous avons toujours un tableau
-    if (Array.isArray(response.data)) {
-      dealerClients.value = response.data;
-    } else if (response.data) {
-      dealerClients.value = [response.data];
-    } else {
-      dealerClients.value = [];
-    }
-  } catch (error) {
-    console.error('[loadDealerClients] Error:', error);
-    dealerClients.value = [];
-  } finally {
-    isLoadingClients.value = false;
-  }
-}
-async function selectClient(client: UserDetails) {
-  console.log('[MapView][selectClient] Current state:', {
-    selectedDealer: selectedDealer.value,
-    selectedClient: selectedClient.value,
-    newPlanModalRef: !!newPlanModalRef.value
-  });
-  if (newPlanModalRef.value) {
-    newPlanModalRef.value.selectClient(client);
-    selectedClient.value = client;
-    // Charger les plans du client avec les paramètres de filtrage
-    isLoadingPlans.value = true;
-    try {
-      const params: any = {
-        client: client.id
-      };
-      // Ajouter le concessionnaire si présent
-      if (selectedDealer.value) {
-        params.concessionnaire = selectedDealer.value.id;
-      }
-      const response = await api.get('/plans/', {
-        params: params
-      });
-      clientPlans.value = response.data;
-    } catch (error) {
-      console.error('[MapView][selectClient] Error loading client plans:', error);
-      clientPlans.value = [];
-    } finally {
-      isLoadingPlans.value = false;
-    }
-  } else {
-    console.warn('[MapView][selectClient] NewPlanModal ref is not available');
-  }
-}
-// Fonctions de navigation
-function backToDealerList() {
-  selectedDealer.value = null;
-  selectedClient.value = null;
-  dealerClients.value = [];
-  clientPlans.value = [];
-}
-function backToClientList() {
-  selectedClient.value = null;
-  clientPlans.value = [];
-}
 // Ajouter la fonction de callback
 async function onPlanCreated(planId: number) {
   console.log(`onPlanCreated - Tentative de chargement du plan ${planId}`);
@@ -1251,38 +1244,16 @@ async function onPlanCreated(planId: number) {
     console.error(`Plan ${planId} introuvable après création! Vérifiez les permissions.`);
   }
 }
-// Fonctions de sélection
-async function selectDealer(dealer: UserDetails) {
-  try {
-    if (newPlanModalRef.value) {
-      await newPlanModalRef.value.selectDealer(dealer);
-      selectedDealer.value = dealer;
-      dealerClients.value = newPlanModalRef.value.dealerClients;
-    } else {
-      // Garder le warn car c'est utile pour le debug
-      console.warn('[MapView][selectDealer] NewPlanModal ref is not available');
-    }
-  } catch (error) {
-    // Garder l'error car c'est utile pour le debug
-    console.error('[MapView][selectDealer] Error:', error);
-  }
-}
 // Ajouter un watcher pour charger les clients quand un concessionnaire est sélectionné
-watch(selectedDealer, async (newDealer) => {
-  if (newDealer && authStore.user?.user_type === 'admin') {
+watch(selectedConcessionnaire, async (newConcessionnaire) => {
+  if (newConcessionnaire && authStore.user?.user_type === 'admin') {
     isLoadingClients.value = true;
     try {
-      const response = await api.get('/users/', {
-        params: { 
-          role: 'UTILISATEUR',
-          concessionnaire: newDealer.id 
-        }
-      });
-      dealerClients.value = Array.isArray(response.data) ? response.data : [response.data];
+      const result = await authStore.fetchConcessionnaireAgriculteurs(newConcessionnaire.id);
+      concessionnaireClients.value = Array.isArray(result) ? result : [result];
     } catch (error) {
-      // Garder l'error car c'est utile pour le debug
-      console.error('[MapView][watch selectedDealer] Error loading clients:', error);
-      dealerClients.value = [];
+      console.error('[MapView][watch selectedConcessionnaire] Error:', error);
+      concessionnaireClients.value = [];
     } finally {
       isLoadingClients.value = false;
     }
@@ -1614,6 +1585,180 @@ function clearLastPlan() {
       });
     }
   });
+
+  // Types
+  interface ExtendedUserDetails extends UserDetails {
+    usine?: number;
+    usine_details?: UserDetails;
+    concessionnaire_details?: UserDetails;
+    client_details?: UserDetails;
+  }
+
+  interface ExtendedPlan extends Plan {
+    concessionnaire_details?: ExtendedUserDetails;
+    client_details?: ExtendedUserDetails;
+  }
+
+  // Ajout des refs nécessaires
+  const selectedUsine = ref<ExtendedUserDetails | null>(null);
+  const isLoadingUsines = ref(false);
+  const usines = ref<ExtendedUserDetails[]>([]);
+
+  // Computed pour les concessionnaires filtrés selon l'usine sélectionnée
+  const filteredConcessionnaires = computed(() => {
+    console.log('[MapView][filteredConcessionnaires] Computing with:', {
+      selectedUsine: selectedUsine.value,
+      concessionnaires: concessionnaires.value,
+      concessionnairesLength: concessionnaires.value.length
+    });
+    if (!selectedUsine.value) return [];
+    const filtered = concessionnaires.value.filter(concessionnaire => {
+      const concessionnaireUsine = (concessionnaire as ExtendedUserDetails).usine;
+      // Vérifier si concessionnaireUsine est un objet et extraire l'ID si c'est le cas
+      const concessionnaireUsineId = typeof concessionnaireUsine === 'object' && concessionnaireUsine !== null 
+        ? (concessionnaireUsine as any).id 
+        : concessionnaireUsine;
+      
+      console.log('[MapView][filteredConcessionnaires] Checking concessionnaire:', {
+        concessionnaire,
+        concessionnaireUsine,
+        concessionnaireUsineId,
+        selectedUsineId: selectedUsine.value?.id,
+        matches: concessionnaireUsineId === selectedUsine.value?.id
+      });
+      
+      return concessionnaireUsineId === selectedUsine.value?.id;
+    });
+    console.log('[MapView][filteredConcessionnaires] Filtered result:', filtered);
+    return filtered;
+  });
+
+  // Fonction pour formater l'affichage des utilisateurs
+  function formatUserDisplay(user: ExtendedUserDetails | null): string {
+    if (!user) return '';
+    const firstName = user.first_name || '';
+    const lastName = user.last_name ? user.last_name.toUpperCase() : '';
+    const company = user.company_name || user.role || '';
+    return `${firstName} ${lastName} (${company})`;
+  }
+
+  // Fonction pour charger les usines
+  async function loadUsines() {
+    isLoadingUsines.value = true;
+    try {
+      const response = await api.get('/users/', {
+        params: { role: 'USINE' }
+      });
+      usines.value = response.data;
+    } catch (error) {
+      console.error('[MapView] Error loading usines:', error);
+      usines.value = [];
+    } finally {
+      isLoadingUsines.value = false;
+    }
+  }
+
+  // Fonction pour sélectionner une usine
+  async function selectUsine(usine: ExtendedUserDetails) {
+    console.log('[MapView][selectUsine] Sélection de l\'usine:', usine);
+    selectedUsine.value = usine;
+    isLoadingConcessionnaires.value = true;
+    try {
+      console.log('[MapView][selectUsine] Envoi de la requête avec params:', { 
+        role: 'CONCESSIONNAIRE',
+        usine: usine.id
+      });
+      const response = await api.get('/users/', {
+        params: { 
+          role: 'CONCESSIONNAIRE',
+          usine: usine.id
+        }
+      });
+      console.log('[MapView][selectUsine] Réponse reçue:', response.data);
+      concessionnaires.value = response.data;
+      console.log('[MapView][selectUsine] Concessionnaires mis à jour:', concessionnaires.value);
+    } catch (error) {
+      console.error('[MapView] Error loading concessionnaires for usine:', error);
+      concessionnaires.value = [];
+    } finally {
+      isLoadingConcessionnaires.value = false;
+    }
+  }
+
+  // Fonction pour revenir à la liste des usines
+  function backToUsineList() {
+    // Réinitialiser la sélection
+    selectedUsine.value = null;
+    selectedConcessionnaire.value = null;
+    selectedClient.value = null;
+    
+    // Réinitialiser les listes
+    concessionnaires.value = [];
+    concessionnaireClients.value = [];
+    clientPlans.value = [];
+  }
+
+  // Fonction pour revenir à la liste des concessionnaires
+  function backToConcessionnaireList() {
+    // Réinitialiser la sélection tout en gardant l'usine
+    selectedConcessionnaire.value = null;
+    selectedClient.value = null;
+    
+    // Réinitialiser les listes enfants
+    concessionnaireClients.value = [];
+    clientPlans.value = [];
+  }
+
+  // Fonction pour revenir à la liste des clients
+  function backToClientList() {
+    // Réinitialiser uniquement le client sélectionné
+    selectedClient.value = null;
+    clientPlans.value = [];
+  }
+
+  // Fonction pour sélectionner un concessionnaire
+  async function selectConcessionnaire(concessionnaire: ExtendedUserDetails) {
+    selectedConcessionnaire.value = concessionnaire;
+    // Charger les clients de ce concessionnaire
+    isLoadingClients.value = true;
+    try {
+      const response = await api.get('/users/', {
+        params: {
+          role: 'AGRICULTEUR',
+          concessionnaire: concessionnaire.id,
+          usine: selectedUsine.value?.id
+        }
+      });
+      concessionnaireClients.value = Array.isArray(response.data) ? response.data : [response.data];
+    } catch (error) {
+      console.error('[MapView] Error loading clients:', error);
+      concessionnaireClients.value = [];
+    } finally {
+      isLoadingClients.value = false;
+    }
+  }
+
+  // Fonction pour sélectionner un client
+  async function selectClient(client: ExtendedUserDetails) {
+    selectedClient.value = client;
+    // Charger les plans du client
+    isLoadingPlans.value = true;
+    try {
+      const response = await api.get('/plans/', {
+        params: {
+          agriculteur: client.id,
+          concessionnaire: selectedConcessionnaire.value?.id,
+          usine: selectedUsine.value?.id
+        }
+      });
+      clientPlans.value = response.data;
+    } catch (error) {
+      console.error('[MapView] Error loading client plans:', error);
+      clientPlans.value = [];
+    } finally {
+      isLoadingPlans.value = false;
+    }
+  }
 </script>
 <style>
 @import '../styles/MapView.css';

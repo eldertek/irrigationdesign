@@ -5,7 +5,6 @@ import LoginView from '../views/LoginView.vue'
 import MapView from '../views/MapView.vue'
 import UserListView from '@/views/UserListView.vue'
 import PlansView from '../views/PlansView.vue'
-import ClientListView from '../views/ClientListView.vue'
 const router = createRouter({
   history: createWebHistory('/'),
   routes: [
@@ -15,7 +14,7 @@ const router = createRouter({
       component: MapView,
       meta: { 
         requiresAuth: true,
-        allowedRoles: ['admin', 'dealer', 'client']
+        allowedRoles: ['admin', 'usine', 'concessionnaire', 'agriculteur']
       }
     },
     {
@@ -24,7 +23,7 @@ const router = createRouter({
       component: PlansView,
       meta: { 
         requiresAuth: true,
-        allowedRoles: ['admin', 'dealer', 'client']
+        allowedRoles: ['admin', 'usine', 'concessionnaire', 'agriculteur']
       }
     },
     {
@@ -33,16 +32,7 @@ const router = createRouter({
       component: UserListView,
       meta: {
         requiresAuth: true,
-        allowedRoles: ['admin']
-      }
-    },
-    {
-      path: '/clients',
-      name: 'clients',
-      component: ClientListView,
-      meta: {
-        requiresAuth: true,
-        allowedRoles: ['dealer']
+        allowedRoles: ['admin', 'usine', 'concessionnaire']
       }
     },
     {
@@ -51,7 +41,7 @@ const router = createRouter({
       component: () => import('@/views/ProfileView.vue'),
       meta: { 
         requiresAuth: true,
-        allowedRoles: ['admin', 'dealer', 'client']
+        allowedRoles: ['admin', 'usine', 'concessionnaire', 'agriculteur']
       }
     },
     {
@@ -78,7 +68,7 @@ const router = createRouter({
       component: ChangePasswordForm,
       meta: { 
         requiresAuth: true,
-        allowedRoles: ['admin', 'dealer', 'client']
+        allowedRoles: ['admin', 'usine', 'concessionnaire', 'agriculteur']
       }
     },
     {
@@ -95,7 +85,7 @@ const router = createRouter({
   ]
 })
 // Navigation guard
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
   // Ajouter un log pour déboguer
   console.log('Route:', to.path, 'Auth state:', {

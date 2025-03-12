@@ -11,20 +11,25 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.http import JsonResponse
+from django.db.models import Q
 
 User = get_user_model()
 
-class IsAdminOrDealer(permissions.BasePermission):
-    """Permission personnalisée pour les administrateurs et les concessionnaires."""
+class IsAdminOrDealerOrUsine(permissions.BasePermission):
+    """Permission personnalisée pour les administrateurs, les concessionnaires et les usines."""
     
     def has_permission(self, request, view):
         if not request.user.is_authenticated:
             return False
-        return request.user.role in ['ADMIN', 'CONCESSIONNAIRE']
+        return request.user.role in ['ADMIN', 'CONCESSIONNAIRE', 'USINE']
 
     def has_object_permission(self, request, view, obj):
         if request.user.role == 'ADMIN':
             return True
+        if request.user.role == 'USINE':
+            # L'usine peut gérer ses concessionnaires et leurs agriculteurs
+            return (obj.role == 'CONCESSIONNAIRE' and obj.usine == request.user) or \
+                   (obj.role == 'AGRICULTEUR' and obj.concessionnaire and obj.concessionnaire.usine == request.user)
         if request.user.role == 'CONCESSIONNAIRE':
             # Le concessionnaire ne peut voir/modifier que ses utilisateurs
             return obj.concessionnaire == request.user
@@ -53,10 +58,21 @@ class UserViewSet(viewsets.ModelViewSet):
         concessionnaire_id = self.request.query_params.get('concessionnaire')
         if concessionnaire_id:
             queryset = queryset.filter(concessionnaire_id=concessionnaire_id)
+            
+        # Filtrer par usine si spécifié
+        usine_id = self.request.query_params.get('usine')
+        if usine_id:
+            queryset = queryset.filter(usine_id=usine_id)
 
         # Appliquer les restrictions selon le rôle de l'utilisateur
         if user.role == 'ADMIN':
             return queryset
+        elif user.role == 'USINE':
+            # Une usine peut voir ses concessionnaires et leurs agriculteurs
+            return queryset.filter(
+                Q(usine=user) |  # Ses concessionnaires
+                Q(concessionnaire__usine=user)  # Les agriculteurs de ses concessionnaires
+            )
         elif user.role == 'CONCESSIONNAIRE':
             return queryset.filter(concessionnaire=user)
         return queryset.filter(id=user.id)
@@ -64,7 +80,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """Définit les permissions selon l'action."""
         if self.action in ['create', 'destroy', 'list']:
-            permission_classes = [IsAdminOrDealer]
+            permission_classes = [IsAdminOrDealerOrUsine]
         else:
             permission_classes = [permissions.IsAuthenticated]
         return [permission() for permission in permission_classes]
@@ -97,7 +113,7 @@ class UserViewSet(viewsets.ModelViewSet):
         dealer = get_object_or_404(User, id=dealer_id, role='CONCESSIONNAIRE')
         
         # Vérifie les permissions
-        if request.user.role not in ['ADMIN', 'CONCESSIONNAIRE']:
+        if request.user.role not in ['ADMIN', 'CONCESSIONNAIRE', 'USINE']:
             return Response(
                 {'error': 'Permission refusée'},
                 status=status.HTTP_403_FORBIDDEN
@@ -106,6 +122,12 @@ class UserViewSet(viewsets.ModelViewSet):
         if request.user.role == 'CONCESSIONNAIRE' and request.user != dealer:
             return Response(
                 {'error': 'Un concessionnaire ne peut assigner que lui-même'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        if request.user.role == 'USINE' and (dealer.usine != request.user):
+            return Response(
+                {'error': 'Une usine ne peut assigner que ses propres concessionnaires'},
                 status=status.HTTP_403_FORBIDDEN
             )
 

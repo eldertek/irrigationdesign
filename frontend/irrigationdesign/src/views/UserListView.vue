@@ -3,7 +3,9 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div class="flex justify-between items-center mb-8">
         <h1 class="text-3xl font-extrabold text-gray-900">
-          {{ isAdmin ? 'Gestion des utilisateurs' : 'Mes clients' }}
+          <span v-if="isAdmin">Gestion des utilisateurs</span>
+          <span v-else-if="isUsine">Gestion des concessionnaires et agriculteurs</span>
+          <span v-else-if="isConcessionnaire">Gestion des agriculteurs</span>
         </h1>
         <button
           @click="openCreateUserModal"
@@ -12,49 +14,70 @@
           <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
           </svg>
-          {{ isAdmin ? 'Nouvel utilisateur' : 'Nouveau client' }}
+          <span v-if="isAdmin">Nouvel utilisateur</span>
+          <span v-else-if="isUsine">Nouveau concessionnaire/agriculteur</span>
+          <span v-else-if="isConcessionnaire">Nouvel agriculteur</span>
         </button>
       </div>
       <!-- Filtres -->
       <div class="bg-white shadow rounded-lg mb-6 p-4">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <!-- Filtre de rôle uniquement pour les admins -->
-          <div v-if="isAdmin">
-            <label for="role-filter" class="block text-sm font-medium text-gray-700">Rôle</label>
-            <select
-              id="role-filter"
-              v-model="filters.role"
-              class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
-            >
-              <option value="">Tous les rôles</option>
-              <option value="ADMIN">Admin</option>
-              <option value="CONCESSIONNAIRE">Concessionnaire</option>
-              <option value="UTILISATEUR">Client</option>
-            </select>
+        <div class="space-y-4">
+          <!-- Première ligne : Rôle, Usine, Concessionnaire -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Filtre de rôle uniquement pour les admins et usines -->
+            <div v-if="isAdmin || isUsine">
+              <label for="role-filter" class="block text-sm font-medium text-gray-700">Rôle</label>
+              <select
+                id="role-filter"
+                v-model="filters.role"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+              >
+                <option value="">Tous les rôles</option>
+                <option value="ADMIN" v-if="isAdmin">Administrateur</option>
+                <option value="USINE" v-if="isAdmin">Usine</option>
+                <option value="CONCESSIONNAIRE">Concessionnaire</option>
+                <option value="AGRICULTEUR">Agriculteur</option>
+              </select>
+            </div>
+            <!-- Filtre d'usine uniquement pour les admins -->
+            <div v-if="isAdmin">
+              <label for="usine-filter" class="block text-sm font-medium text-gray-700">Usine</label>
+              <select
+                id="usine-filter"
+                v-model="filters.usine"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+              >
+                <option value="">Toutes les usines</option>
+                <option v-for="usine in usines" :key="usine.id" :value="usine.id">
+                  {{ formatUserName(usine) }}
+                </option>
+              </select>
+            </div>
+            <!-- Filtre de concessionnaire uniquement pour les admins et usines -->
+            <div v-if="isAdmin || isUsine">
+              <label for="concessionnaire-filter" class="block text-sm font-medium text-gray-700">Concessionnaire</label>
+              <select
+                id="concessionnaire-filter"
+                v-model="filters.concessionnaire"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+              >
+                <option value="">Tous les concessionnaires</option>
+                <option v-for="concessionnaire in availableConcessionnaires" :key="concessionnaire.id" :value="concessionnaire.id">
+                  {{ formatUserName(concessionnaire) }}
+                </option>
+              </select>
+            </div>
           </div>
-          <div>
+          <!-- Deuxième ligne : Recherche -->
+          <div class="w-full">
             <label for="search" class="block text-sm font-medium text-gray-700">Recherche</label>
             <input
               type="text"
               id="search"
               v-model="filters.search"
-              :placeholder="isAdmin ? 'Nom, email...' : 'Rechercher un client...'"
+              placeholder="Rechercher par nom, email, entreprise..."
               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
             />
-          </div>
-          <!-- Filtre de concessionnaire uniquement pour les admins -->
-          <div v-if="isAdmin">
-            <label for="dealer-filter" class="block text-sm font-medium text-gray-700">Concessionnaire</label>
-            <select
-              id="dealer-filter"
-              v-model="filters.dealer"
-              class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
-            >
-              <option value="">Tous les concessionnaires</option>
-              <option v-for="dealer in availableDealers" :key="dealer.id" :value="dealer.id">
-                {{ dealer.company_name || `${dealer.first_name} ${dealer.last_name}` }}
-              </option>
-            </select>
           </div>
         </div>
       </div>
@@ -65,15 +88,18 @@
             <thead class="bg-gray-50">
               <tr>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {{ isAdmin ? 'Utilisateur' : 'Client' }}
+                  Utilisateur
                 </th>
-                <th v-if="isAdmin" scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Rôle
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Email
                 </th>
-                <th v-if="isAdmin" scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th v-if="isAdmin || isUsine" scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Usine
+                </th>
+                <th v-if="isAdmin || isUsine" scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Concessionnaire
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -85,6 +111,16 @@
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
+              <tr v-if="loading" class="animate-pulse">
+                <td colspan="7" class="py-4 px-6">
+                  <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                </td>
+              </tr>
+              <tr v-else-if="filteredUsers.length === 0">
+                <td colspan="7" class="py-4 px-6 text-center text-gray-500">
+                  Aucun utilisateur trouvé
+                </td>
+              </tr>
               <tr v-for="user in filteredUsers" :key="user.id">
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center">
@@ -99,22 +135,42 @@
                       <div class="text-sm font-medium text-gray-900">
                         {{ formatUserName(user) }}
                       </div>
-                      <div class="text-sm text-gray-500">
-                        {{ user.username }}
-                      </div>
+                      <div class="text-sm text-gray-500">{{ user.username }}</div>
                     </div>
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <span :class="getRoleBadgeClass(user.role)">
+                  <span :class="getRoleBadgeClass()">
                     {{ getRoleLabel(user.role) }}
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {{ user.email }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {{ user.dealer_name || '-' }}
+                <td v-if="isAdmin || isUsine" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <template v-if="user.role === 'USINE'">
+                    -
+                  </template>
+                  <template v-else-if="user.role === 'CONCESSIONNAIRE'">
+                    {{ user.usine ? formatUserName(user.usine) : 'Non assigné' }}
+                  </template>
+                  <template v-else-if="user.role === 'AGRICULTEUR'">
+                    {{ user.concessionnaire?.usine ? formatUserName(user.concessionnaire.usine) : 'Non assigné' }}
+                  </template>
+                  <template v-else>
+                    -
+                  </template>
+                </td>
+                <td v-if="isAdmin || isUsine" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <template v-if="user.role === 'USINE' || user.role === 'ADMIN'">
+                    -
+                  </template>
+                  <template v-else-if="user.role === 'CONCESSIONNAIRE'">
+                    -
+                  </template>
+                  <template v-else>
+                    {{ user.concessionnaire ? formatUserName(user.concessionnaire) : 'Non assigné' }}
+                  </template>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span :class="getStatusBadgeClass(user.is_active)">
@@ -146,9 +202,12 @@
     <UserFormModal
       v-if="showUserModal"
       :user="selectedUser"
-      :dealers="dealers"
+      :concessionnaires="concessionnaires"
+      :usines="usines"
       :is-admin="isAdmin"
-      :current-dealer="authStore.user?.id?.toString()"
+      :is-usine="isUsine"
+      :current-concessionnaire="isConcessionnaire ? authStore.user?.id?.toString() : undefined"
+      :current-usine="isUsine ? authStore.user?.id?.toString() : undefined"
       @close="closeUserModal"
       @save="saveUser"
     />
@@ -164,11 +223,13 @@
 </template>
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useAuthStore, formatUserName } from '@/stores/auth'
+import { useAuthStore, formatUserName, getInitials, getRoleBadgeClass, getRoleLabel, getStatusBadgeClass } from '@/stores/auth'
+import { fetchUsersByHierarchy } from '@/services/api'
 import UserFormModal from '@/components/UserFormModal.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
-import api from '@/services/api'
+
 const authStore = useAuthStore()
+
 interface User {
   id: number;
   username: string;
@@ -176,167 +237,341 @@ interface User {
   first_name: string;
   last_name: string;
   role: string;
-  dealer?: number;
-  dealer_name?: string;
+  concessionnaire_id?: number;
   company_name?: string;
   is_active: boolean;
+  usine?: {
+    id: number;
+    username: string;
+    first_name: string;
+    last_name: string;
+    company_name?: string;
+    role: string;
+    display_name: string;
+  };
+  concessionnaire?: {
+    id: number;
+    username: string;
+    first_name: string;
+    last_name: string;
+    company_name?: string;
+    role: string;
+    display_name: string;
+    usine?: {
+      id: number;
+      username: string;
+      first_name: string;
+      last_name: string;
+      company_name?: string;
+      role: string;
+      display_name: string;
+    };
+  };
 }
-interface Dealer {
+
+interface UserReference {
   id: number;
   first_name: string;
   last_name: string;
   company_name?: string;
-  full_name?: string;
-  role: 'CONCESSIONNAIRE';
+  username: string;
+  role: string;
+  display_name?: string;
 }
+
 const users = ref<User[]>([])
-const dealers = ref<Dealer[]>([])
+const concessionnaires = ref<UserReference[]>([])
+const usines = ref<UserReference[]>([])
 const showUserModal = ref(false)
 const showDeleteModal = ref(false)
 const selectedUser = ref<User | null>(null)
 const userToDelete = ref<User | null>(null)
+const loading = ref(true)
+
 const filters = reactive({
   role: '',
   search: '',
-  dealer: ''
+  concessionnaire: '',
+  usine: ''
 })
+
 const isAdmin = computed(() => authStore.isAdmin)
-const isDealer = computed(() => authStore.isDealer)
-const availableDealers = computed(() => {
-  return users.value.filter(user => user.role === 'CONCESSIONNAIRE')
+const isUsine = computed(() => authStore.isUsine)
+const isConcessionnaire = computed(() => authStore.isConcessionnaire)
+
+const availableConcessionnaires = computed(() => {
+  if (isAdmin.value) {
+    return users.value.filter(user => user.role === 'CONCESSIONNAIRE')
+  } else if (isUsine.value) {
+    // Pour une usine, uniquement ses propres concessionnaires
+    return users.value.filter(user => 
+      user.role === 'CONCESSIONNAIRE' && 
+      user.usine?.id === authStore.user?.id
+    )
+  }
+  return []
 })
+
 // Filtrage des utilisateurs adapté au rôle
 const filteredUsers = computed(() => {
-  console.log('Computing filtered users...')
-  console.log('Current users:', users.value)
-  console.log('Is admin:', isAdmin.value)
-  console.log('Is dealer:', isDealer.value)
-  console.log('Current filters:', filters)
   let filtered = users.value
-  // Pour les concessionnaires, ne montrer que leurs clients
-  if (isDealer.value) {
-    console.log('Filtering for dealer:', authStore.user?.id)
-    filtered = filtered.filter(user => 
-      user.role === 'UTILISATEUR' && user.dealer === authStore.user?.id
-    )
-    console.log('Filtered users for dealer:', filtered)
+  
+  // Si c'est une usine, ne montrer que ses concessionnaires et les agriculteurs associés
+  if (isUsine.value) {
+    filtered = filtered.filter(user => {
+      if (user.role === 'CONCESSIONNAIRE') {
+        return user.usine?.id === authStore.user?.id
+      } else if (user.role === 'AGRICULTEUR') {
+        return user.concessionnaire?.usine?.id === authStore.user?.id
+      }
+      return false
+    })
   }
-  // Pour les admins, appliquer les filtres normalement
-  if (isAdmin.value) {
+  
+  // Si c'est un concessionnaire, ne montrer que ses agriculteurs
+  if (isConcessionnaire.value) {
+    filtered = filtered.filter(user => 
+      user.role === 'AGRICULTEUR' && user.concessionnaire_id === authStore.user?.id
+    )
+  }
+  
+  // Pour les admins et usines, appliquer les filtres
+  if (isAdmin.value || isUsine.value) {
     if (filters.role) {
       filtered = filtered.filter(user => user.role === filters.role)
-      console.log('Filtered by role:', filtered)
     }
-    if (filters.dealer) {
-      filtered = filtered.filter(user => String(user.dealer) === String(filters.dealer))
-      console.log('Filtered by dealer:', filtered)
+    
+    if (filters.concessionnaire) {
+      filtered = filtered.filter(user => 
+        user.concessionnaire?.id?.toString() === filters.concessionnaire.toString()
+      )
+    }
+    
+    if (filters.usine && isAdmin.value) {
+      filtered = filtered.filter(user => {
+        if (user.role === 'CONCESSIONNAIRE') {
+          return user.usine?.id?.toString() === filters.usine.toString()
+        } else if (user.role === 'AGRICULTEUR') {
+          return user.concessionnaire?.usine?.id?.toString() === filters.usine.toString()
+        }
+        return false
+      })
     }
   }
+  
   // Filtre de recherche commun
   if (filters.search) {
     const search = filters.search.toLowerCase()
     filtered = filtered.filter(user => 
-      user.username.toLowerCase().includes(search) ||
-      user.email.toLowerCase().includes(search) ||
-      user.first_name.toLowerCase().includes(search) ||
-      user.last_name.toLowerCase().includes(search) ||
+      user.username?.toLowerCase().includes(search) ||
+      user.email?.toLowerCase().includes(search) ||
+      user.first_name?.toLowerCase().includes(search) ||
+      user.last_name?.toLowerCase().includes(search) ||
       (user.company_name && user.company_name.toLowerCase().includes(search))
     )
-    console.log('Filtered by search:', filtered)
   }
-  console.log('Final filtered users:', filtered)
+  
   return filtered
 })
+
 // Chargement initial des données
 onMounted(async () => {
   await fetchUsers()
-  if (isAdmin.value) {
-    await fetchDealers()
-  }
+  await fetchDependencies()
 })
-// Récupération des utilisateurs
+
+// Récupération des utilisateurs en utilisant la fonction centralisée
 async function fetchUsers() {
+  loading.value = true
   try {
-    console.log('Fetching users...')
-    const response = await api.get('/users/')
-    console.log('Users API response:', response.data)
-    users.value = response.data
-    console.log('Users after assignment:', users.value)
+    if (isAdmin.value) {
+      users.value = await authStore.fetchUsers()
+    } else if (isUsine.value) {
+      // Pour une usine, récupérer ses concessionnaires et tous les agriculteurs liés
+      const [concessionnairesResult, agriculteursResult] = await Promise.all([
+        fetchUsersByHierarchy({
+          role: 'CONCESSIONNAIRE',
+          usineId: authStore.user?.id
+        }),
+        fetchUsersByHierarchy({
+          role: 'AGRICULTEUR',
+          usineId: authStore.user?.id
+        })
+      ])
+      users.value = [...concessionnairesResult, ...agriculteursResult]
+    } else if (isConcessionnaire.value) {
+      // Pour un concessionnaire, récupérer seulement ses agriculteurs
+      const result = await fetchUsersByHierarchy({
+        role: 'AGRICULTEUR',
+        concessionnaireId: authStore.user?.id,
+        includeDetails: true
+      })
+      users.value = result
+    }
   } catch (error) {
     console.error('Erreur lors de la récupération des utilisateurs:', error)
+  } finally {
+    loading.value = false
   }
 }
-// Récupération des concessionnaires
-async function fetchDealers() {
+
+// Récupération des données dépendantes
+async function fetchDependencies() {
   try {
-    const response = await api.get('/users/', {
-      params: { role: 'CONCESSIONNAIRE' }
-    })
-    dealers.value = response.data
+    if (isAdmin.value) {
+      await Promise.all([
+        fetchAllConcessionnaires(),
+        fetchAllUsines()
+      ])
+    } else if (isUsine.value) {
+      await fetchUsineConcessionnaires()
+    }
+  } catch (error) {
+    console.error('Erreur lors de la récupération des dépendances:', error)
+  }
+}
+
+// Récupération des concessionnaires selon le rôle
+async function fetchAllConcessionnaires() {
+  try {
+    if (isAdmin.value) {
+      concessionnaires.value = await authStore.fetchConcessionnaires()
+    } else if (isUsine.value) {
+      concessionnaires.value = await authStore.fetchUsineConcessionnaires(authStore.user?.id!)
+    }
   } catch (error) {
     console.error('Erreur lors de la récupération des concessionnaires:', error)
   }
 }
+
+// Récupération spécifique des concessionnaires d'une usine
+async function fetchUsineConcessionnaires() {
+  if (!isUsine.value || !authStore.user?.id) return
+  
+  try {
+    concessionnaires.value = await authStore.fetchUsineConcessionnaires(authStore.user?.id)
+  } catch (error) {
+    console.error('Erreur lors de la récupération des concessionnaires de l\'usine:', error)
+  }
+}
+
+// Récupération des usines
+async function fetchAllUsines() {
+  try {
+    usines.value = await authStore.fetchUsines()
+  } catch (error) {
+    console.error('Erreur lors de la récupération des usines:', error)
+  }
+}
+
 // Gestion des modals
 function openCreateUserModal() {
   selectedUser.value = null
   showUserModal.value = true
 }
+
 function editUser(user: User) {
   selectedUser.value = { ...user }
   showUserModal.value = true
 }
+
 function closeUserModal() {
   showUserModal.value = false
   selectedUser.value = null
 }
+
 async function saveUser(userData: any) {
   try {
-    let response;
-    const isUpdate = !!userData.id;
-    const payload = { ...userData };
+    const isUpdate = !!userData.id
+    const payload = { ...userData }
+
     // Nettoyer les champs non nécessaires
-    delete payload.dealer_name;
-    delete payload.full_name;
-    delete payload.user_type;
-    delete payload.permissions;
-    if (isUpdate) {
-      response = await api.patch(`/users/${userData.id}/`, payload);
-    } else {
-      response = await api.post('/users/', payload);
+    delete payload.full_name
+    delete payload.display_name
+
+    // Gérer les rôles selon l'utilisateur connecté
+    if (isUsine.value) {
+      if (payload.role === 'CONCESSIONNAIRE') {
+        // Si un utilisateur usine crée un concessionnaire, l'assigner automatiquement à l'usine
+        payload.usine_id = authStore.user?.id
+      } else if (payload.role === 'AGRICULTEUR') {
+        // Si un utilisateur usine crée un agriculteur, vérifier le concessionnaire
+        if (payload.concessionnaire?.id) {
+          payload.concessionnaire_id = payload.concessionnaire.id
+        } else if (typeof payload.concessionnaire === 'number') {
+          payload.concessionnaire_id = payload.concessionnaire
+        }
+      }
+    } else if (isConcessionnaire.value) {
+      // Si un concessionnaire crée un utilisateur, c'est forcément un agriculteur
+      payload.role = 'AGRICULTEUR'
+      payload.concessionnaire_id = authStore.user?.id
     }
-    await fetchUsers();
-    closeUserModal();
-    return response.data;
+
+    // Gérer les relations
+    if (payload.role === 'CONCESSIONNAIRE') {
+      // S'assurer que l'usine est correctement définie
+      if (payload.usine?.id) {
+        payload.usine_id = payload.usine.id
+        delete payload.usine
+      } else if (typeof payload.usine === 'number') {
+        payload.usine_id = payload.usine
+        delete payload.usine
+      }
+      delete payload.concessionnaire
+    } else if (payload.role === 'AGRICULTEUR') {
+      // S'assurer que le concessionnaire est correctement défini
+      if (payload.concessionnaire?.id) {
+        payload.concessionnaire_id = payload.concessionnaire.id
+        delete payload.concessionnaire
+      } else if (typeof payload.concessionnaire === 'number') {
+        payload.concessionnaire_id = payload.concessionnaire
+        delete payload.concessionnaire
+      }
+      delete payload.usine
+      delete payload.usine_id
+    }
+
+    if (isUpdate) {
+      await authStore.updateUser(userData.id, payload)
+    } else {
+      await authStore.createUser(payload)
+    }
+
+    await fetchUsers()
+    closeUserModal()
   } catch (error: any) {
-    const errorData = error.response?.data || {};
-    let errorMessage = '';
+    console.error('Error saving user:', error.response?.data || error)
+    const errorData = error.response?.data || {}
+    let errorMessage = ''
     if (typeof errorData === 'object') {
       errorMessage = Object.entries(errorData)
-        .map(([field, messages]) => {
+        .map(([field, messages]: [string, any]) => {
           if (Array.isArray(messages)) {
-            return messages[0];
+            return `${field}: ${messages[0]}`
           }
-          return messages;
+          return `${field}: ${messages}`
         })
         .filter(message => message)
-        .join('\n');
+        .join('\n')
     }
     if (!errorMessage) {
-      errorMessage = 'Une erreur est survenue lors de la sauvegarde';
+      errorMessage = 'Une erreur est survenue lors de la sauvegarde'
     }
-    throw new Error(errorMessage);
+    throw new Error(errorMessage)
   }
 }
+
 // Suppression d'utilisateur
 function confirmDeleteUser(user: User) {
   userToDelete.value = user
   showDeleteModal.value = true
 }
+
 async function deleteUser() {
   if (!userToDelete.value) return
   try {
-    await api.delete(`/users/${userToDelete.value.id}/`)
+    await authStore.deleteUser(userToDelete.value.id)
     await fetchUsers()
     showDeleteModal.value = false
     userToDelete.value = null
@@ -345,29 +580,22 @@ async function deleteUser() {
     throw error
   }
 }
-// Helpers
-function getInitials(firstName: string, lastName: string): string {
-  return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase()
-}
-const roleLabels: Record<string, string> = {
-  'ADMIN': 'Admin',
-  'CONCESSIONNAIRE': 'Concessionnaire',
-  'UTILISATEUR': 'Client'
-}
-function getRoleLabel(role: string): string {
-  return roleLabels[role] || role
-}
-function getRoleBadgeClass(role: string): string {
-  return 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800'
-}
-function getStatusBadgeClass(isActive: boolean): string {
-  return isActive
-    ? 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800'
-    : 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800'
-}
+
+// Vérification des permissions
 function canDeleteUser(user: User): boolean {
   if (isAdmin.value) return true
-  if (isDealer.value) return user.role === 'UTILISATEUR' && user.dealer === authStore.user?.id
+  if (isUsine.value) {
+    if (user.role === 'CONCESSIONNAIRE') {
+      return user.usine?.id === authStore.user?.id
+    }
+    if (user.role === 'AGRICULTEUR') {
+      return user.concessionnaire?.usine?.id === authStore.user?.id
+    }
+    return false
+  }
+  if (isConcessionnaire.value) {
+    return user.role === 'AGRICULTEUR' && user.concessionnaire_id === authStore.user?.id
+  }
   return false
 }
 </script> 

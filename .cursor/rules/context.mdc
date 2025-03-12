@@ -58,14 +58,148 @@ Pour chaque fichier pertinent:
 - Gestion des permissions
 - Fonctions spécifiques de GeoDjango
 
-## Livrables de l'analyse
+## Hiérarchie des Rôles
 
-Avant de proposer une solution, l'IA doit présenter:
-1. **Synthèse des fichiers analysés** et leurs rôles
-2. **Points clés identifiés** pertinents au problème
-3. **Contraintes techniques** à respecter
-4. **Approche recommandée** avec justification
-5. **S'assurer** de ne casser aucune fonctionnalités
+### Structure des rôles
+1. **Administrateur (ADMIN)**
+   - Accès complet à toutes les fonctionnalités
+   - Gestion des usines, concessionnaires et agriculteurs
+   - Supervision globale du système
+
+2. **Usine (USINE)**
+   - Gestion de ses concessionnaires
+   - Gestion des agriculteurs rattachés à ses concessionnaires
+   - Vue d'ensemble de ses réseaux de distribution
+
+3. **Concessionnaire (CONCESSIONNAIRE)**
+   - Gestion de ses agriculteurs
+   - Création et modification des plans pour ses agriculteurs
+   - Accès aux données de ses agriculteurs uniquement
+
+4. **Agriculteur (AGRICULTEUR)**
+   - Accès à ses propres plans
+   - Consultation et modification de ses plans
+   - Interaction avec son concessionnaire attitré
+
+### Relations hiérarchiques
+- Usine → Concessionnaires → Agriculteurs
+- Chaque niveau a accès aux données des niveaux inférieurs
+- Les relations sont validées au niveau du modèle
+
+## Modèles de Données Principaux
+
+### Utilisateurs (authentication/models.py)
+- `Utilisateur`: Étend `AbstractUser` de Django
+  - Rôles: ADMIN, USINE, CONCESSIONNAIRE, AGRICULTEUR
+  - Relations: usine → concessionnaires → agriculteurs
+  - Champs spécifiques: company_name, phone, etc.
+
+### Plans d'Irrigation (plans/models.py)
+- `Plan`: Plan d'irrigation complet
+  - Relations: createur, usine, concessionnaire, agriculteur
+  - Validations hiérarchiques intégrées
+  - Données techniques et préférences
+
+### Éléments Géométriques
+- `FormeGeometrique`: Formes sur le plan
+  - Types: RECTANGLE, CERCLE, DEMI_CERCLE, LIGNE, TEXTE
+  - Données spécifiques en JSON
+- `Connexion`: Liens entre formes
+  - Géométrie LineString (GeoDjango)
+- `TexteAnnotation`: Textes sur le plan
+
+## Gestion des Permissions
+
+### Niveaux d'accès
+- **Admin**: Accès total
+- **Usine**: 
+  - Gestion de ses concessionnaires
+  - Vue sur tous les agriculteurs de ses concessionnaires
+- **Concessionnaire**:
+  - Gestion de ses agriculteurs
+  - Accès aux plans de ses agriculteurs
+- **Agriculteur**:
+  - Accès à ses propres plans uniquement
+
+### Validation des accès
+- Vérifications au niveau des modèles
+- Permissions DRF personnalisées
+- Middleware d'authentification JWT
+
+## Workflows Applicatifs
+
+### Création d'utilisateurs
+1. **Par l'Admin**:
+   - Peut créer tous types d'utilisateurs
+   - Définit les relations hiérarchiques
+
+2. **Par l'Usine**:
+   - Création de concessionnaires
+   - Création d'agriculteurs (assignés à ses concessionnaires)
+
+3. **Par le Concessionnaire**:
+   - Création d'agriculteurs uniquement
+   - Automatiquement rattachés au concessionnaire
+
+### Gestion des Plans
+1. **Création**:
+   - Validation des relations hiérarchiques
+   - Attribution automatique des rôles
+   - Vérification des permissions
+
+2. **Modification**:
+   - Respect de la hiérarchie des accès
+   - Maintien des relations usine/concessionnaire/agriculteur
+   - Historisation des changements
+
+## Conventions de Code
+
+### Frontend
+- Composants Vue en Single-File Components (SFC)
+- TypeScript strict avec interfaces définies
+- Stores Pinia pour la gestion d'état
+- Composables pour la logique réutilisable
+
+### Backend
+- Modèles Django avec validations
+- API REST avec ViewSets
+- Permissions granulaires
+- Tests unitaires et d'intégration
+
+### Conventions de Nommage
+- PascalCase pour composants Vue et types TS
+- camelCase pour variables/méthodes JS/TS
+- snake_case pour Python
+- SCREAMING_SNAKE_CASE pour constantes
+
+## Sécurité et Validation
+
+### Authentification
+- JWT avec refresh tokens
+- Cookies sécurisés HttpOnly
+- Validation des sessions
+
+### Validation des données
+- TypeScript pour le typage frontend
+- Validateurs Django pour le backend
+- Vérifications des relations hiérarchiques
+
+## Points d'attention particuliers
+
+1. **Hiérarchie des rôles**:
+   - Toujours valider les relations complètes
+   - Vérifier les permissions en cascade
+   - Maintenir la cohérence des données
+
+2. **Performance**:
+   - Optimiser les requêtes imbriquées
+   - Utiliser les annotations Django
+   - Mettre en cache quand possible
+
+3. **Maintenance**:
+   - Documenter les changements de structure
+   - Maintenir les migrations à jour
+   - Tester les cas limites
 
 ## Application de la règle
 
@@ -116,7 +250,7 @@ Le projet IrrigationDesign est une application Vue 3 avec TypeScript qui permet 
   - `MapView.vue` - Vue principale pour éditer les plans
   - `PlansView.vue` - Liste des plans
   - `UserListView.vue` - Gestion des utilisateurs (admin)
-  - `ClientListView.vue` - Gestion des clients (concessionnaire)
+  - `AgriculteurListView.vue` - Gestion des agriculteurs (concessionnaire)
 - **stores/**: Gestion d'état avec Pinia
   - `auth.ts` - Authentification et utilisateur
   - `drawing.ts` - État du dessin et outils
@@ -146,45 +280,6 @@ Le projet IrrigationDesign est une application Vue 3 avec TypeScript qui permet 
   - `serializers.py` - Sérialisation des données
   - `permissions.py` - Contrôle d'accès
 
-## Modèles de Données Principaux
-
-### Utilisateurs (authentication/models.py)
-- `Utilisateur`: Étend `AbstractUser` de Django
-  - Rôles: ADMIN, CONCESSIONNAIRE, UTILISATEUR
-  - Relations hiérarchiques: Concessionnaires -> Clients
-
-### Plans d'Irrigation (plans/models.py)
-- `Plan`: Plan d'irrigation complet
-  - Propriétés: nom, description, dates
-  - Relations: createur, concessionnaire, client
-  - Contenu: preferences, elements (JSON)
-- `FormeGeometrique`: Formes sur le plan
-  - Types: RECTANGLE, CERCLE, DEMI_CERCLE, LIGNE, TEXTE
-  - Données spécifiques stockées en JSON
-- `Connexion`: Liens entre formes
-  - Géométrie LineString (GeoDjango)
-- `TexteAnnotation`: Textes sur le plan
-
-## Flux d'Authentification
-
-L'application utilise un système d'authentification JWT personnalisé:
-- Tokens stockés dans les cookies HTTP-only
-- Refresh automatique des tokens expirés via intercepteur Axios
-- Middleware Django côté serveur pour validation
-- Routes protégées par rôle (admin, concessionnaire, client)
-- Hiérarchie d'accès: les concessionnaires peuvent voir leurs clients, les admins peuvent tout voir
-
-## Gestion des Permissions
-
-- **Administrateurs**: Accès complet à toutes les ressources
-- **Concessionnaires**:
-  - Gestion de leurs clients
-  - Création et édition de plans
-  - Accès aux plans de leurs clients
-- **Clients**:
-  - Accès uniquement à leurs propres plans
-  - Possibilité de consulter et modifier leurs plans
-
 ## Fonctionnalités Clés
 
 ### Conception d'Irrigation
@@ -195,7 +290,7 @@ L'application utilise un système d'authentification JWT personnalisé:
 
 ### Gestion des Plans
 - Sauvegarde/chargement des plans
-- Partage entre concessionnaires et clients
+- Partage entre concessionnaires et agriculteurs
 - Génération de rapports et synthèses
 - Versionning des modifications
 
@@ -206,29 +301,8 @@ L'application utilise un système d'authentification JWT personnalisé:
 
 ### Administration
 - Gestion complète des utilisateurs
-- Attribution des clients aux concessionnaires
+- Attribution des agriculteurs aux concessionnaires
 - Statistiques d'utilisation
-
-## Conventions de Code
-
-### Frontend
-- Composants Vue en Single-File Components (SFC) avec `<script setup lang="ts">`
-- TypeScript strict pour le typage
-- CSS Tailwind avec directives `@apply` dans `<style lang="postcss">`
-- Responsive design (desktop/mobile) avec classes conditionnelles
-- État global dans Pinia, état local dans `ref`/`reactive`
-
-### Backend
-- API RESTful avec ViewSets Django
-- Serializers pour validation et transformation des données
-- Permissions au niveau des vues et des objets
-- Modèles avec validation et méthodes utilitaires
-
-### Conventions de Nommage
-- PascalCase pour les composants Vue et les types TypeScript
-- camelCase pour les variables/méthodes JavaScript/TypeScript
-- snake_case pour les variables/méthodes Python
-- SCREAMING_SNAKE_CASE pour constantes
 
 ## Workflow de Développement
 
@@ -244,7 +318,7 @@ L'application utilise un système d'authentification JWT personnalisé:
 
 1. **Initialisation**:
    - Création d'un nouveau plan (nom, description)
-   - Attribution à un client (si l'utilisateur est un concessionnaire)
+   - Attribution à un agriculteur (si l'utilisateur est un concessionnaire)
    - Sélection d'une localisation initiale
 
 2. **Conception**:
@@ -267,4 +341,154 @@ L'application utilise un système d'authentification JWT personnalisé:
 5. **Finalisation**:
    - Génération du rapport de synthèse
    - Sauvegarde et partage
-   - Attribution au client final
+   - Attribution à l'agriculteur final
+
+## Formalisme d'Affichage des Utilisateurs
+
+### Format Standard
+- Format: `Prénom NOM (entreprise)`
+- Exemple: `Jean DUPONT (Irrigation SARL)`
+- Si l'entreprise n'est pas définie, utiliser le rôle: `Jean DUPONT (Agriculteur)`
+
+### Règles d'Application
+1. **Cohérence Globale**
+   - Appliquer ce format dans toutes les interfaces utilisateur
+   - Utiliser ce format dans les logs et les exports
+   - Maintenir ce format dans les communications système
+
+2. **Composants Concernés**
+   - Listes d'utilisateurs
+   - En-têtes de profil
+   - Sélecteurs d'utilisateurs (dropdowns, etc.)
+   - Historiques et journaux d'activité
+   - Rapports et documents générés
+
+3. **Cas Particuliers**
+   - Utilisateur sans prénom: `NOM (entreprise)`
+   - Entreprise uniquement: `(entreprise)`
+   - Format court (si espace limité): `P. NOM`
+
+4. **Implémentation**
+   ```python
+   def get_display_name(user):
+       full_name = f"{user.first_name} {user.last_name}".strip().upper()
+       company = user.company_name or user.get_role_display()
+       return f"{full_name} ({company})" if full_name else f"({company})"
+   ```
+
+## Fonctions Utilitaires Centralisées
+
+> **IMPORTANT**: Cette section recense les fonctions utilitaires centralisées dans les différents fichiers du projet. Ces fonctions doivent être systématiquement utilisées pour éviter la duplication de code. Avant de créer une nouvelle fonction utilitaire, vérifiez si une fonction similaire existe déjà.
+
+### Services API (`services/api.ts`)
+
+#### Service d'Authentification (`authService`)
+- `login(username: string, password: string)`: Authentifie un utilisateur et récupère le token
+- `logout()`: Déconnecte l'utilisateur en supprimant les tokens
+- `register(userData: {...})`: Enregistre un nouvel utilisateur
+
+#### Service Utilisateurs (`userService`)
+- `getUsers(filters: UserFilter = {})`: Récupère les utilisateurs avec filtrage optionnel
+- `getUser(userId: number)`: Récupère les détails d'un utilisateur spécifique
+- `createUser(userData: any)`: Crée un nouvel utilisateur
+- `updateUser(userId: number, userData: any)`: Met à jour un utilisateur existant
+- `deleteUser(userId: number)`: Supprime un utilisateur
+- `getUsines()`: Récupère toutes les usines
+- `getConcessionnaires(usineId?: number)`: Récupère les concessionnaires (filtrable par usine)
+- `getConcessionnairesAgriculteurs(concessionnaireId: number)`: Récupère les agriculteurs d'un concessionnaire
+- `getUsineAgriculteurs(usineId: number)`: Récupère les agriculteurs d'une usine
+
+#### Fonction Utilitaire de Récupération Hiérarchique (`fetchUsersByHierarchy`)
+- `fetchUsersByHierarchy({ role, usineId, concessionnaireId })`: Fonction utilitaire centralisée qui récupère les utilisateurs selon leur hiérarchie
+  - Récupère les usines
+  - Récupère les concessionnaires (tous ou filtrés par usine)
+  - Récupère les agriculteurs (tous, filtrés par concessionnaire ou par usine)
+  - Factorisation des logiques communes de filtrage hiérarchique en une seule fonction
+  - **Exemple d'utilisation:**
+    ```ts
+    // Récupérer tous les concessionnaires d'une usine
+    const concessionnaires = await fetchUsersByHierarchy({ 
+      role: 'CONCESSIONNAIRE', 
+      usineId: usineActuelle.id 
+    });
+    
+    // Récupérer tous les agriculteurs d'un concessionnaire
+    const agriculteurs = await fetchUsersByHierarchy({ 
+      role: 'AGRICULTEUR', 
+      concessionnaireId: concessionnaireActuel.id 
+    });
+    ```
+
+#### Service Plans d'Irrigation (`irrigationService`)
+- `getPlans()`: Récupère tous les plans de l'utilisateur courant
+- `createPlan(planData: any)`: Crée un nouveau plan d'irrigation
+- `updatePlan(planId: number, planData: any)`: Met à jour un plan existant
+- `deletePlan(planId: number)`: Supprime un plan
+- `getAgriculteurPlans(agriculteurId: number)`: Récupère les plans d'un agriculteur spécifique
+- `createPlanForAgriculteur(planData: any)`: Crée un plan pour un agriculteur spécifique
+
+### Store Authentification (`stores/auth.ts`)
+
+#### Fonctions d'Affichage
+- `formatUserName(user: {...})`: Formate le nom d'un utilisateur selon le format standard `Prénom NOM (entreprise/rôle)`
+- `getInitials(firstName: string, lastName: string)`: Retourne les initiales d'un utilisateur pour les avatars
+- `getRoleLabel(role: string)`: Retourne le libellé d'un rôle à partir de sa clé
+- `getRoleBadgeClass()`: Retourne les classes CSS pour un badge de rôle
+- `getStatusBadgeClass(isActive: boolean)`: Retourne les classes CSS pour un badge de statut (actif/inactif)
+
+#### Méthodes du Store
+- `fetchUsers(filters = {})`: Récupère les utilisateurs avec filtrage
+- `fetchUsines()`: Récupère et stocke toutes les usines dans le store
+- `fetchConcessionnaires(usineId?: number)`: Récupère et stocke les concessionnaires
+- `fetchConcessionnairesAgriculteurs(concessionnaireId: number)`: Récupère et stocke les agriculteurs d'un concessionnaire
+- `createUser(userData: any)`: Crée un utilisateur via le service API
+- `updateUser(userId: number, userData: any)`: Met à jour un utilisateur
+- `deleteUser(userId: number)`: Supprime un utilisateur
+- `checkAccess(requiredRole: string[])`: Vérifie si l'utilisateur courant a les droits requis
+
+### Store Plans d'Irrigation (`stores/irrigation.ts`)
+
+#### Méthodes de Gestion des Plans
+- `fetchPlans()`: Récupère tous les plans selon les permissions de l'utilisateur
+- `fetchPlansWithDetails()`: Récupère les plans avec tous leurs détails
+- `fetchAgriculteurPlans(agriculteurId: number)`: Récupère les plans d'un agriculteur spécifique
+- `createPlan(planData: NewPlan)`: Crée un nouveau plan d'irrigation
+- `createPlanForAgriculteur(planData: NewPlan, agriculteurId: number)`: Crée un plan pour un agriculteur spécifique
+- `savePlan(planId: number)`: Sauvegarde un plan modifié
+- `updatePlanDetails(planId: number, planData: Partial<Plan>)`: Met à jour les métadonnées d'un plan
+- `deletePlan(planId: number)`: Supprime un plan
+- `fetchPlanHistory(planId: number)`: Récupère l'historique des modifications d'un plan
+- `restorePlanVersion(planId: number, versionId: number)`: Restaure une version antérieure d'un plan
+
+#### Méthodes de Gestion de l'État
+- `setCurrentPlan(plan: Plan)`: Définit le plan courant pour l'édition
+- `clearCurrentPlan()`: Efface le plan courant
+- `markUnsavedChanges()`: Marque des changements non sauvegardés
+- `startAutoSave()`: Démarre la sauvegarde automatique périodique
+- `stopAutoSave()`: Arrête la sauvegarde automatique
+
+### Conventions d'Utilisation
+
+1. **Préférer les Services Centralisés**
+   - Utiliser `userService` pour toutes les opérations sur les utilisateurs
+   - Utiliser `irrigationService` pour toutes les opérations sur les plans
+   - Ne pas effectuer d'appels API directs dans les composants
+
+2. **Exploiter les Stores**
+   - Utiliser les méthodes du store `auth` pour la gestion des utilisateurs
+   - Utiliser les méthodes du store `irrigation` pour la gestion des plans
+   - Ne pas dupliquer la logique de filtrage/manipulation des données
+
+3. **Utiliser Systématiquement les Fonctions de Formatage**
+   - Utiliser `formatUserName` pour afficher les noms d'utilisateurs de manière cohérente
+   - Utiliser `getInitials` pour l'affichage des avatars
+   - Utiliser `getRoleLabel` pour afficher les libellés des rôles
+   - Utiliser les fonctions de badge pour les styles CSS
+
+4. **Privilégier les Échanges de Types Standards**
+   - Utiliser les interfaces `User`, `UserReference`, `Plan`, etc. pour typer les données
+   - Ne pas créer de nouveaux types qui dupliquent les définitions existantes
+
+5. **Vérifier l'Existence de Fonctions Utilitaires**
+   - Avant de créer une nouvelle fonction, vérifier si elle existe déjà
+   - Si une fonction similaire existe mais ne répond pas exactement au besoin, étendre la fonction existante plutôt qu'en créer une nouvelle

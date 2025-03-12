@@ -8,34 +8,49 @@ class Utilisateur(AbstractUser):
     """
     class Role(models.TextChoices):
         ADMIN = 'ADMIN', 'Administrateur'
+        USINE = 'USINE', 'Usine'
         CONCESSIONNAIRE = 'CONCESSIONNAIRE', 'Concessionnaire'
-        UTILISATEUR = 'UTILISATEUR', 'Client'
+        AGRICULTEUR = 'AGRICULTEUR', 'Agriculteur'
 
     role = models.CharField(
         max_length=20,
         choices=Role.choices,
-        default=Role.UTILISATEUR,
+        default=Role.AGRICULTEUR,
         verbose_name='Rôle'
     )
+
+    usine = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        limit_choices_to={'role': Role.USINE},
+        related_name='concessionnaires',
+        verbose_name='Usine associée'
+    )
+
     concessionnaire = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         limit_choices_to={'role': Role.CONCESSIONNAIRE},
-        related_name='utilisateurs',
+        related_name='agriculteurs',
         verbose_name='Concessionnaire associé'
     )
+
     company_name = models.CharField(
         max_length=255,
         blank=True,
         null=True,
         verbose_name='Nom de l\'entreprise'
     )
+
     must_change_password = models.BooleanField(
         default=True,
         verbose_name='Doit changer le mot de passe'
     )
+
     phone = models.CharField(
         max_length=20,
         blank=True,
@@ -54,7 +69,8 @@ class Utilisateur(AbstractUser):
         ]
 
     def __str__(self):
-        return f"{self.get_full_name()} ({self.get_role_display()})"
+        """Représentation string de l'utilisateur utilisant le format standard."""
+        return self.get_display_name()
 
     def save(self, *args, **kwargs):
         # Si c'est un nouveau utilisateur (pas encore d'ID)
@@ -67,16 +83,19 @@ class Utilisateur(AbstractUser):
         return self.role == self.Role.ADMIN
 
     @property
+    def is_usine(self):
+        return self.role == self.Role.USINE
+
+    @property
     def is_dealer(self):
         return self.role == self.Role.CONCESSIONNAIRE
 
     @property
-    def is_client(self):
-        return self.role == self.Role.UTILISATEUR
+    def is_agriculteur(self):
+        return self.role == self.Role.AGRICULTEUR
 
     def get_display_name(self):
-        """Retourne le nom d'affichage de l'utilisateur."""
-        if self.company_name:
-            return self.company_name
-        full_name = self.get_full_name()
-        return full_name if full_name else self.username
+        """Retourne le nom d'affichage standardisé de l'utilisateur."""
+        full_name = f"{self.first_name} {self.last_name}".strip().upper()
+        company = self.company_name or self.get_role_display()
+        return f"{full_name} ({company})" if full_name else f"({company})"
