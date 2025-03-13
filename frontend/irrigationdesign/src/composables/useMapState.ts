@@ -1,10 +1,12 @@
 import { ref } from 'vue';
 import type { Map as LeafletMap } from 'leaflet';
 import * as L from 'leaflet';
+
 export function useMapState() {
   const map = ref<LeafletMap | null>(null);
   const searchQuery = ref('');
   const currentBaseMap = ref('Ville');
+
   const baseMaps = {
     'Ville': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
@@ -16,28 +18,48 @@ export function useMapState() {
     }),
     'Cadastre': L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=CADASTRALPARCELS.PARCELLAIRE_EXPRESS&STYLE=normal&FORMAT=image/png&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
       attribution: 'Cadastre - Carte © IGN/Geoportail',
-      maxZoom: 19
+      maxZoom: 19,
+      updateWhenZooming: false,
+      updateWhenIdle: true,
+      noWrap: true,
+      keepBuffer: 5,
+      zoomAnimation: false
     })
   };
+
   const initMap = (mapInstance: LeafletMap) => {
     map.value = mapInstance;
-    // Ajouter le contrôle de couches
+    mapInstance.options.zoomSnap = 0.5;
+    mapInstance.options.wheelPxPerZoomLevel = 120;
     L.control.layers(baseMaps).addTo(mapInstance);
-    // Définir la couche par défaut
     baseMaps[currentBaseMap.value as keyof typeof baseMaps].addTo(mapInstance);
+
+    mapInstance.on('baselayerchange', (e) => {
+      if (e.name === 'Cadastre') {
+        mapInstance.options.zoomAnimation = false;
+      } else {
+        mapInstance.options.zoomAnimation = true;
+      }
+    });
   };
+
   const changeBaseMap = (baseMapName: keyof typeof baseMaps) => {
     if (!map.value || !baseMaps[baseMapName]) return;
-    // Retirer toutes les couches de base existantes
     Object.values(baseMaps).forEach(layer => {
       if (map.value?.hasLayer(layer)) {
         map.value.removeLayer(layer);
       }
     });
-    // Ajouter la nouvelle couche de base
     baseMaps[baseMapName].addTo(map.value as L.Map);
     currentBaseMap.value = baseMapName;
+    
+    if (baseMapName === 'Cadastre' && map.value) {
+      map.value.options.zoomAnimation = false;
+    } else if (map.value) {
+      map.value.options.zoomAnimation = true;
+    }
   };
+
   const searchLocation = async () => {
     if (!map.value || !searchQuery.value) return;
     try {
@@ -47,12 +69,14 @@ export function useMapState() {
       const data = await response.json();
       if (data && data.length > 0) {
         const { lat, lon } = data[0];
-        map.value.setView([lat, lon], 13);
+        const useAnimation = currentBaseMap.value !== 'Cadastre';
+        map.value.setView([lat, lon], 13, { animate: useAnimation });
       }
     } catch (error) {
       console.error('Erreur lors de la recherche de localisation:', error);
     }
   };
+
   return {
     map,
     searchQuery,
