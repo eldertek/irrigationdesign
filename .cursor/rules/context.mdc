@@ -255,6 +255,7 @@ Le projet IrrigationDesign est une application Vue 3 avec TypeScript qui permet 
   - `auth.ts` - Authentification et utilisateur
   - `drawing.ts` - État du dessin et outils
   - `irrigation.ts` - Données d'irrigation
+  - `notification.ts` - Système de notification centralisé
 - **types/**: Définitions TypeScript
   - `user.ts` - Interfaces pour les utilisateurs
   - `drawing.ts` - Types pour les éléments de dessin
@@ -264,6 +265,28 @@ Le projet IrrigationDesign est une application Vue 3 avec TypeScript qui permet 
   - `useMapDrawing.ts` - Logique de dessin sur la carte
 - **services/**: Communications avec l'API
   - `api.ts` - Client Axios configuré pour les requêtes API
+
+### Système de Notification (App.vue et notification.ts)
+- **notification.ts** (store Pinia) : Centralise la gestion des notifications
+  - Stockage de la liste des notifications
+  - Types de notifications : success, error, warning, info
+  - Fonctions d'ajout, suppression et nettoyage des notifications
+  - Suivi de la dernière notification ajoutée avec `lastAddedId` pour les animations
+
+- **App.vue** : Implémente l'interface utilisateur des notifications
+  - **Dynamic Island** : Animation inspirée d'Apple pour les notifications éphémères
+    - Apparaît à partir de l'icône de cloche dans le header
+    - Animation fluide avec transitions CSS optimisées
+    - Affichage du message et icône selon le type de notification
+  - **Menu déroulant** : Liste complète des notifications accessibles via l'icône de cloche
+    - Historique des notifications
+    - Options pour supprimer individuellement ou effacer toutes les notifications
+
+- **Fonctionnalités clés** :
+  - Animation optimisée utilisant `requestAnimationFrame` et `will-change`
+  - Positionnement dynamique relatif à l'icône de cloche
+  - Support pour différents types de notifications avec code couleur
+  - Adaptabilité responsive (mobile et desktop)
 
 ### Backend (racine du projet)
 - **irrigation_design/**: Configuration principale Django
@@ -426,6 +449,43 @@ Le projet IrrigationDesign est une application Vue 3 avec TypeScript qui permet 
 - `deletePlan(planId: number)`: Supprime un plan
 - `getAgriculteurPlans(agriculteurId: number)`: Récupère les plans d'un agriculteur spécifique
 - `createPlanForAgriculteur(planData: any)`: Crée un plan pour un agriculteur spécifique
+
+### Store Notification (`stores/notification.ts`)
+
+#### Gestion des Notifications
+- `addNotification(message: string, type: NotificationType)`: Ajoute une nouvelle notification et retourne son ID
+- `addSuccessNotification(message: string)`: Ajoute une notification de succès
+- `addErrorNotification(message: string)`: Ajoute une notification d'erreur
+- `addWarningNotification(message: string)`: Ajoute une notification d'avertissement
+- `addInfoNotification(message: string)`: Ajoute une notification informative
+- `removeNotification(id: number)`: Supprime une notification spécifique par son ID
+- `clearAll()`: Supprime toutes les notifications
+
+#### Propriétés du Store
+- `notifications`: Tableau des notifications actives
+- `lastAddedId`: ID de la dernière notification ajoutée (pour déclencher les animations)
+
+#### Utilisation recommandée
+- Pour les opérations génériques : `notificationStore.addNotification('Message', 'success')`
+- Pour les succès d'opération : `notificationStore.addSuccessNotification('Opération réussie')`
+- Pour les erreurs API : `notificationStore.addErrorNotification('Erreur lors de l'opération')`
+- Pour les avertissements : `notificationStore.addWarningNotification('Attention, action requise')`
+- Pour les informations : `notificationStore.addInfoNotification('Information utile')`
+
+#### Exemples d'intégration
+```ts
+// Dans une action de store ou un composant
+import { useNotificationStore } from '@/stores/notification'
+
+// À l'intérieur d'une méthode
+const notificationStore = useNotificationStore()
+try {
+  await someApiCall()
+  notificationStore.addSuccessNotification('Données enregistrées avec succès')
+} catch (error) {
+  notificationStore.addErrorNotification(`Erreur: ${error.message}`)
+}
+```
 
 ### Store Authentification (`stores/auth.ts`)
 

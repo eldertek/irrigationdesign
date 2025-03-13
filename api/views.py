@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from django.db.models import Q, Count
 from .serializers import (
     UserSerializer,
-    DealerSerializer,
+    ConcessionnaireSerializer,
     ClientSerializer,
     PlanSerializer,
     FormeGeometriqueSerializer,
@@ -13,7 +13,7 @@ from .serializers import (
     TexteAnnotationSerializer,
     PlanDetailSerializer
 )
-from .permissions import IsAdmin, IsDealer, IsUsine
+from .permissions import IsAdmin, IsConcessionnaire, IsUsine
 from django.contrib.auth import get_user_model
 from plans.models import Plan, FormeGeometrique, Connexion, TexteAnnotation
 import requests
@@ -55,9 +55,9 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == 'create':
-            self.permission_classes = [permissions.IsAuthenticated, IsAdmin | IsUsine | IsDealer]
+            self.permission_classes = [permissions.IsAuthenticated, IsAdmin | IsUsine | IsConcessionnaire]
         elif self.action in ['update', 'partial_update', 'destroy']:
-            self.permission_classes = [permissions.IsAuthenticated, IsAdmin | IsUsine | IsDealer]
+            self.permission_classes = [permissions.IsAuthenticated, IsAdmin | IsUsine | IsConcessionnaire]
         return super().get_permissions()
 
     def update(self, request, *args, **kwargs):
@@ -218,136 +218,9 @@ class UserViewSet(viewsets.ModelViewSet):
 
         serializer.save()
 
-    @action(detail=True, methods=['post'])
-    @transaction.atomic
-    def save_with_elements(self, request, pk=None):
-        """
-        Sauvegarde un plan avec ses formes géométriques, connexions et annotations
-        """
-        plan = self.get_object()
-        
-        # Vérifier les permissions
-        if (plan.createur != request.user and 
-            request.user.role not in [ROLE_ADMIN, ROLE_DEALER] and
-            (request.user.role == ROLE_DEALER and plan.createur.concessionnaire != request.user)):
-            return Response(
-                {'detail': 'Vous n\'avez pas la permission de modifier ce plan'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Récupérer les données des éléments
-        formes_data = request.data.get('formes', [])
-        connexions_data = request.data.get('connexions', [])
-        annotations_data = request.data.get('annotations', [])
-        
-        # Récupérer les identifiants des éléments à supprimer
-        elements_to_delete = request.data.get('elementsToDelete', [])
-        
-        # Log pour debugging
-        print(f"Plan {pk} - Sauvegarde - Éléments: {len(formes_data)}, À supprimer: {len(elements_to_delete)}")
-
-        try:
-            # Supprimer les éléments existants si demandé
-            if request.data.get('clear_existing', False):
-                plan.formes.all().delete()
-                plan.connexions.all().delete()
-                plan.annotations.all().delete()
-            
-            # Supprimer les éléments spécifiques demandés
-            if elements_to_delete:
-                # Sécuriser: ne supprimer que les éléments appartenant à ce plan
-                FormeGeometrique.objects.filter(
-                    id__in=elements_to_delete,
-                    plan=plan
-                ).delete()
-                print(f"Plan {pk} - {len(elements_to_delete)} éléments supprimés")
-
-            # Créer/Mettre à jour les formes
-            for forme_data in formes_data:
-                forme_id = forme_data.pop('id', None)
-                
-                # Valider les données de la forme selon son type
-                type_forme = forme_data.get('type_forme')
-                data = forme_data.get('data', {})
-                
-                # Ajouter les styles par défaut si nécessaire
-                if 'style' not in data:
-                    data['style'] = {
-                        'color': '#3388ff',
-                        'fillColor': '#3388ff',
-                        'fillOpacity': 0.2,
-                        'weight': 3,
-                        'opacity': 1
-                    }
-                
-                # Mettre à jour ou créer la forme
-                if forme_id:
-                    try:
-                        forme = FormeGeometrique.objects.get(id=forme_id, plan=plan)
-                        forme.type_forme = type_forme
-                        forme.data = data
-                        forme.save()
-                    except FormeGeometrique.DoesNotExist:
-                        # Si l'ID n'existe pas, créer une nouvelle forme
-                        FormeGeometrique.objects.create(
-                            plan=plan,
-                            type_forme=type_forme,
-                            data=data
-                        )
-                else:
-                    FormeGeometrique.objects.create(
-                        plan=plan,
-                        type_forme=type_forme,
-                        data=data
-                    )
-
-            # Créer/Mettre à jour les connexions
-            for connexion_data in connexions_data:
-                connexion_id = connexion_data.pop('id', None)
-                if connexion_id:
-                    connexion = get_object_or_404(Connexion, id=connexion_id, plan=plan)
-                    serializer = ConnexionSerializer(connexion, data=connexion_data)
-                else:
-                    serializer = ConnexionSerializer(data=connexion_data)
-                
-                serializer.is_valid(raise_exception=True)
-                serializer.save(plan=plan)
-
-            # Créer/Mettre à jour les annotations
-            for annotation_data in annotations_data:
-                annotation_id = annotation_data.pop('id', None)
-                if annotation_id:
-                    annotation = get_object_or_404(TexteAnnotation, id=annotation_id, plan=plan)
-                    serializer = TexteAnnotationSerializer(annotation, data=annotation_data)
-                else:
-                    serializer = TexteAnnotationSerializer(data=annotation_data)
-                
-                serializer.is_valid(raise_exception=True)
-                serializer.save(plan=plan)
-
-            # Sauvegarder les préférences si elles sont fournies
-            preferences = request.data.get('preferences')
-            if preferences:
-                plan.preferences = preferences
-                plan.save(update_fields=['preferences'])
-
-            # Forcer la mise à jour de la date de modification
-            plan.touch()
-
-            # Retourner le plan mis à jour avec tous ses éléments
-            serializer = PlanDetailSerializer(plan)
-            return Response(serializer.data)
-
-        except Exception as e:
-            # En cas d'erreur, annuler toutes les modifications (transaction.atomic)
-            return Response(
-                {'detail': f'Erreur lors de la sauvegarde: {str(e)}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-class DealerViewSet(viewsets.ModelViewSet):
+class ConcessionnaireViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(role=ROLE_DEALER)
-    serializer_class = DealerSerializer
+    serializer_class = ConcessionnaireSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
@@ -361,9 +234,9 @@ class DealerViewSet(viewsets.ModelViewSet):
         """
         Récupère la liste des clients d'un concessionnaire.
         """
-        dealer = self.get_object()
-        if request.user.role == ROLE_ADMIN or request.user == dealer:
-            clients = User.objects.filter(concessionnaire=dealer, role=ROLE_AGRICULTEUR)
+        concessionnaire = self.get_object()
+        if request.user.role == ROLE_ADMIN or request.user == concessionnaire:
+            clients = User.objects.filter(concessionnaire=concessionnaire, role=ROLE_AGRICULTEUR)
             serializer = ClientSerializer(clients, many=True)
             return Response(serializer.data)
         return Response(
@@ -376,7 +249,7 @@ class DealerViewSet(viewsets.ModelViewSet):
 
 class ClientViewSet(viewsets.ModelViewSet):
     serializer_class = ClientSerializer
-    permission_classes = [permissions.IsAuthenticated, IsDealer]
+    permission_classes = [permissions.IsAuthenticated, IsConcessionnaire]
 
     def get_queryset(self):
         user = self.request.user
@@ -466,6 +339,117 @@ class PlanViewSet(viewsets.ModelViewSet):
         print(f"[PlanViewSet] Utilisation de PlanSerializer par défaut pour {self.action}")
         return PlanSerializer
 
+    @action(detail=True, methods=['post'])
+    @transaction.atomic
+    def save_with_elements(self, request, pk=None):
+        """
+        Sauvegarde un plan avec ses formes géométriques, connexions et annotations
+        """
+        print(f"\n[PlanViewSet][save_with_elements] Début de la sauvegarde - Plan ID: {pk}")
+        print(f"[PlanViewSet][save_with_elements] URL de la requête: {request.path}")
+        print(f"[PlanViewSet][save_with_elements] Méthode: {request.method}")
+        print(f"[PlanViewSet][save_with_elements] User: {request.user.username} (role: {request.user.role})")
+        
+        try:
+            plan = self.get_object()
+            print(f"[PlanViewSet][save_with_elements] Plan trouvé: {plan.id} - {plan.nom}")
+        except Exception as e:
+            print(f"[PlanViewSet][save_with_elements] ERREUR lors de la récupération du plan: {str(e)}")
+            raise
+        
+        # Vérifier les permissions
+        if (plan.createur != request.user and 
+            request.user.role not in [ROLE_ADMIN, ROLE_DEALER] and
+            (request.user.role == ROLE_DEALER and plan.createur.concessionnaire != request.user)):
+            print(f"[PlanViewSet][save_with_elements] Permission refusée pour l'utilisateur {request.user.username}")
+            return Response(
+                {'detail': 'Vous n\'avez pas la permission de modifier ce plan'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Récupérer les données des éléments
+        formes_data = request.data.get('formes', [])
+        connexions_data = request.data.get('connexions', [])
+        annotations_data = request.data.get('annotations', [])
+        elements_to_delete = request.data.get('elementsToDelete', [])
+        
+        print(f"[PlanViewSet][save_with_elements] Données reçues:")
+        print(f"- Formes: {len(formes_data)} éléments")
+        print(f"- Connexions: {len(connexions_data)} éléments")
+        print(f"- Annotations: {len(annotations_data)} éléments")
+        print(f"- Éléments à supprimer: {elements_to_delete}")
+        
+        try:
+            # Supprimer les éléments existants si demandé
+            if request.data.get('clear_existing', False):
+                print("[PlanViewSet][save_with_elements] Suppression de tous les éléments existants")
+                plan.formes.all().delete()
+                plan.connexions.all().delete()
+                plan.annotations.all().delete()
+            
+            # Supprimer les éléments spécifiques demandés
+            if elements_to_delete:
+                print(f"[PlanViewSet][save_with_elements] Suppression des éléments: {elements_to_delete}")
+                deleted_count = FormeGeometrique.objects.filter(
+                    id__in=elements_to_delete,
+                    plan=plan
+                ).delete()[0]
+                print(f"[PlanViewSet][save_with_elements] {deleted_count} éléments supprimés")
+
+            # Créer/Mettre à jour les formes
+            for forme_data in formes_data:
+                forme_id = forme_data.pop('id', None)
+                type_forme = forme_data.get('type_forme')
+                data = forme_data.get('data', {})
+                
+                print(f"[PlanViewSet][save_with_elements] Traitement forme: ID={forme_id}, Type={type_forme}")
+                
+                if forme_id:
+                    try:
+                        forme = FormeGeometrique.objects.get(id=forme_id, plan=plan)
+                        print(f"[PlanViewSet][save_with_elements] Mise à jour forme existante: {forme_id}")
+                        forme.type_forme = type_forme
+                        forme.data = data
+                        forme.save()
+                    except FormeGeometrique.DoesNotExist:
+                        print(f"[PlanViewSet][save_with_elements] Forme {forme_id} non trouvée, création d'une nouvelle")
+                        FormeGeometrique.objects.create(
+                            plan=plan,
+                            type_forme=type_forme,
+                            data=data
+                        )
+                else:
+                    print("[PlanViewSet][save_with_elements] Création d'une nouvelle forme")
+                    FormeGeometrique.objects.create(
+                        plan=plan,
+                        type_forme=type_forme,
+                        data=data
+                    )
+
+            # Sauvegarder les préférences
+            if preferences := request.data.get('preferences'):
+                print("[PlanViewSet][save_with_elements] Mise à jour des préférences")
+                plan.preferences = preferences
+                plan.save(update_fields=['preferences'])
+
+            # Forcer la mise à jour de la date de modification
+            plan.touch()
+            print("[PlanViewSet][save_with_elements] Sauvegarde réussie")
+
+            # Retourner le plan mis à jour
+            serializer = PlanDetailSerializer(plan)
+            return Response(serializer.data)
+
+        except Exception as e:
+            print(f"[PlanViewSet][save_with_elements] ERREUR lors de la sauvegarde: {str(e)}")
+            print(f"[PlanViewSet][save_with_elements] Type d'erreur: {type(e)}")
+            import traceback
+            print(f"[PlanViewSet][save_with_elements] Traceback:\n{traceback.format_exc()}")
+            return Response(
+                {'detail': f'Erreur lors de la sauvegarde: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 class FormeGeometriqueViewSet(viewsets.ModelViewSet):
     """
     ViewSet pour gérer les formes géométriques.
@@ -494,7 +478,7 @@ class FormeGeometriqueViewSet(viewsets.ModelViewSet):
         plan = serializer.validated_data['plan']
         user = self.request.user
         
-        if plan.createur != user and user.role not in ['admin', 'dealer']:
+        if plan.createur != user and user.role not in ['admin', 'concessionnaire']:
             raise PermissionError('Vous n\'avez pas la permission de modifier ce plan')
         
         serializer.save()
@@ -510,7 +494,7 @@ class ConnexionViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.role == 'admin':
             return Connexion.objects.all()
-        elif user.role == 'dealer':
+        elif user.role == 'concessionnaire':
             return Connexion.objects.filter(
                 plan__createur__in=[user.id] + list(user.clients.values_list('id', flat=True))
             )
@@ -528,7 +512,7 @@ class TexteAnnotationViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.role == 'admin':
             return TexteAnnotation.objects.all()
-        elif user.role == 'dealer':
+        elif user.role == 'concessionnaire':
             return TexteAnnotation.objects.filter(
                 plan__createur__in=[user.id] + list(user.clients.values_list('id', flat=True))
             )

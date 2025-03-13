@@ -27,16 +27,17 @@ class UserSerializer(serializers.ModelSerializer):
     """Sérialiseur pour l'utilisateur avec gestion des rôles et du concessionnaire."""
     password = serializers.CharField(write_only=True, required=False)
     old_password = serializers.CharField(write_only=True, required=False)
-    dealer_name = serializers.SerializerMethodField()
+    concessionnaire_name = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField()
     is_active = serializers.BooleanField(read_only=True)
     permissions = serializers.SerializerMethodField()
     user_type = serializers.SerializerMethodField()
-    dealer = serializers.PrimaryKeyRelatedField(
+    concessionnaire_id = serializers.PrimaryKeyRelatedField(
         source='concessionnaire',
         queryset=User.objects.filter(role='CONCESSIONNAIRE'),
         required=False,
-        allow_null=True
+        allow_null=True,
+        write_only=True
     )
     plans_count = serializers.SerializerMethodField()
     usine = UserNestedSerializer(read_only=True)
@@ -53,14 +54,13 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'password', 'old_password', 'role', 'concessionnaire', 'dealer',
-            'dealer_name', 'company_name', 'must_change_password', 'phone',
+            'password', 'old_password', 'role', 'concessionnaire', 'concessionnaire_id',
+            'concessionnaire_name', 'company_name', 'must_change_password', 'phone',
             'full_name', 'is_active', 'permissions', 'user_type', 'plans_count',
-            'usine', 'usine_id', 'concessionnaire'
+            'usine', 'usine_id'
         ]
         read_only_fields = ['id']
         extra_kwargs = {
-            'concessionnaire': {'required': False},
             'role': {'required': True}
         }
 
@@ -89,12 +89,12 @@ class UserSerializer(serializers.ModelSerializer):
             # Vérifier que le concessionnaire existe et a une usine
             if concessionnaire:
                 try:
-                    dealer = User.objects.get(id=concessionnaire.id if isinstance(concessionnaire, User) else concessionnaire)
-                    if dealer.role != 'CONCESSIONNAIRE':
+                    concessionnaire = User.objects.get(id=concessionnaire.id if isinstance(concessionnaire, User) else concessionnaire)
+                    if concessionnaire.role != 'CONCESSIONNAIRE':
                         raise serializers.ValidationError({
                             'concessionnaire': 'L\'utilisateur sélectionné n\'est pas un concessionnaire'
                         })
-                    if not dealer.usine:
+                    if not concessionnaire.usine:
                         raise serializers.ValidationError({
                             'concessionnaire': 'Le concessionnaire doit être rattaché à une usine'
                         })
@@ -126,7 +126,7 @@ class UserSerializer(serializers.ModelSerializer):
 
         return data
 
-    def get_dealer_name(self, obj):
+    def get_concessionnaire_name(self, obj):
         """Retourne le nom du concessionnaire si l'utilisateur en a un."""
         if obj.concessionnaire:
             return obj.concessionnaire.get_display_name()
@@ -142,7 +142,7 @@ class UserSerializer(serializers.ModelSerializer):
             'can_manage_users': obj.role in ['ADMIN', 'CONCESSIONNAIRE'],
             'can_manage_plans': True,  # Tous les utilisateurs peuvent gérer leurs plans
             'can_view_all_plans': obj.role in ['ADMIN', 'CONCESSIONNAIRE'],
-            'can_manage_dealers': obj.role == 'ADMIN'
+            'can_manage_concessionnaires': obj.role == 'ADMIN'
         }
         return permissions
 
@@ -151,7 +151,7 @@ class UserSerializer(serializers.ModelSerializer):
         role_mapping = {
             'ADMIN': 'admin',
             'USINE': 'usine',
-            'CONCESSIONNAIRE': 'dealer',
+            'CONCESSIONNAIRE': 'concessionnaire',
             'AGRICULTEUR': 'agriculteur'
         }
         return role_mapping.get(obj.role, 'agriculteur')
@@ -234,7 +234,7 @@ class UserSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-class DealerListSerializer(serializers.ModelSerializer):
+class ConcessionnaireListSerializer(serializers.ModelSerializer):
     """Sérialiseur pour la liste des concessionnaires."""
     name = serializers.SerializerMethodField()
 

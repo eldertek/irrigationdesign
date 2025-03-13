@@ -87,7 +87,7 @@ class Utilisateur(AbstractUser):
         return self.role == self.Role.USINE
 
     @property
-    def is_dealer(self):
+    def is_concessionnaire(self):
         return self.role == self.Role.CONCESSIONNAIRE
 
     @property

@@ -290,9 +290,10 @@
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
               ></textarea>
             </div>
-            <!-- Assignation usine/concessionnaire/agriculteur (admin uniquement) -->
-            <div v-if="authStore.isAdmin" class="space-y-4">
-              <div>
+            <!-- Assignation usine/concessionnaire/agriculteur (admin et usine) -->
+            <div v-if="authStore.isAdmin || authStore.user?.user_type === 'usine'" class="space-y-4">
+              <!-- Section usine (admin uniquement) -->
+              <div v-if="authStore.isAdmin">
                 <label for="edit-usine" class="block text-sm font-medium text-gray-700">
                   Usine
                 </label>
@@ -308,6 +309,7 @@
                   </option>
                 </select>
               </div>
+              <!-- Section concessionnaire -->
               <div>
                 <label for="edit-concessionnaire" class="block text-sm font-medium text-gray-700">
                   Concessionnaire
@@ -315,7 +317,7 @@
                 <select
                   id="edit-concessionnaire"
                   v-model="editPlanData.concessionnaire"
-                  :disabled="!editPlanData.usine || loading"
+                  :disabled="(authStore.isAdmin && !editPlanData.usine) || loading"
                   class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   <option :value="null">Sélectionner un concessionnaire</option>
@@ -323,10 +325,11 @@
                     {{ formatUserDisplay(concessionnaire) }}
                   </option>
                 </select>
-                <p v-if="!editPlanData.usine" class="mt-1 text-sm text-gray-500">
+                <p v-if="authStore.isAdmin && !editPlanData.usine" class="mt-1 text-sm text-gray-500">
                   Veuillez d'abord sélectionner une usine
                 </p>
               </div>
+              <!-- Section agriculteur -->
               <div>
                 <label for="edit-agriculteur" class="block text-sm font-medium text-gray-700">
                   Agriculteur
@@ -334,7 +337,7 @@
                 <select
                   id="edit-agriculteur"
                   v-model="editPlanData.agriculteur"
-                  :disabled="!editPlanData.usine || !editPlanData.concessionnaire || loading"
+                  :disabled="!editPlanData.concessionnaire || loading"
                   class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   <option :value="null">Sélectionner un agriculteur</option>
@@ -399,6 +402,14 @@
           </form>
         </div>
       </div>
+      <!-- Modal de confirmation de suppression -->
+      <ConfirmationModal
+        v-if="showDeleteModal"
+        title="Supprimer le plan"
+        message="Êtes-vous sûr de vouloir supprimer ce plan ? Cette action est irréversible."
+        @confirm="confirmDeletePlan"
+        @cancel="cancelDeletePlan"
+      />
     </div>
   </div>
 </template>
@@ -409,6 +420,8 @@ import { useIrrigationStore, type UserDetails } from '@/stores/irrigation'
 import { useAuthStore, formatUserName } from '@/stores/auth'
 import { fetchUsersByHierarchy } from '@/services/api'
 import NewPlanModal from '@/components/NewPlanModal.vue'
+import ConfirmationModal from '@/components/ConfirmationModal.vue'
+
 interface LocalUser {
   id: number
   username: string
@@ -463,6 +476,8 @@ const usines = ref<Usine[]>([])
 const clients = ref<ClientWithConcessionnaire[]>([])
 const showNewPlanModal = ref(false)
 const showEditPlanModal = ref(false)
+const showDeleteModal = ref(false)
+const planToDelete = ref<LocalPlan | null>(null)
 const newPlan = ref({
   nom: '',
   description: '',
@@ -744,19 +759,31 @@ async function editPlan(plan: LocalPlan) {
 
 async function deletePlan(plan: LocalPlan) {
   if (!plan?.id) return
-  if (confirm('Êtes-vous sûr de vouloir supprimer ce plan ?')) {
-    try {
-      await irrigationStore.deletePlan(plan.id)
-      await loadPlans()
-      // Si le plan supprimé était le plan courant, le nettoyer
-      if (irrigationStore.currentPlan?.id === plan.id) {
-        irrigationStore.clearCurrentPlan()
-      }
-    } catch (error) {
-      console.error('Erreur lors de la suppression du plan:', error)
-      alert('Une erreur est survenue lors de la suppression du plan')
+  planToDelete.value = plan
+  showDeleteModal.value = true
+}
+
+async function confirmDeletePlan() {
+  if (!planToDelete.value?.id) return
+  try {
+    await irrigationStore.deletePlan(planToDelete.value.id)
+    await loadPlans()
+    // Si le plan supprimé était le plan courant, le nettoyer
+    if (irrigationStore.currentPlan?.id === planToDelete.value.id) {
+      irrigationStore.clearCurrentPlan()
     }
+  } catch (error) {
+    console.error('Erreur lors de la suppression du plan:', error)
+    alert('Une erreur est survenue lors de la suppression du plan')
+  } finally {
+    showDeleteModal.value = false
+    planToDelete.value = null
   }
+}
+
+function cancelDeletePlan() {
+  showDeleteModal.value = false
+  planToDelete.value = null
 }
 
 function formatDate(dateString: string) {
@@ -920,7 +947,16 @@ watch(() => editPlanData.value.concessionnaire, async (newConcessionnaireId) => 
 function canDeletePlan(plan: LocalPlan): boolean {
   const user = authStore.user
   if (!user) return false
+  
   if (user.user_type === 'admin') return true
+  
+  if (user.user_type === 'usine') {
+    if (typeof plan.usine === 'object') {
+      return plan.usine?.id === user.id;
+    }
+    return plan.usine === user.id;
+  }
+  
   if (user.user_type === 'concessionnaire') {
     if (typeof plan.concessionnaire === 'object') {
       return plan.concessionnaire?.id === user.id;

@@ -17,6 +17,20 @@
               {{ user ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur' }}
             </h3>
             <div class="mt-4">
+              <!-- Message d'erreur global -->
+              <div v-if="globalError" class="mb-4 rounded-md bg-red-50 p-4">
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                  <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-800">{{ globalError }}</h3>
+                  </div>
+                </div>
+              </div>
+              
               <form @submit.prevent="saveUser" class="space-y-6">
                 <!-- Champ de type d'utilisateur (uniquement pour les admins) -->
                 <div v-if="isAdmin">
@@ -160,18 +174,6 @@
                   <div v-if="passwordError" class="mt-2 text-sm text-red-600">{{ passwordError }}</div>
                 </div>
                 
-                <div class="flex items-center">
-                  <input
-                    id="is_active"
-                    type="checkbox"
-                    v-model="form.is_active"
-                    class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
-                  <label for="is_active" class="ml-2 block text-sm text-gray-900">
-                    Utilisateur actif
-                  </label>
-                </div>
-                
                 <div class="flex justify-end space-x-3">
                   <button
                     type="button"
@@ -192,7 +194,7 @@
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                     </span>
-                    {{ form.id ? 'Mettre à jour' : 'Créer' }}
+                    {{ form.id ? 'Enregistrer' : 'Créer' }}
                   </button>
                 </div>
               </form>
@@ -204,8 +206,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, reactive, computed, type PropType, watch, watchEffect, onMounted } from 'vue'
-import { useAuthStore, formatUserName } from '@/stores/auth'
+import { ref, reactive, type PropType, watchEffect, onMounted } from 'vue'
 
 // Types
 interface User {
@@ -236,7 +237,7 @@ interface UserReference {
 // Props du composant
 const props = defineProps({
   user: {
-    type: Object as PropType<Partial<User>>,
+    type: Object as PropType<Partial<User> | null>,
     default: () => ({})
   },
   concessionnaires: {
@@ -262,17 +263,28 @@ const props = defineProps({
   currentUsine: {
     type: String, 
     default: undefined
+  },
+  // Ajout d'une prop pour recevoir les erreurs API du parent
+  apiErrors: {
+    type: Array as PropType<{field: string, message: string}[]>,
+    default: () => []
+  },
+  // Ajout d'une prop pour forcer le rafraîchissement des données
+  refreshKey: {
+    type: Number,
+    default: 0
   }
 })
 
 // Emits
-const emit = defineEmits(['close', 'save'])
+const emit = defineEmits(['close', 'save', 'refresh'])
 
 // État du composant
 const loading = ref(false)
 const emailError = ref('')
 const usernameError = ref('')
 const passwordError = ref('')
+const globalError = ref('')
 const passwordConfirm = ref('')
 
 // Formulaire
@@ -359,12 +371,43 @@ watchEffect(() => {
   }
 })
 
+// Observer les changements dans les erreurs API et les afficher
+watchEffect(() => {
+  // Réinitialiser les erreurs locales
+  emailError.value = ''
+  usernameError.value = ''
+  passwordError.value = ''
+  globalError.value = ''
+  
+  // Traiter les erreurs API reçues du parent
+  if (props.apiErrors && props.apiErrors.length > 0) {
+    props.apiErrors.forEach(err => {
+      switch (err.field) {
+        case 'email':
+          emailError.value = err.message;
+          break;
+        case 'username':
+          usernameError.value = err.message;
+          break;
+        case 'password':
+          passwordError.value = err.message;
+          break;
+        case 'non_field_error':
+        default:
+          globalError.value = err.message;
+          break;
+      }
+    });
+  }
+})
+
 // Valider et envoyer le formulaire
 async function saveUser() {
   // Réinitialiser les erreurs
   emailError.value = ''
   usernameError.value = ''
   passwordError.value = ''
+  globalError.value = ''
   
   // Valider le formulaire
   let isValid = true
@@ -398,28 +441,22 @@ async function saveUser() {
       userData.usine_id = props.currentUsine ? parseInt(props.currentUsine) : undefined
     }
     
+    // Transformer concessionnaire en concessionnaire_id
+    if (userData.concessionnaire) {
+      userData.concessionnaire_id = userData.concessionnaire
+      delete userData.concessionnaire
+    }
+    
     if (props.currentConcessionnaire && form.role === 'AGRICULTEUR') {
       userData.concessionnaire_id = parseInt(props.currentConcessionnaire)
     }
     
-    emit('save', userData)
+    await emit('save', userData)
+    // Émettre un événement de rafraîchissement après la sauvegarde
+    emit('refresh')
     
   } catch (error: any) {
-    // Gérer les erreurs spécifiques
-    if (error.response?.data) {
-      const errors = error.response.data
-      if (errors.email) {
-        emailError.value = errors.email[0]
-      }
-      if (errors.username) {
-        usernameError.value = errors.username[0]
-      }
-      if (errors.password) {
-        passwordError.value = errors.password[0]
-      }
-    } else {
-      console.error('Erreur lors de la sauvegarde:', error)
-    }
+    console.error('Erreur locale:', error);
   } finally {
     loading.value = false
   }

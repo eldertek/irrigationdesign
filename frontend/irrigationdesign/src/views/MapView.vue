@@ -461,7 +461,7 @@ const saveStatus = ref<'saving' | 'success' | null>(null);
 // Ajout des imports et des refs nécessaires
 const authStore = useAuthStore();
 const concessionnaires = ref<UserDetails[]>([]);
-const concessionnaireClients = ref<UserDetails[]>([]);
+const concessionnaireAgriculteurs = ref<UserDetails[]>([]);
 const clientPlans = ref<Plan[]>([]);
 const selectedConcessionnaire = ref<UserDetails | null>(null);
 const selectedClient = ref<UserDetails | null>(null);
@@ -475,13 +475,13 @@ const filteredClients = computed(() => {
   console.log('[MapView][filteredClients] Computing with:', {
     userType: authStore.user?.user_type,
     selectedConcessionnaire: selectedConcessionnaire.value,
-    concessionnaireClients: concessionnaireClients.value
+    concessionnaireAgriculteurs: concessionnaireAgriculteurs.value
   });
   if (authStore.user?.user_type === 'admin') {
-    const clients = selectedConcessionnaire.value ? concessionnaireClients.value : [];
+    const clients = selectedConcessionnaire.value ? concessionnaireAgriculteurs.value : [];
     return clients;
   } else if (authStore.user?.user_type === 'concessionnaire') {
-    return concessionnaireClients.value;
+    return concessionnaireAgriculteurs.value;
   }
   return [];
 });
@@ -608,7 +608,7 @@ onMounted(async () => {
       isLoadingClients.value = true;
       try {
         const result = await authStore.fetchConcessionnaireAgriculteurs(authStore.user?.id || 0);
-        concessionnaireClients.value = Array.isArray(result) ? result : [result];
+        concessionnaireAgriculteurs.value = (Array.isArray(result) ? result : [result]) as unknown as UserDetails[];
       } catch (error) {
         console.error('Error loading clients:', error);
       } finally {
@@ -1250,10 +1250,10 @@ watch(selectedConcessionnaire, async (newConcessionnaire) => {
     isLoadingClients.value = true;
     try {
       const result = await authStore.fetchConcessionnaireAgriculteurs(newConcessionnaire.id);
-      concessionnaireClients.value = Array.isArray(result) ? result : [result];
+      concessionnaireAgriculteurs.value = (Array.isArray(result) ? result : [result]) as unknown as UserDetails[];
     } catch (error) {
       console.error('[MapView][watch selectedConcessionnaire] Error:', error);
-      concessionnaireClients.value = [];
+      concessionnaireAgriculteurs.value = [];
     } finally {
       isLoadingClients.value = false;
     }
@@ -1694,7 +1694,7 @@ function clearLastPlan() {
     
     // Réinitialiser les listes
     concessionnaires.value = [];
-    concessionnaireClients.value = [];
+    concessionnaireAgriculteurs.value = [];
     clientPlans.value = [];
   }
 
@@ -1705,7 +1705,7 @@ function clearLastPlan() {
     selectedClient.value = null;
     
     // Réinitialiser les listes enfants
-    concessionnaireClients.value = [];
+    concessionnaireAgriculteurs.value = [];
     clientPlans.value = [];
   }
 
@@ -1729,10 +1729,10 @@ function clearLastPlan() {
           usine: selectedUsine.value?.id
         }
       });
-      concessionnaireClients.value = Array.isArray(response.data) ? response.data : [response.data];
+      concessionnaireAgriculteurs.value = (Array.isArray(response.data) ? response.data : [response.data]) as unknown as UserDetails[];
     } catch (error) {
       console.error('[MapView] Error loading clients:', error);
-      concessionnaireClients.value = [];
+      concessionnaireAgriculteurs.value = [];
     } finally {
       isLoadingClients.value = false;
     }

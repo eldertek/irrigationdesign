@@ -26,7 +26,7 @@ class IsUsine(permissions.BasePermission):
                 return obj.concessionnaire.usine == request.user
         return False
 
-class IsDealer(permissions.BasePermission):
+class IsConcessionnaire(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user and request.user.role in ['ADMIN', 'USINE', 'CONCESSIONNAIRE']
 

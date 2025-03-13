@@ -3,7 +3,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
-from .serializers import UserSerializer, DealerListSerializer
+from .serializers import UserSerializer, ConcessionnaireListSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.shortcuts import get_object_or_404
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -15,7 +15,7 @@ from django.db.models import Q
 
 User = get_user_model()
 
-class IsAdminOrDealerOrUsine(permissions.BasePermission):
+class IsAdminOrConcessionnaireOrUsine(permissions.BasePermission):
     """Permission personnalisée pour les administrateurs, les concessionnaires et les usines."""
     
     def has_permission(self, request, view):
@@ -49,38 +49,61 @@ class UserViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = User.objects.all()
 
-        # Filtrer par rôle si spécifié
-        role = self.request.query_params.get('role')
-        if role:
-            queryset = queryset.filter(role=role)
-
-        # Filtrer par concessionnaire si spécifié
-        concessionnaire_id = self.request.query_params.get('concessionnaire')
-        if concessionnaire_id:
-            queryset = queryset.filter(concessionnaire_id=concessionnaire_id)
-            
-        # Filtrer par usine si spécifié
-        usine_id = self.request.query_params.get('usine')
-        if usine_id:
-            queryset = queryset.filter(usine_id=usine_id)
-
         # Appliquer les restrictions selon le rôle de l'utilisateur
         if user.role == 'ADMIN':
-            return queryset
+            base_queryset = queryset
         elif user.role == 'USINE':
-            # Une usine peut voir ses concessionnaires et leurs agriculteurs
-            return queryset.filter(
+            # Une usine peut voir ses concessionnaires et les agriculteurs de ses concessionnaires
+            base_queryset = queryset.filter(
                 Q(usine=user) |  # Ses concessionnaires
                 Q(concessionnaire__usine=user)  # Les agriculteurs de ses concessionnaires
             )
         elif user.role == 'CONCESSIONNAIRE':
-            return queryset.filter(concessionnaire=user)
-        return queryset.filter(id=user.id)
+            base_queryset = queryset.filter(Q(id=user.id) | Q(concessionnaire=user))
+        else:
+            base_queryset = queryset.filter(id=user.id)
+        
+        # Filtrer par rôle si spécifié
+        role = self.request.query_params.get('role')
+        if role:
+            # Cas spécial: usine recherchant des agriculteurs
+            if user.role == 'USINE' and role == 'AGRICULTEUR':
+                # On doit utiliser une requête spécifique qui cherche
+                # les agriculteurs liés aux concessionnaires de l'usine
+                result = queryset.filter(
+                    role='AGRICULTEUR',
+                    concessionnaire__usine=user
+                )
+            else:
+                # Cas standard: on filtre le résultat de base par rôle
+                result = base_queryset.filter(role=role)
+        else:
+            # Si pas de filtre de rôle, on utilise le queryset de base
+            result = base_queryset
+
+        # Filtrer par concessionnaire si spécifié
+        concessionnaire_id = self.request.query_params.get('concessionnaire')
+        if concessionnaire_id:
+            result = result.filter(concessionnaire_id=concessionnaire_id)
+            
+        # Filtrer par usine si spécifié
+        usine_id = self.request.query_params.get('usine')
+        if usine_id:
+            # Adaptons ce filtre selon le rôle demandé
+            if role == 'AGRICULTEUR':
+                # Pour les agriculteurs, on doit chercher ceux dont le concessionnaire
+                # est lié à l'usine spécifiée
+                result = result.filter(concessionnaire__usine_id=usine_id)
+            else:
+                # Pour les autres rôles, filtre direct par usine
+                result = result.filter(usine_id=usine_id)
+
+        return result.distinct()  # Assure qu'il n'y a pas de doublons
 
     def get_permissions(self):
         """Définit les permissions selon l'action."""
         if self.action in ['create', 'destroy', 'list']:
-            permission_classes = [IsAdminOrDealerOrUsine]
+            permission_classes = [IsAdminOrConcessionnaireOrUsine]
         else:
             permission_classes = [permissions.IsAuthenticated]
         return [permission() for permission in permission_classes]
@@ -92,25 +115,25 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
-    def dealers(self, request):
+    def concessionnaires(self, request):
         """Retourne la liste des concessionnaires."""
-        dealers = User.objects.filter(role='CONCESSIONNAIRE')
-        serializer = DealerListSerializer(dealers, many=True)
+        concessionnaires = User.objects.filter(role='CONCESSIONNAIRE')
+        serializer = ConcessionnaireListSerializer(concessionnaires, many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
-    def set_dealer(self, request, pk=None):
+    def set_concessionnaire(self, request, pk=None):
         """Associe un concessionnaire à un utilisateur."""
         user = self.get_object()
-        dealer_id = request.data.get('dealer_id')
+        concessionnaire_id = request.data.get('concessionnaire_id')
         
-        if not dealer_id:
+        if not concessionnaire_id:
             return Response(
-                {'error': 'dealer_id est requis'},
+                {'error': 'concessionnaire_id est requis'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        dealer = get_object_or_404(User, id=dealer_id, role='CONCESSIONNAIRE')
+        concessionnaire = get_object_or_404(User, id=concessionnaire_id, role='CONCESSIONNAIRE')
         
         # Vérifie les permissions
         if request.user.role not in ['ADMIN', 'CONCESSIONNAIRE', 'USINE']:
@@ -119,19 +142,19 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        if request.user.role == 'CONCESSIONNAIRE' and request.user != dealer:
+        if request.user.role == 'CONCESSIONNAIRE' and request.user != concessionnaire:
             return Response(
                 {'error': 'Un concessionnaire ne peut assigner que lui-même'},
                 status=status.HTTP_403_FORBIDDEN
             )
             
-        if request.user.role == 'USINE' and (dealer.usine != request.user):
+        if request.user.role == 'USINE' and (concessionnaire.usine != request.user):
             return Response(
                 {'error': 'Une usine ne peut assigner que ses propres concessionnaires'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        user.concessionnaire = dealer
+        user.concessionnaire = concessionnaire
         user.save()
         
         serializer = self.get_serializer(user)

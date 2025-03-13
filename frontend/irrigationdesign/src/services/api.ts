@@ -12,6 +12,12 @@ export interface UserFilter {
   include_details?: boolean;
 }
 
+// Type pour les erreurs d'API standardisées
+export interface ApiError {
+  field: string;
+  message: string;
+}
+
 // Configuration de base de l'API
 const api = axios.create({
   baseURL: '/api',
@@ -82,6 +88,48 @@ api.interceptors.response.use(
   }
 );
 
+// Utilitaire pour formater les erreurs d'API de manière standardisée
+export function formatApiErrors(error: any): ApiError[] {
+  const formatted: ApiError[] = [];
+  
+  // Si nous avons une réponse d'erreur du serveur
+  if (error.response?.data) {
+    const errorData = error.response.data;
+    
+    // Erreurs sous forme de dictionnaire (champ -> [erreurs])
+    if (typeof errorData === 'object' && !Array.isArray(errorData)) {
+      Object.entries(errorData).forEach(([field, messages]) => {
+        if (Array.isArray(messages)) {
+          messages.forEach(message => {
+            formatted.push({ field, message });
+          });
+        } else if (typeof messages === 'string') {
+          formatted.push({ field, message: messages });
+        }
+      });
+    } 
+    // Message d'erreur global
+    else if (typeof errorData === 'string') {
+      formatted.push({ field: 'non_field_error', message: errorData });
+    }
+    // Erreur détaillée (DRF)
+    else if (errorData.detail) {
+      formatted.push({ field: 'non_field_error', message: errorData.detail });
+    }
+  } 
+  // Pas de réponse du serveur (erreur réseau)
+  else if (error.message) {
+    formatted.push({ field: 'non_field_error', message: `Erreur de connexion: ${error.message}` });
+  }
+  
+  // Si aucune erreur n'a été formatée, ajouter un message générique
+  if (formatted.length === 0) {
+    formatted.push({ field: 'non_field_error', message: 'Une erreur inconnue s\'est produite' });
+  }
+  
+  return formatted;
+}
+
 // Service d'authentification
 export const authService = {
   async login(username: string, password: string) {
@@ -105,6 +153,8 @@ export async function fetchUsersByHierarchy(params: {
   includeDetails?: boolean;
   search?: string;
 }) {
+  console.log(`[fetchUsersByHierarchy] Récupération des utilisateurs:`, params);
+  
   const filters: UserFilter = { 
     role: params.role 
   };
@@ -125,8 +175,16 @@ export async function fetchUsersByHierarchy(params: {
     filters.search = params.search;
   }
 
-  const response = await userService.getUsers(filters);
-  return response.data;
+  console.log(`[fetchUsersByHierarchy] Filtres appliqués:`, filters);
+  
+  try {
+    const response = await userService.getUsers(filters);
+    console.log(`[fetchUsersByHierarchy] Résultat (${response.data.length} utilisateurs):`, response.data);
+    return response.data;
+  } catch (error) {
+    console.error(`[fetchUsersByHierarchy] Erreur lors de la récupération des utilisateurs:`, error);
+    throw error;
+  }
 }
 
 // Service pour les utilisateurs
@@ -266,6 +324,21 @@ export const irrigationService = {
   },
   
   async createPlan(planData: any) {
+    const authStore = useAuthStore();
+    
+    // Validation pour les usines
+    if (authStore.user?.user_type === 'usine') {
+      if (!planData.concessionnaire && !planData.concessionnaire_id) {
+        throw new Error('La sélection d\'un concessionnaire est obligatoire');
+      }
+      if (!planData.agriculteur && !planData.agriculteur_id) {
+        throw new Error('La sélection d\'un agriculteur est obligatoire');
+      }
+      
+      // Ajouter automatiquement l'ID de l'usine
+      planData.usine = authStore.user.id;
+    }
+    
     return await api.post('/plans/', planData);
   },
   

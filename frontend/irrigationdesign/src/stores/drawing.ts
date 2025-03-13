@@ -553,12 +553,19 @@ export const useDrawingStore = defineStore('drawing', {
       this.loading = true;
       try {
         const targetPlanId = planId || this.currentPlanId;
+        console.log('[DrawingStore][saveToPlan] Début de la sauvegarde', {
+          targetPlanId,
+          currentPlanId: this.currentPlanId,
+          elementsCount: this.elements.length,
+          elementsToDelete: options?.elementsToDelete
+        });
+
         if (!targetPlanId) {
           throw new Error('Aucun plan sélectionné pour la sauvegarde');
         }
 
         // Logs détaillés des éléments avant la sauvegarde
-        console.log('[DrawingStore] État des éléments avant sauvegarde:', {
+        console.log('[DrawingStore][saveToPlan] État des éléments avant sauvegarde:', {
           elements: this.elements.map(el => ({
             id: el.id,
             type_forme: el.type_forme,
@@ -574,52 +581,14 @@ export const useDrawingStore = defineStore('drawing', {
           }))
         });
 
-        console.log('[DrawingStore] Début de la sauvegarde', {
-          planId: targetPlanId,
-          elementsCount: this.elements.length,
-          elements: this.elements.map(el => ({
-            id: el.id,
-            type_forme: el.type_forme,
-            isTextRectangle: el.type_forme === 'TEXTE' || isTextData(el.data),
-            isPolygon: el.type_forme === 'POLYGON' || isPolygonData(el.data),
-            isElevationLine: el.type_forme === 'ELEVATIONLINE' || isElevationData(el.data)
-          }))
-        });
-
         const formesAvecType = this.elements.map(element => {
-          console.log('[DrawingStore] Préparation de l\'élément pour sauvegarde', {
+          console.log('[DrawingStore][saveToPlan] Préparation élément pour sauvegarde', {
             id: element.id,
             type_forme: element.type_forme,
             isTextRectangle: element.type_forme === 'TEXTE' || isTextData(element.data),
             dataType: element.data ? Object.keys(element.data) : null,
             dataContent: element.data
           });
-
-          // Vérifier si c'est un TextRectangle
-          if (element.type_forme === 'TEXTE' && isTextData(element.data)) {
-            console.log('[DrawingStore] Traitement spécial TextRectangle', {
-              bounds: element.data.bounds,
-              content: element.data.content,
-              style: element.data.style
-            });
-          }
-
-          // Vérifier si c'est un Polygon
-          if (element.type_forme === 'POLYGON' && isPolygonData(element.data)) {
-            console.log('[DrawingStore] Traitement spécial Polygon', {
-              points: element.data.points,
-              style: element.data.style
-            });
-          }
-
-          // Vérifier si c'est une ElevationLine
-          if (element.type_forme === 'ELEVATIONLINE' && isElevationData(element.data)) {
-            console.log('[DrawingStore] Traitement spécial ElevationLine', {
-              points: element.data.points,
-              style: element.data.style,
-              elevationData: element.data.elevationData
-            });
-          }
 
           return {
             ...element,
@@ -628,19 +597,15 @@ export const useDrawingStore = defineStore('drawing', {
         });
 
         const elementsToDelete = options?.elementsToDelete || [];
-        console.log('[DrawingStore] Envoi de la sauvegarde', {
-          planId: targetPlanId,
+        const requestUrl = `/plans/${targetPlanId}/save_with_elements/`;
+        console.log('[DrawingStore][saveToPlan] Préparation requête API', {
+          url: requestUrl,
+          method: 'POST',
           formesCount: formesAvecType.length,
-          formes: formesAvecType,
-          elementsToDeleteCount: elementsToDelete.length,
-          preferences: {
-            currentTool: this.currentTool,
-            currentStyle: this.currentStyle,
-            lastUsedType: this.lastUsedType
-          }
+          elementsToDeleteCount: elementsToDelete.length
         });
 
-        const response = await api.post(`/plans/${targetPlanId}/save_with_elements/`, {
+        const response = await api.post(requestUrl, {
           formes: formesAvecType,
           connexions: [],
           annotations: [],
@@ -652,13 +617,14 @@ export const useDrawingStore = defineStore('drawing', {
           }
         });
 
-        console.log('[DrawingStore] Réponse de sauvegarde reçue', {
-          formes: response.data.formes,
-          status: response.status
+        console.log('[DrawingStore][saveToPlan] Réponse reçue', {
+          status: response.status,
+          formesCount: response.data.formes?.length,
+          data: response.data
         });
 
         this.elements = response.data.formes.map((forme: any) => {
-          console.log('[DrawingStore] Mise à jour de l\'élément après sauvegarde', {
+          console.log('[DrawingStore][saveToPlan] Mise à jour élément après sauvegarde', {
             forme,
             type_forme: forme.type_forme
           });
@@ -670,7 +636,15 @@ export const useDrawingStore = defineStore('drawing', {
         this.unsavedChanges = false;
         return response.data;
       } catch (error) {
-        console.error('[DrawingStore] Erreur lors de la sauvegarde:', error);
+        console.error('[DrawingStore][saveToPlan] ERREUR:', error);
+        console.error('[DrawingStore][saveToPlan] Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+        if (error.response) {
+          console.error('[DrawingStore][saveToPlan] Réponse d\'erreur:', {
+            status: error.response.status,
+            statusText: error.response.statusText,
+            data: error.response.data
+          });
+        }
         this.error = 'Erreur lors de la sauvegarde du plan';
         throw error;
       } finally {

@@ -208,6 +208,7 @@
       :is-usine="isUsine"
       :current-concessionnaire="isConcessionnaire ? authStore.user?.id?.toString() : undefined"
       :current-usine="isUsine ? authStore.user?.id?.toString() : undefined"
+      :api-errors="apiErrors"
       @close="closeUserModal"
       @save="saveUser"
     />
@@ -224,11 +225,13 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useAuthStore, formatUserName, getInitials, getRoleBadgeClass, getRoleLabel, getStatusBadgeClass } from '@/stores/auth'
-import { fetchUsersByHierarchy } from '@/services/api'
+import { fetchUsersByHierarchy, formatApiErrors } from '@/services/api'
+import { useNotificationStore } from '@/stores/notification'
 import UserFormModal from '@/components/UserFormModal.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
 
 const authStore = useAuthStore()
+const notificationStore = useNotificationStore()
 
 interface User {
   id: number;
@@ -287,6 +290,7 @@ const showDeleteModal = ref(false)
 const selectedUser = ref<User | null>(null)
 const userToDelete = ref<User | null>(null)
 const loading = ref(true)
+const apiErrors = ref<{field: string, message: string}[]>([])
 
 const filters = reactive({
   role: '',
@@ -435,7 +439,7 @@ async function fetchDependencies() {
 async function fetchAllConcessionnaires() {
   try {
     if (isAdmin.value) {
-      concessionnaires.value = await authStore.fetchConcessionnaires()
+      concessionnaires.value = await authStore.fetchUsersByRole({ role: 'CONCESSIONNAIRE' })
     } else if (isUsine.value) {
       concessionnaires.value = await authStore.fetchUsineConcessionnaires(authStore.user?.id!)
     }
@@ -478,25 +482,38 @@ function editUser(user: User) {
 function closeUserModal() {
   showUserModal.value = false
   selectedUser.value = null
+  apiErrors.value = []
 }
 
+// Création ou mise à jour d'un utilisateur
 async function saveUser(userData: any) {
+  // Réinitialiser les erreurs d'API
+  apiErrors.value = []
+  
+  const isUpdate = Boolean(userData.id)
   try {
-    const isUpdate = !!userData.id
+    // Mise à jour de la logique pour gérer correctement les relations
     const payload = { ...userData }
 
-    // Nettoyer les champs non nécessaires
-    delete payload.full_name
-    delete payload.display_name
+    // Logique différente selon le rôle actuel
+    if (isAdmin.value) {
+      // Admin peut créer tous types d'utilisateurs
+      if (payload.usine && typeof payload.usine === 'object') {
+        payload.usine_id = payload.usine.id
+      } else if (typeof payload.usine === 'number') {
+        payload.usine_id = payload.usine
+      }
 
-    // Gérer les rôles selon l'utilisateur connecté
-    if (isUsine.value) {
-      if (payload.role === 'CONCESSIONNAIRE') {
-        // Si un utilisateur usine crée un concessionnaire, l'assigner automatiquement à l'usine
-        payload.usine_id = authStore.user?.id
-      } else if (payload.role === 'AGRICULTEUR') {
-        // Si un utilisateur usine crée un agriculteur, vérifier le concessionnaire
-        if (payload.concessionnaire?.id) {
+      if (payload.concessionnaire && typeof payload.concessionnaire === 'object') {
+        payload.concessionnaire_id = payload.concessionnaire.id
+      } else if (typeof payload.concessionnaire === 'number') {
+        payload.concessionnaire_id = payload.concessionnaire
+      }
+    } else if (isUsine.value) {
+      // Usine peut créer des concessionnaires ou agriculteurs
+      payload.usine_id = authStore.user?.id
+      if (payload.role === 'AGRICULTEUR') {
+        if (payload.concessionnaire && typeof payload.concessionnaire === 'object') {
           payload.concessionnaire_id = payload.concessionnaire.id
         } else if (typeof payload.concessionnaire === 'number') {
           payload.concessionnaire_id = payload.concessionnaire
@@ -534,14 +551,29 @@ async function saveUser(userData: any) {
 
     if (isUpdate) {
       await authStore.updateUser(userData.id, payload)
+      notificationStore.success('Utilisateur modifié avec succès')
     } else {
       await authStore.createUser(payload)
+      notificationStore.success('Utilisateur créé avec succès')
     }
 
-    await fetchUsers()
+    // Recharger les données après une modification
+    await Promise.all([
+      fetchUsers(),
+      fetchDependencies()
+    ])
+    
     closeUserModal()
   } catch (error: any) {
     console.error('Error saving user:', error.response?.data || error)
+    
+    // Formater et stocker les erreurs d'API pour le modal
+    apiErrors.value = formatApiErrors(error)
+    
+    // Afficher également une notification d'erreur
+    notificationStore.error('Erreur lors de la sauvegarde de l\'utilisateur')
+    
+    // Générer un message d'erreur pour l'exception
     const errorData = error.response?.data || {}
     let errorMessage = ''
     if (typeof errorData === 'object') {
@@ -572,11 +604,19 @@ async function deleteUser() {
   if (!userToDelete.value) return
   try {
     await authStore.deleteUser(userToDelete.value.id)
-    await fetchUsers()
+    notificationStore.success('Utilisateur supprimé avec succès')
+    
+    // Recharger les données après une suppression
+    await Promise.all([
+      fetchUsers(),
+      fetchDependencies()
+    ])
+    
     showDeleteModal.value = false
     userToDelete.value = null
   } catch (error) {
     console.error('Erreur lors de la suppression de l\'utilisateur:', error)
+    notificationStore.error('Erreur lors de la suppression de l\'utilisateur')
     throw error
   }
 }

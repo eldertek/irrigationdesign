@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import api, { irrigationService } from '@/services/api';
 import { useAuthStore } from './auth';
+import { useNotificationStore } from './notification';
 
 interface PlanHistory {
   id: number;
@@ -162,7 +163,7 @@ export const useIrrigationStore = defineStore('irrigation', {
     async fetchClientPlans(clientId: number) {
       this.loading = true;
       try {
-        const response = await irrigationService.getClientPlans(clientId);
+        const response = await irrigationService.getAgriculteurPlans(clientId);
         return response.data;
       } catch (error) {
         this.error = 'Erreur lors du chargement des plans du client';
@@ -176,14 +177,29 @@ export const useIrrigationStore = defineStore('irrigation', {
     async createPlan(planData: NewPlan) {
       this.clearCurrentPlan();
       this.loading = true;
+      const notificationStore = useNotificationStore();
       try {
+        const authStore = useAuthStore();
+        
+        // Validation pour les usines
+        if (authStore.user?.user_type === 'usine') {
+          if (!planData.concessionnaire && !planData.concessionnaire_id) {
+            throw new Error('La sélection d\'un concessionnaire est obligatoire');
+          }
+          if (!planData.agriculteur && !planData.agriculteur_id) {
+            throw new Error('La sélection d\'un agriculteur est obligatoire');
+          }
+        }
+
         const response = await irrigationService.createPlan(planData);
         this.plans.push(response.data);
+        notificationStore.success(`Le plan "${response.data.nom}" a été créé avec succès`);
         return response.data;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error('Error creating plan:', errorMessage);
-        this.error = 'Erreur lors de la création du plan';
+        this.error = errorMessage;
+        notificationStore.error(`Erreur lors de la création du plan : ${errorMessage}`);
         throw error;
       } finally {
         this.loading = false;
@@ -196,7 +212,7 @@ export const useIrrigationStore = defineStore('irrigation', {
       this.loading = true;
       try {
         const data = { ...planData, agriculteur: clientId };
-        const response = await irrigationService.createPlanForClient(data);
+        const response = await irrigationService.createPlanForAgriculteur(data);
         this.plans.push(response.data);
         return response.data;
       } catch (error: unknown) {
@@ -229,25 +245,58 @@ export const useIrrigationStore = defineStore('irrigation', {
     
     // Sauvegarder un plan
     async savePlan(planId: number) {
-      if (!this.unsavedChanges) return;
+      if (!this.unsavedChanges) {
+        console.log('[IrrigationStore][savePlan] Aucun changement à sauvegarder');
+        return;
+      }
+
+      console.log('[IrrigationStore][savePlan] Début de la sauvegarde', {
+        planId,
+        currentPlan: this.currentPlan?.id,
+        hasUnsavedChanges: this.unsavedChanges
+      });
+
       this.loading = true;
       try {
         const response = await api.patch(`/plans/${planId}/`, {
           ...this.currentPlan,
           version: this.currentPlan?.version || 1
         });
+
+        console.log('[IrrigationStore][savePlan] Réponse reçue', {
+          status: response.status,
+          data: response.data
+        });
+
         // Mettre à jour le plan dans la liste
         const index = this.plans.findIndex(p => p.id === planId);
         if (index !== -1) {
+          console.log('[IrrigationStore][savePlan] Mise à jour du plan dans la liste', {
+            index,
+            oldPlan: this.plans[index],
+            newPlan: response.data
+          });
           this.plans[index] = response.data;
         }
+
         // Mettre à jour le plan courant
         if (this.currentPlan?.id === planId) {
+          console.log('[IrrigationStore][savePlan] Mise à jour du plan courant');
           this.currentPlan = response.data;
         }
+
         this.unsavedChanges = false;
         return response.data;
       } catch (error) {
+        console.error('[IrrigationStore][savePlan] ERREUR:', error);
+        console.error('[IrrigationStore][savePlan] Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+        if (error.response) {
+          console.error('[IrrigationStore][savePlan] Réponse d\'erreur:', {
+            status: error.response.status,
+            statusText: error.response.statusText,
+            data: error.response.data
+          });
+        }
         this.error = 'Erreur lors de la sauvegarde du plan';
         throw error;
       } finally {
@@ -259,9 +308,21 @@ export const useIrrigationStore = defineStore('irrigation', {
     async updatePlanDetails(planId: number, planData: Partial<Plan>) {
       console.log('Mise à jour du plan avec les données:', planData);
       const { agriculteur_id, concessionnaire_id, usine_id, ...otherData } = planData;
+      const notificationStore = useNotificationStore();
       
       try {
+        const authStore = useAuthStore();
         const data: Record<string, any> = { ...otherData };
+        
+        // Validation pour les usines
+        if (authStore.user?.user_type === 'usine') {
+          if (!concessionnaire_id && !planData.concessionnaire) {
+            throw new Error('La sélection d\'un concessionnaire est obligatoire');
+          }
+          if (!agriculteur_id && !planData.agriculteur) {
+            throw new Error('La sélection d\'un agriculteur est obligatoire');
+          }
+        }
         
         if (agriculteur_id !== undefined) {
           data.agriculteur_id = agriculteur_id;
@@ -287,10 +348,12 @@ export const useIrrigationStore = defineStore('irrigation', {
         if (index !== -1) {
           this.plans[index] = { ...this.plans[index], ...response.data };
         }
-        
+
+        notificationStore.success(`Le plan "${response.data.nom}" a été mis à jour avec succès`);
         return response.data;
       } catch (error) {
         console.error('Erreur lors de la mise à jour du plan:', error);
+        notificationStore.error(`Erreur lors de la mise à jour du plan : ${error instanceof Error ? error.message : String(error)}`);
         throw error;
       }
     },
@@ -358,7 +421,9 @@ export const useIrrigationStore = defineStore('irrigation', {
     // Supprimer un plan
     async deletePlan(planId: number) {
       this.loading = true;
+      const notificationStore = useNotificationStore();
       try {
+        const planToDelete = this.plans.find(p => p.id === planId);
         await irrigationService.deletePlan(planId);
         // Retirer le plan de la liste locale
         this.plans = this.plans.filter(p => p.id !== planId);
@@ -366,8 +431,10 @@ export const useIrrigationStore = defineStore('irrigation', {
         if (this.currentPlan?.id === planId) {
           this.clearCurrentPlan();
         }
+        notificationStore.success(`Le plan "${planToDelete?.nom || ''}" a été supprimé avec succès`);
       } catch (error) {
         this.error = 'Erreur lors de la suppression du plan';
+        notificationStore.error(`Erreur lors de la suppression du plan : ${error instanceof Error ? error.message : String(error)}`);
         throw error;
       } finally {
         this.loading = false;

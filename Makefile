@@ -1,7 +1,7 @@
 # Force l'utilisation de bash
 SHELL := /bin/bash
 
-.PHONY: install migrate run test shell clean frontend serve dev list-files cypress-tests cypress-admin cypress-usine cypress-concessionnaire cypress-agriculteur cypress-admin-ui cypress-usine-ui cypress-concessionnaire-ui cypress-agriculteur-ui cypress-open
+.PHONY: install migrate run test shell clean frontend serve dev list-files cypress-tests cypress-admin cypress-usine cypress-concessionnaire cypress-agriculteur cypress-admin-ui cypress-usine-ui cypress-concessionnaire-ui cypress-agriculteur-ui cypress-open cypress-admin-debug cypress-usine-debug cypress-concessionnaire-debug cypress-agriculteur-debug cypress-extract-errors
 
 # Variables
 PYTHON = python
@@ -136,35 +136,22 @@ lint:
 format:
 	black .
 
-# Tests Cypress
+# Mode visuel (avec interface graphique) + logs
 cypress-admin:
 	mkdir -p logs
-	cd frontend/irrigationdesign && npx cypress run --browser electron --spec "cypress/e2e/auth/admin.cy.ts" > ../../logs/admin-results.txt 2>&1
+	cd frontend/irrigationdesign && npx cypress run --browser electron --headed --spec "cypress/e2e/auth/admin.cy.ts" --no-exit
 
 cypress-usine:
 	mkdir -p logs
-	cd frontend/irrigationdesign && npx cypress run --browser electron --spec "cypress/e2e/auth/usine.cy.ts" > ../../logs/usine-results.txt 2>&1
+	cd frontend/irrigationdesign && npx cypress run --browser electron --headed --spec "cypress/e2e/auth/usine.cy.ts" --no-exit
 
 cypress-concessionnaire:
 	mkdir -p logs
-	cd frontend/irrigationdesign && npx cypress run --browser electron --spec "cypress/e2e/auth/concessionnaire.cy.ts" > ../../logs/concessionnaire-results.txt 2>&1
+	cd frontend/irrigationdesign && npx cypress run --browser electron --headed --spec "cypress/e2e/auth/concessionnaire.cy.ts" --no-exit
 
 cypress-agriculteur:
 	mkdir -p logs
-	cd frontend/irrigationdesign && npx cypress run --browser electron --spec "cypress/e2e/auth/agriculteur.cy.ts" > ../../logs/agriculteur-results.txt 2>&1
-
-# Mode visuel (avec interface graphique)
-cypress-admin-ui:
-	cd frontend/irrigationdesign && npx cypress run --browser electron --headed --no-exit --spec "cypress/e2e/auth/admin.cy.ts"
-
-cypress-usine-ui:
-	cd frontend/irrigationdesign && npx cypress run --browser electron --headed --no-exit --spec "cypress/e2e/auth/usine.cy.ts"
-
-cypress-concessionnaire-ui:
-	cd frontend/irrigationdesign && npx cypress run --browser electron --headed --no-exit --spec "cypress/e2e/auth/concessionnaire.cy.ts"
-
-cypress-agriculteur-ui:
-	cd frontend/irrigationdesign && npx cypress run --browser electron --headed --no-exit --spec "cypress/e2e/auth/agriculteur.cy.ts"
+	cd frontend/irrigationdesign && npx cypress run --browser electron --headed --spec "cypress/e2e/auth/agriculteur.cy.ts" --no-exit
 
 # Ouvrir Cypress en mode interactif
 cypress-open:
@@ -202,4 +189,9 @@ help:
 	@echo "  make cypress-usine-ui - Exécute uniquement les tests usine en mode visuel"
 	@echo "  make cypress-concessionnaire-ui - Exécute uniquement les tests concessionnaire en mode visuel"
 	@echo "  make cypress-agriculteur-ui - Exécute uniquement les tests agriculteur en mode visuel"
-	@echo "  make cypress-open - Ouvre Cypress en mode interactif" 
+	@echo "  make cypress-admin-debug - Exécute uniquement les tests admin en mode débogage"
+	@echo "  make cypress-usine-debug - Exécute uniquement les tests usine en mode débogage"
+	@echo "  make cypress-concessionnaire-debug - Exécute uniquement les tests concessionnaire en mode débogage"
+	@echo "  make cypress-agriculteur-debug - Exécute uniquement les tests agriculteur en mode débogage"
+	@echo "  make cypress-open - Ouvre Cypress en mode interactif"
+	

@@ -33,6 +33,7 @@
           <div class="h-10 bg-gray-200 rounded"></div>
         </div>
         <select
+          id="edit-concessionnaire"
           v-else
           v-model="planData.concessionnaire"
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -51,6 +52,7 @@
           <div class="h-10 bg-gray-200 rounded"></div>
         </div>
         <select
+          id="edit-agriculteur"
           v-else
           v-model="planData.client"
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -66,6 +68,7 @@
       <div class="mb-4">
         <label class="block text-sm font-medium text-gray-700 mb-2">Nom du plan</label>
         <input
+          id="edit-nom"
           v-model="planData.nom"
           type="text"
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -76,6 +79,7 @@
       <div class="mb-6">
         <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
         <textarea
+          id="edit-description"
           v-model="planData.description"
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           rows="3"
@@ -96,7 +100,7 @@
           :disabled="!isFormValid || isCreating"
         >
           <span v-if="isCreating">Création en cours...</span>
-          <span v-else>Créer le plan</span>
+          <span v-else>Créer</span>
         </button>
       </div>
     </div>
@@ -124,14 +128,13 @@ const emit = defineEmits<{
 const authStore = useAuthStore();
 const irrigationStore = useIrrigationStore();
 const drawingStore = useDrawingStore();
-const loading = ref(false);
 const isCreating = ref(false);
 const error = ref<string | null>(null);
-const concessionnaires = ref<UserDetails[]>([]);
-const concessionnaireClients = ref<UserDetails[]>([]);
-const usines = ref<UserDetails[]>([]);
-const selectedConcessionnaire = ref<UserDetails | null>(null);
-const selectedClient = ref<UserDetails | null>(null);
+const concessionnaires = ref<any[]>([]);
+const concessionnaireClients = ref<any[]>([]);
+const usines = ref<any[]>([]);
+const selectedConcessionnaire = ref<any | null>(null);
+const selectedClient = ref<any | null>(null);
 const isLoadingConcessionnaires = ref(false);
 const isLoadingClients = ref(false);
 const isLoadingUsines = ref(false);
@@ -213,22 +216,13 @@ watch(() => props.modelValue, (isOpen) => {
   }
 });
 
-// Computed pour les clients disponibles selon le contexte
-const availableClients = computed(() => {
-  if (authStore.user?.user_type === 'admin') {
-    return selectedConcessionnaire.value
-      ? concessionnaireClients.value
-      : [];
-  }
-  return concessionnaireClients.value;
-});
-
 // Fonction pour charger les concessionnaires
 async function loadConcessionnaires(usineId?: number) {
   isLoadingConcessionnaires.value = true;
   try {
     if (usineId) {
-      concessionnaires.value = await authStore.fetchUsineConcessionnaires(usineId);
+      // Cast le résultat pour s'assurer de la compatibilité des types
+      concessionnaires.value = await authStore.fetchUsineConcessionnaires(usineId) as any[];
     } else {
       // Pour admin sans usine sélectionnée, utilisez userService directement
       const response = await userService.getConcessionnaires();
@@ -246,7 +240,8 @@ async function loadConcessionnaires(usineId?: number) {
 async function loadConcessionnaireClients(concessionnaireId: number) {
   isLoadingClients.value = true;
   try {
-    concessionnaireClients.value = await authStore.fetchConcessionnaireAgriculteurs(concessionnaireId);
+    // Cast le résultat pour s'assurer de la compatibilité des types
+    concessionnaireClients.value = await authStore.fetchConcessionnaireAgriculteurs(concessionnaireId) as any[];
   } catch (error) {
     console.error('[NewPlanModal] Error loading clients:', error);
     concessionnaireClients.value = [];
@@ -298,7 +293,8 @@ function closeModal() {
 async function loadUsines() {
   isLoadingUsines.value = true;
   try {
-    usines.value = await authStore.fetchUsines();
+    // Cast le résultat pour s'assurer de la compatibilité des types
+    usines.value = await authStore.fetchUsines() as any[];
   } catch (error) {
     console.error('[NewPlanModal] Error loading usines:', error);
     usines.value = [];
