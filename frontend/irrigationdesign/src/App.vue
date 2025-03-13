@@ -97,7 +97,7 @@ const navigationItems = computed(() => {
   const items = [...baseNavigationItems]
   
   // Ajouter l'accès aux utilisateurs pour admin et usine
-  if (isAdmin.value || authStore.user?.user_type === 'usine') {
+  if (isAdmin.value || authStore.user?.user_type === 'usine' || authStore.user?.user_type === 'concessionnaire') {
     items.push({ name: 'Utilisateurs', to: '/users' })
   }
   

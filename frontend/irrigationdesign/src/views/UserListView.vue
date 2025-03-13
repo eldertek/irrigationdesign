@@ -335,7 +335,9 @@ const filteredUsers = computed(() => {
   // Si c'est un concessionnaire, ne montrer que ses agriculteurs
   if (isConcessionnaire.value) {
     filtered = filtered.filter(user => 
-      user.role === 'AGRICULTEUR' && user.concessionnaire_id === authStore.user?.id
+      user.role === 'AGRICULTEUR' && 
+      (user.concessionnaire_id === authStore.user?.id || 
+       (user.concessionnaire && user.concessionnaire.id === authStore.user?.id))
     )
   }
   
@@ -346,9 +348,10 @@ const filteredUsers = computed(() => {
     }
     
     if (filters.concessionnaire) {
-      filtered = filtered.filter(user => 
-        user.concessionnaire?.id?.toString() === filters.concessionnaire.toString()
-      )
+      filtered = filtered.filter(user => {
+        const concessionnaireId = user.concessionnaire?.id || user.concessionnaire_id;
+        return concessionnaireId?.toString() === filters.concessionnaire.toString()
+      })
     }
     
     if (filters.usine && isAdmin.value) {
@@ -405,15 +408,16 @@ async function fetchUsers() {
       users.value = [...concessionnairesResult, ...agriculteursResult]
     } else if (isConcessionnaire.value) {
       // Pour un concessionnaire, récupérer seulement ses agriculteurs
-      const result = await fetchUsersByHierarchy({
+      users.value = await fetchUsersByHierarchy({
         role: 'AGRICULTEUR',
         concessionnaireId: authStore.user?.id,
         includeDetails: true
       })
-      users.value = result
+      console.log('Agriculteurs récupérés:', users.value)
     }
   } catch (error) {
     console.error('Erreur lors de la récupération des utilisateurs:', error)
+    notificationStore.error('Erreur lors de la récupération des utilisateurs')
   } finally {
     loading.value = false
   }
@@ -623,19 +627,27 @@ async function deleteUser() {
 
 // Vérification des permissions
 function canDeleteUser(user: User): boolean {
-  if (isAdmin.value) return true
+  // Un admin peut tout supprimer
+  if (isAdmin.value) return true;
+
+  // Une usine peut supprimer ses concessionnaires et leurs agriculteurs
   if (isUsine.value) {
     if (user.role === 'CONCESSIONNAIRE') {
-      return user.usine?.id === authStore.user?.id
+      return user.usine?.id === authStore.user?.id;
     }
     if (user.role === 'AGRICULTEUR') {
-      return user.concessionnaire?.usine?.id === authStore.user?.id
+      return user.concessionnaire?.usine?.id === authStore.user?.id;
     }
-    return false
+    return false;
   }
+
+  // Un concessionnaire peut supprimer ses agriculteurs
   if (isConcessionnaire.value) {
-    return user.role === 'AGRICULTEUR' && user.concessionnaire_id === authStore.user?.id
+    return user.role === 'AGRICULTEUR' && 
+           (user.concessionnaire_id === authStore.user?.id || 
+            user.concessionnaire?.id === authStore.user?.id);
   }
-  return false
+
+  return false;
 }
 </script> 

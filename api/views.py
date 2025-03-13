@@ -38,20 +38,83 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        """
+        Filtre les utilisateurs selon:
+        - Admin : tous les utilisateurs ou filtrés par rôle/usine/concessionnaire
+        - Usine : ses concessionnaires et leurs agriculteurs
+        - Concessionnaire : ses agriculteurs
+        - Agriculteur : lui-même
+        """
         user = self.request.user
         base_queryset = User.objects.annotate(plans_count=Count('plans'))
         
+        # Récupérer les paramètres de filtrage
+        role = self.request.query_params.get('role')
+        usine_id = self.request.query_params.get('usine')
+        concessionnaire_id = self.request.query_params.get('concessionnaire')
+        
+        print(f"\n[UserViewSet][get_queryset] ====== DÉBUT REQUÊTE ======")
+        print(f"Utilisateur connecté: {user.username} (role: {user.role}, id: {user.id})")
+        print(f"Paramètres reçus:")
+        print(f"- role demandé: {role}")
+        print(f"- usine_id: {usine_id}")
+        print(f"- concessionnaire_id: {concessionnaire_id}")
+        
+        # Appliquer les filtres de base selon le rôle demandé
+        if role:
+            print(f"\nApplication du filtre de rôle: {role}")
+            base_queryset = base_queryset.filter(role=role)
+            print(f"Nombre d'utilisateurs après filtre de rôle: {base_queryset.count()}")
+
+        # Filtrer selon le rôle de l'utilisateur connecté
         if user.role == ROLE_ADMIN:
-            return base_queryset.all()
+            print("\nTraitement pour ADMIN")
+            if usine_id:
+                if role == ROLE_DEALER:
+                    print(f"Filtrage des concessionnaires pour l'usine {usine_id}")
+                    base_queryset = base_queryset.filter(usine_id=usine_id)
+                elif role == ROLE_AGRICULTEUR:
+                    print(f"Filtrage des agriculteurs pour l'usine {usine_id}")
+                    base_queryset = base_queryset.filter(concessionnaire__usine_id=usine_id)
+            if concessionnaire_id:
+                print(f"Filtrage par concessionnaire: {concessionnaire_id}")
+                base_queryset = base_queryset.filter(concessionnaire_id=concessionnaire_id)
+        
         elif user.role == ROLE_USINE:
-            # Une usine peut voir ses concessionnaires et les agriculteurs qui leur sont rattachés
-            return base_queryset.filter(
-                Q(role=ROLE_DEALER, usine=user) |  # Concessionnaires de l'usine
-                Q(role=ROLE_AGRICULTEUR, concessionnaire__usine=user)  # Agriculteurs des concessionnaires de l'usine
-            )
+            print("\nTraitement pour USINE")
+            if role == ROLE_DEALER:
+                print("Filtrage des concessionnaires de l'usine")
+                base_queryset = base_queryset.filter(usine=user)
+            elif role == ROLE_AGRICULTEUR:
+                print("Filtrage des agriculteurs de l'usine")
+                base_queryset = base_queryset.filter(concessionnaire__usine=user)
+                if concessionnaire_id:
+                    print(f"Filtrage supplémentaire par concessionnaire: {concessionnaire_id}")
+                    base_queryset = base_queryset.filter(concessionnaire_id=concessionnaire_id)
+                    
+                # Debug des agriculteurs trouvés
+                agriculteurs = base_queryset.values('id', 'username', 'first_name', 'last_name', 'concessionnaire__username')
+                print("\nAgriculteurs trouvés:")
+                for agri in agriculteurs:
+                    print(f"- {agri['username']} (ID: {agri['id']}, Concessionnaire: {agri['concessionnaire__username']})")
+        
         elif user.role == ROLE_DEALER:
-            return base_queryset.filter(role=ROLE_AGRICULTEUR, concessionnaire=user)
-        return base_queryset.filter(id=user.id)
+            print("\nTraitement pour CONCESSIONNAIRE")
+            if role == ROLE_AGRICULTEUR:
+                print("Filtrage des agriculteurs du concessionnaire")
+                base_queryset = base_queryset.filter(concessionnaire=user)
+            else:
+                base_queryset = base_queryset.filter(id=user.id)
+        
+        else:  # ROLE_AGRICULTEUR
+            print("\nTraitement pour AGRICULTEUR")
+            base_queryset = base_queryset.filter(id=user.id)
+
+        print(f"\nRequête SQL finale: {base_queryset.query}")
+        result = base_queryset.distinct()
+        print(f"Nombre total de résultats: {result.count()}")
+        print("[UserViewSet][get_queryset] ====== FIN REQUÊTE ======\n")
+        return result
 
     def get_permissions(self):
         if self.action == 'create':

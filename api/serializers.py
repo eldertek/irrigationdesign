@@ -102,11 +102,20 @@ class PlanSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         print("[PlanSerializer] Création avec données:", validated_data)
-        # Si un client est spécifié, il devient le créateur
-        if 'agriculteur' in validated_data and validated_data['agriculteur']:
+        user = self.context['request'].user
+
+        # Si l'utilisateur est un agriculteur, utiliser ses relations
+        if user.role == 'AGRICULTEUR':
+            validated_data['agriculteur'] = user
+            validated_data['concessionnaire'] = user.concessionnaire
+            validated_data['usine'] = user.concessionnaire.usine if user.concessionnaire else None
+            validated_data['createur'] = user
+        # Si un agriculteur est spécifié, il devient le créateur
+        elif 'agriculteur' in validated_data and validated_data['agriculteur']:
             validated_data['createur'] = validated_data['agriculteur']
         else:
             validated_data['createur'] = self.context['request'].user
+
         return super().create(validated_data)
 
     def update(self, instance, validated_data):

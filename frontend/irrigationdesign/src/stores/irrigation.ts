@@ -181,14 +181,14 @@ export const useIrrigationStore = defineStore('irrigation', {
       try {
         const authStore = useAuthStore();
         
-        // Validation pour les usines
-        if (authStore.user?.user_type === 'usine') {
-          if (!planData.concessionnaire && !planData.concessionnaire_id) {
-            throw new Error('La sélection d\'un concessionnaire est obligatoire');
-          }
-          if (!planData.agriculteur && !planData.agriculteur_id) {
-            throw new Error('La sélection d\'un agriculteur est obligatoire');
-          }
+        // Pour un agriculteur, utiliser ses relations existantes
+        if (authStore.user?.user_type === 'agriculteur') {
+          planData = {
+            ...planData,
+            agriculteur: authStore.user.id,
+            concessionnaire: authStore.user.concessionnaire,
+            usine: authStore.user.usine
+          };
         }
 
         const response = await irrigationService.createPlan(planData);
@@ -290,11 +290,12 @@ export const useIrrigationStore = defineStore('irrigation', {
       } catch (error) {
         console.error('[IrrigationStore][savePlan] ERREUR:', error);
         console.error('[IrrigationStore][savePlan] Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
-        if (error.response) {
+        if (error && typeof error === 'object' && 'response' in error) {
+          const apiError = error as { response: { status: number; statusText: string; data: any } };
           console.error('[IrrigationStore][savePlan] Réponse d\'erreur:', {
-            status: error.response.status,
-            statusText: error.response.statusText,
-            data: error.response.data
+            status: apiError.response.status,
+            statusText: apiError.response.statusText,
+            data: apiError.response.data
           });
         }
         this.error = 'Erreur lors de la sauvegarde du plan';
@@ -348,8 +349,6 @@ export const useIrrigationStore = defineStore('irrigation', {
         if (index !== -1) {
           this.plans[index] = { ...this.plans[index], ...response.data };
         }
-
-        notificationStore.success(`Le plan "${response.data.nom}" a été mis à jour avec succès`);
         return response.data;
       } catch (error) {
         console.error('Erreur lors de la mise à jour du plan:', error);

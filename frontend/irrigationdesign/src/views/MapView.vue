@@ -246,7 +246,14 @@
                   </div>
                 </template>
                 <template v-else>
+                  <div v-if="filteredClients.length === 0" class="text-center py-8">
+                    <div class="text-gray-500 mb-2">Aucun agriculteur trouvé pour ce concessionnaire</div>
+                    <div class="text-sm text-gray-400">
+                      Veuillez vérifier que des agriculteurs ont été assignés à ce concessionnaire
+                    </div>
+                  </div>
                   <button
+                    v-else
                     v-for="client in filteredClients"
                     :key="client.id"
                     @click="selectClient(client)"
@@ -323,14 +330,21 @@
                   </div>
                 </template>
                 <template v-else>
+                  <div v-if="filteredClients.length === 0" class="text-center py-8">
+                    <div class="text-gray-500 mb-2">Aucun agriculteur trouvé pour ce concessionnaire</div>
+                    <div class="text-sm text-gray-400">
+                      Veuillez vérifier que des agriculteurs ont été assignés à ce concessionnaire
+                    </div>
+                  </div>
                   <button
+                    v-else
                     v-for="client in filteredClients"
                     :key="client.id"
                     @click="selectClient(client)"
                     class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
                   >
                     <div>
-                      <div class="font-medium text-gray-900">{{ client.first_name }} {{ client.last_name }} ({{ client.company_name }})</div>
+                      <div class="font-medium text-gray-900">{{ formatUserDisplay(client) }}</div>
                     </div>
                     <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -353,7 +367,134 @@
                 </button>
                 <span class="mx-2 text-gray-400">|</span>
                 <span class="text-sm text-gray-600">
-                  {{ selectedClient.first_name }} {{ selectedClient.last_name }} ({{ selectedClient.company_name }})
+                  {{ formatUserDisplay(selectedClient) }}
+                </span>
+              </div>
+              <h3 class="font-medium text-gray-700">Plans disponibles</h3>
+              <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
+                <template v-if="isLoadingPlans">
+                  <div v-for="i in 3" :key="i" class="animate-pulse">
+                    <div class="p-3 bg-white rounded-lg border border-gray-200">
+                      <div class="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div class="h-4 bg-gray-100 rounded w-2/3 mb-2"></div>
+                      <div class="h-3 bg-gray-50 rounded w-1/3"></div>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <button
+                    v-for="plan in clientPlans"
+                    :key="plan.id"
+                    @click="loadPlan(plan.id)"
+                    class="w-full px-4 py-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
+                  >
+                    <div class="font-medium text-gray-900">{{ plan.nom }}</div>
+                    <div class="text-sm text-gray-500">{{ plan.description }}</div>
+                    <div class="text-xs text-gray-400 mt-1">
+                      Modifié le {{ formatLastSaved(plan.date_modification) }}
+                    </div>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </div>
+          <!-- Interface usine -->
+          <div v-else-if="authStore.isUsine" class="space-y-4">
+            <!-- Liste des concessionnaires -->
+            <div v-if="!selectedConcessionnaire" class="space-y-2">
+              <h3 class="font-medium text-gray-700">Sélectionnez un concessionnaire</h3>
+              <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
+                <template v-if="isLoadingConcessionnaires">
+                  <div v-for="i in 3" :key="i" class="animate-pulse">
+                    <div class="p-3 bg-white rounded-lg border border-gray-200">
+                      <div class="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <button
+                    v-for="concessionnaire in concessionnaires"
+                    :key="concessionnaire.id"
+                    @click="selectConcessionnaire(concessionnaire)"
+                    class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
+                  >
+                    <div>
+                      <div class="font-medium text-gray-900">{{ formatUserDisplay(concessionnaire) }}</div>
+                    </div>
+                    <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                  </button>
+                </template>
+              </div>
+            </div>
+            <!-- Liste des clients du concessionnaire -->
+            <div v-else-if="!selectedClient" class="space-y-2">
+              <div class="flex items-center mb-4">
+                <button
+                  @click="backToConcessionnaireList"
+                  class="flex items-center text-sm text-gray-600 hover:text-gray-900"
+                >
+                  <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                  Retour à la liste des concessionnaires
+                </button>
+                <span class="mx-2 text-gray-400">|</span>
+                <span class="text-sm text-gray-600">
+                  {{ formatUserDisplay(selectedConcessionnaire) }}
+                </span>
+              </div>
+              <h3 class="font-medium text-gray-700">Sélectionnez un agriculteur</h3>
+              <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
+                <template v-if="isLoadingClients">
+                  <div v-for="i in 3" :key="i" class="animate-pulse">
+                    <div class="p-3 bg-white rounded-lg border border-gray-200">
+                      <div class="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <div v-if="filteredClients.length === 0" class="text-center py-8">
+                    <div class="text-gray-500 mb-2">Aucun agriculteur trouvé pour ce concessionnaire</div>
+                    <div class="text-sm text-gray-400">
+                      Veuillez vérifier que des agriculteurs ont été assignés à ce concessionnaire
+                    </div>
+                  </div>
+                  <button
+                    v-else
+                    v-for="client in filteredClients"
+                    :key="client.id"
+                    @click="selectClient(client)"
+                    class="flex items-center p-3 text-left bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors duration-200"
+                  >
+                    <div>
+                      <div class="font-medium text-gray-900">{{ formatUserDisplay(client) }}</div>
+                    </div>
+                    <svg class="w-5 h-5 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                  </button>
+                </template>
+              </div>
+            </div>
+            <!-- Liste des plans du client -->
+            <div v-else class="space-y-2">
+              <div class="flex items-center mb-4">
+                <button
+                  @click="backToClientList"
+                  class="flex items-center text-sm text-gray-600 hover:text-gray-900"
+                >
+                  <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                  Retour à la liste des clients
+                </button>
+                <span class="mx-2 text-gray-400">|</span>
+                <span class="text-sm text-gray-600">
+                  {{ formatUserDisplay(selectedClient) }}
                 </span>
               </div>
               <h3 class="font-medium text-gray-700">Plans disponibles</h3>
@@ -470,19 +611,25 @@ const isLoadingClients = ref(false);
 const isLoadingPlans = ref(false);
 // Référence vers le composant NewPlanModal
 const newPlanModalRef = ref<InstanceType<typeof NewPlanModal> | null>(null);
-// Computed pour les clients filtrés selon le concessionnaire sélectionné
+// Computed pour les clients filtrés selon le concessionnaire
 const filteredClients = computed(() => {
   console.log('[MapView][filteredClients] Computing with:', {
     userType: authStore.user?.user_type,
     selectedConcessionnaire: selectedConcessionnaire.value,
-    concessionnaireAgriculteurs: concessionnaireAgriculteurs.value
+    concessionnaireAgriculteurs: concessionnaireAgriculteurs.value,
+    agriculteurCount: concessionnaireAgriculteurs.value?.length || 0
   });
-  if (authStore.user?.user_type === 'admin') {
-    const clients = selectedConcessionnaire.value ? concessionnaireAgriculteurs.value : [];
-    return clients;
-  } else if (authStore.user?.user_type === 'concessionnaire') {
+
+  // Si l'utilisateur est un concessionnaire, retourner directement ses agriculteurs
+  if (authStore.isConcessionnaire) {
     return concessionnaireAgriculteurs.value;
   }
+  
+  // Pour les autres rôles (admin, usine), vérifier si un concessionnaire est sélectionné
+  if (selectedConcessionnaire.value) {
+    return concessionnaireAgriculteurs.value;
+  }
+
   return [];
 });
 // Computed property to transform Leaflet Layer to ShapeType
@@ -524,86 +671,31 @@ onMounted(async () => {
     // Charger les plans
     await irrigationStore.fetchPlans();
 
-    // Si admin, charger les usines
-    if (authStore.isAdmin) {
+    // Si admin ou usine, charger les usines
+    if (authStore.isAdmin || authStore.isUsine) {
       await loadUsines();
     }
 
-    // Récupérer la dernière position sauvegardée ou utiliser la position par défaut
-    const savedPosition = getMapPosition();
-    const center: LatLngTuple = savedPosition 
-      ? [savedPosition.lat, savedPosition.lng]
-      : [46.603354, 1.888334];
-    const zoom = savedPosition?.zoom ?? 6;
-    // Initialiser la carte une seule fois
-    if (mapContainer.value && !map.value) {
-      // Initialiser les outils de dessin (qui crée aussi la carte)
-      const mapInstance = initDrawing(mapContainer.value, center, zoom) as L.Map;
-      // Configurer la langue française pour Leaflet-Geoman
-      mapInstance.pm.setLang('fr');
-      // Désactiver les contrôles de rotation par défaut
-      mapInstance.pm.addControls({
-        rotateMode: false
-      });
-      // Initialiser l'état de la carte avec l'instance existante
-      initState(mapInstance);
-      // Sauvegarder la position quand la carte bouge
-      mapInstance.on('moveend', () => {
-        saveMapPosition(mapInstance);
-      });
-      // Ajouter l'écouteur d'événement pour le changement de localisation
-      window.addEventListener('map-set-location', ((event: CustomEvent) => {
-        if (mapInstance && event.detail) {
-          const { lat, lng, zoom } = event.detail;
-          mapInstance.flyTo([lat, lng], zoom, {
-            duration: 1.5,
-            easeLinearity: 0.25
-          });
-        }
-      }) as EventListener);
-    }
-
-    // Ne charger le dernier plan que si l'utilisateur n'est pas admin
-    if (!authStore.isAdmin) {
-      // Récupérer l'ID du dernier plan ouvert depuis le localStorage
-      const lastPlanId = localStorage.getItem('lastPlanId');
-      // Si un plan était ouvert précédemment, essayer de le charger
-      if (lastPlanId) {
-        try {
-          await loadPlan(parseInt(lastPlanId));
-        } catch (error) {
-          console.error('Error loading last plan:', error);
-          // S'assurer que l'état est réinitialisé en cas d'erreur
-          currentPlan.value = null;
-          irrigationStore.clearCurrentPlan();
-          drawingStore.clearCurrentPlan();
-          clearMap();
-          localStorage.removeItem('lastPlanId');
-        }
-      }
-    } else {
-      // Si c'est un admin, on s'assure que tout est propre
-      currentPlan.value = null;
-      irrigationStore.clearCurrentPlan();
-      drawingStore.clearCurrentPlan();
-      clearMap();
-      localStorage.removeItem('lastPlanId');
-    }
-
-    // Charger les concessionnaires au montage du composant si l'utilisateur est admin
-    if (authStore.isAdmin) {
+    // Si usine, charger directement ses concessionnaires
+    if (authStore.isUsine) {
       isLoadingConcessionnaires.value = true;
       try {
-        const result = await authStore.fetchUsersByRole({ role: 'CONCESSIONNAIRE' });
-        concessionnaires.value = result;
+        const response = await api.get('/users/', {
+          params: { 
+            role: 'CONCESSIONNAIRE',
+            usine: authStore.user?.id
+          }
+        });
+        concessionnaires.value = response.data;
       } catch (error) {
         console.error('Error loading concessionnaires:', error);
+        concessionnaires.value = [];
       } finally {
         isLoadingConcessionnaires.value = false;
       }
     }
     
-    // Charger les clients si c'est un concessionnaire
+    // Si concessionnaire, charger ses clients
     if (authStore.isConcessionnaire) {
       isLoadingClients.value = true;
       try {
@@ -616,6 +708,58 @@ onMounted(async () => {
       }
     }
 
+    // Récupérer la dernière position sauvegardée ou utiliser la position par défaut
+    const savedPosition = getMapPosition();
+    const center: LatLngTuple = savedPosition 
+      ? [savedPosition.lat, savedPosition.lng]
+      : [46.603354, 1.888334];
+    const zoom = savedPosition?.zoom ?? 6;
+
+    // Initialiser la carte une seule fois
+    if (mapContainer.value && !map.value) {
+      const mapInstance = initDrawing(mapContainer.value, center, zoom) as L.Map;
+      mapInstance.pm.setLang('fr');
+      mapInstance.pm.addControls({
+        rotateMode: false
+      });
+      initState(mapInstance);
+      mapInstance.on('moveend', () => {
+        saveMapPosition(mapInstance);
+      });
+      window.addEventListener('map-set-location', ((event: CustomEvent) => {
+        if (mapInstance && event.detail) {
+          const { lat, lng, zoom } = event.detail;
+          mapInstance.flyTo([lat, lng], zoom, {
+            duration: 1.5,
+            easeLinearity: 0.25
+          });
+        }
+      }) as EventListener);
+    }
+
+    // Ne charger le dernier plan que si l'utilisateur est agriculteur
+    if (authStore.isAgriculteur) {
+      const lastPlanId = localStorage.getItem('lastPlanId');
+      if (lastPlanId) {
+        try {
+          await loadPlan(parseInt(lastPlanId));
+        } catch (error) {
+          console.error('Error loading last plan:', error);
+          currentPlan.value = null;
+          irrigationStore.clearCurrentPlan();
+          drawingStore.clearCurrentPlan();
+          clearMap();
+          localStorage.removeItem('lastPlanId');
+        }
+      }
+    } else {
+      currentPlan.value = null;
+      irrigationStore.clearCurrentPlan();
+      drawingStore.clearCurrentPlan();
+      clearMap();
+      localStorage.removeItem('lastPlanId');
+    }
+
     // Écouter l'événement de création de forme
     window.addEventListener('shape:created', ((event: CustomEvent) => {
       const { shape, type, properties } = event.detail;
@@ -624,7 +768,6 @@ onMounted(async () => {
     }) as EventListener);
   } catch (error) {
     console.error('Error during component mount:', error);
-    // S'assurer que l'état est propre en cas d'erreur
     currentPlan.value = null;
     irrigationStore.clearCurrentPlan();
     drawingStore.clearCurrentPlan();
@@ -1718,23 +1861,82 @@ function clearLastPlan() {
 
   // Fonction pour sélectionner un concessionnaire
   async function selectConcessionnaire(concessionnaire: ExtendedUserDetails) {
+    console.log('\n[MapView][selectConcessionnaire] ====== DÉBUT SÉLECTION CONCESSIONNAIRE ======');
+    console.log('Informations du concessionnaire:', {
+      id: concessionnaire.id,
+      username: concessionnaire.username,
+      company: concessionnaire.company_name,
+      role: concessionnaire.role
+    });
+    console.log('Contexte utilisateur:', {
+      userType: authStore.user?.user_type,
+      userId: authStore.user?.id,
+      userRole: authStore.user?.role,
+      selectedUsineId: selectedUsine.value?.id
+    });
+
     selectedConcessionnaire.value = concessionnaire;
-    // Charger les clients de ce concessionnaire
     isLoadingClients.value = true;
     try {
-      const response = await api.get('/users/', {
-        params: {
-          role: 'AGRICULTEUR',
-          concessionnaire: concessionnaire.id,
-          usine: selectedUsine.value?.id
-        }
+      const params: Record<string, any> = {
+        role: 'AGRICULTEUR',
+        concessionnaire: concessionnaire.id
+      };
+
+      // Ajouter l'ID de l'usine selon le contexte
+      if (authStore.isUsine) {
+        console.log('Ajout de l\'ID de l\'usine connectée:', authStore.user?.id);
+        params.usine = authStore.user?.id;
+      } else if (selectedUsine.value) {
+        console.log('Ajout de l\'ID de l\'usine sélectionnée:', selectedUsine.value.id);
+        params.usine = selectedUsine.value.id;
+      }
+
+      console.log('Paramètres de la requête:', params);
+      
+      const response = await api.get('/users/', { params });
+      console.log('Réponse reçue du serveur:', {
+        status: response.status,
+        dataLength: Array.isArray(response.data) ? response.data.length : 'non-array',
+        data: response.data
       });
-      concessionnaireAgriculteurs.value = (Array.isArray(response.data) ? response.data : [response.data]) as unknown as UserDetails[];
-    } catch (error) {
-      console.error('[MapView] Error loading clients:', error);
+
+      if (Array.isArray(response.data)) {
+        concessionnaireAgriculteurs.value = response.data;
+        console.log(`${response.data.length} agriculteurs chargés`);
+        
+        // Log détaillé des agriculteurs
+        response.data.forEach((agriculteur, index) => {
+          console.log(`Agriculteur ${index + 1}:`, {
+            id: agriculteur.id,
+            username: agriculteur.username,
+            company: agriculteur.company_name,
+            concessionnaire: agriculteur.concessionnaire
+          });
+        });
+      } else {
+        console.warn('Format de réponse inattendu:', response.data);
+        concessionnaireAgriculteurs.value = [];
+      }
+
+      // Vérifier si la liste est vide
+      if (concessionnaireAgriculteurs.value.length === 0) {
+        console.warn('Aucun agriculteur trouvé pour ce concessionnaire');
+      }
+
+    } catch (error: unknown) {
+      console.error('ERREUR lors du chargement des agriculteurs:', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { response: { status: number; data: any } };
+        console.error('Détails de l\'erreur:', {
+          status: apiError.response.status,
+          data: apiError.response.data
+        });
+      }
       concessionnaireAgriculteurs.value = [];
     } finally {
       isLoadingClients.value = false;
+      console.log('[MapView][selectConcessionnaire] ====== FIN SÉLECTION CONCESSIONNAIRE ======\n');
     }
   }
 
@@ -1744,13 +1946,22 @@ function clearLastPlan() {
     // Charger les plans du client
     isLoadingPlans.value = true;
     try {
-      const response = await api.get('/plans/', {
-        params: {
-          agriculteur: client.id,
-          concessionnaire: selectedConcessionnaire.value?.id,
-          usine: selectedUsine.value?.id
-        }
-      });
+      const params: any = {
+        agriculteur: client.id
+      };
+      
+      // Ajouter les paramètres selon le rôle
+      if (authStore.isUsine) {
+        params.usine = authStore.user?.id;
+      } else if (selectedUsine.value) {
+        params.usine = selectedUsine.value.id;
+      }
+      
+      if (selectedConcessionnaire.value) {
+        params.concessionnaire = selectedConcessionnaire.value.id;
+      }
+      
+      const response = await api.get('/plans/', { params });
       clientPlans.value = response.data;
     } catch (error) {
       console.error('[MapView] Error loading client plans:', error);
