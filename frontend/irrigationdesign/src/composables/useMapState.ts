@@ -6,6 +6,7 @@ export function useMapState() {
   const map = ref<LeafletMap | null>(null);
   const searchQuery = ref('');
   const currentBaseMap = ref('Ville');
+  const activeLayer = ref<any>(null);
 
   const baseMaps = {
     'Ville': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -38,32 +39,70 @@ export function useMapState() {
     map.value = mapInstance;
     mapInstance.options.zoomSnap = 0.5;
     mapInstance.options.wheelPxPerZoomLevel = 120;
-    L.control.layers(baseMaps).addTo(mapInstance);
-    baseMaps[currentBaseMap.value as keyof typeof baseMaps].addTo(mapInstance);
+    
+    // Ajouter la couche initiale
+    activeLayer.value = baseMaps[currentBaseMap.value as keyof typeof baseMaps];
+    activeLayer.value.addTo(mapInstance);
 
-    mapInstance.on('baselayerchange', (e) => {
+    // Gérer les changements de couche de base via l'événement natif
+    mapInstance.on('baselayerchange', (e: any) => {
+      currentBaseMap.value = e.name;
+      activeLayer.value = e.layer;
+      
+      // Mettre à jour les options d'animation en fonction de la couche
       if (e.name === 'Cadastre') {
-        mapInstance.options.zoomAnimation = false;
+        map.value!.options.zoomAnimation = false;
       } else {
-        mapInstance.options.zoomAnimation = true;
+        map.value!.options.zoomAnimation = true;
       }
+      
+      // Force le recalcul des dimensions après le changement
+      setTimeout(() => {
+        if (map.value) {
+          map.value.invalidateSize(true);
+        }
+      }, 100);
     });
   };
 
   const changeBaseMap = (baseMapName: keyof typeof baseMaps) => {
     if (!map.value || !baseMaps[baseMapName]) return;
-    Object.values(baseMaps).forEach(layer => {
-      if (map.value?.hasLayer(layer)) {
-        map.value.removeLayer(layer);
-      }
-    });
-    baseMaps[baseMapName].addTo(map.value as L.Map);
-    currentBaseMap.value = baseMapName;
     
-    if (baseMapName === 'Cadastre' && map.value) {
-      map.value.options.zoomAnimation = false;
-    } else if (map.value) {
-      map.value.options.zoomAnimation = true;
+    try {
+      // Vérifier si la couche demandée est déjà active
+      if (currentBaseMap.value === baseMapName) return;
+      
+      // Retirer proprement l'ancienne couche si elle existe
+      if (activeLayer.value) {
+        // @ts-ignore - Contourner les problèmes de typage de Leaflet
+        if (map.value.hasLayer(activeLayer.value)) {
+          // @ts-ignore - Contourner les problèmes de typage de Leaflet
+          map.value.removeLayer(activeLayer.value);
+        }
+      }
+      
+      // Attendre un court instant pour s'assurer que la couche précédente est bien nettoyée
+      setTimeout(() => {
+        if (!map.value) return;
+        
+        // Mettre à jour les options d'animation en fonction de la couche
+        map.value.options.zoomAnimation = baseMapName !== 'Cadastre';
+        
+        // Ajouter la nouvelle couche
+        activeLayer.value = baseMaps[baseMapName];
+        // @ts-ignore - Contourner les problèmes de typage de Leaflet
+        activeLayer.value.addTo(map.value);
+        currentBaseMap.value = baseMapName;
+        
+        // Forcer un recalcul de la taille après le changement
+        map.value.invalidateSize(true);
+        
+        // Désactiver temporairement le zoom pour éviter les conflits pendant la transition
+        const currentZoom = map.value.getZoom();
+        map.value.setView(map.value.getCenter(), currentZoom, { animate: false });
+      }, 50);
+    } catch (error) {
+      console.error('Erreur lors du changement de carte de base:', error);
     }
   };
 
