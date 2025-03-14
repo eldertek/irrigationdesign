@@ -324,22 +324,16 @@ export const irrigationService = {
   },
   
   async createPlan(planData: any) {
-    const authStore = useAuthStore();
-    
-    // Validation pour les usines
-    if (authStore.user?.user_type === 'usine') {
-      if (!planData.concessionnaire && !planData.concessionnaire_id) {
-        throw new Error('La sélection d\'un concessionnaire est obligatoire');
-      }
-      if (!planData.agriculteur && !planData.agriculteur_id) {
-        throw new Error('La sélection d\'un agriculteur est obligatoire');
-      }
-      
-      // Ajouter automatiquement l'ID de l'usine
-      planData.usine = authStore.user.id;
-    }
-    
-    return await api.post('/plans/', planData);
+    // Formater les données pour s'assurer que les IDs sont des nombres
+    const formattedData = {
+      ...planData,
+      usine: planData.usine ? (typeof planData.usine === 'object' && 'id' in planData.usine ? planData.usine.id : Number(planData.usine)) : null,
+      concessionnaire: planData.concessionnaire ? (typeof planData.concessionnaire === 'object' && 'id' in planData.concessionnaire ? planData.concessionnaire.id : Number(planData.concessionnaire)) : null,
+      agriculteur: planData.agriculteur ? (typeof planData.agriculteur === 'object' && 'id' in planData.agriculteur ? planData.agriculteur.id : Number(planData.agriculteur)) : null
+    };
+
+    console.log('[api] Données formatées pour création:', formattedData);
+    return await api.post('/plans/', formattedData);
   },
   
   async updatePlan(planId: number, planData: any) {

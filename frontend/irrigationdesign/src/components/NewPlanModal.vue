@@ -316,20 +316,20 @@ async function createPlan() {
 
     // Gestion des IDs selon le type d'utilisateur
     if (authStore.user?.user_type === 'admin') {
-      data.usine = planData.value.usine;
-      data.concessionnaire = planData.value.concessionnaire;
+      data.usine = typeof planData.value.usine === 'object' ? planData.value.usine.id : planData.value.usine;
+      data.concessionnaire = typeof planData.value.concessionnaire === 'object' ? planData.value.concessionnaire.id : planData.value.concessionnaire;
       data.agriculteur = planData.value.client;
     } else if (authStore.user?.user_type === 'usine') {
       data.usine = authStore.user.id;
-      data.concessionnaire = planData.value.concessionnaire;
+      data.concessionnaire = typeof planData.value.concessionnaire === 'object' ? planData.value.concessionnaire.id : planData.value.concessionnaire;
       data.agriculteur = planData.value.client;
     } else if (authStore.user?.user_type === 'concessionnaire') {
-      data.usine = authStore.user.usine;
+      data.usine = typeof authStore.user.usine === 'object' ? authStore.user.usine.id : authStore.user.usine;
       data.concessionnaire = authStore.user.id;
       data.agriculteur = planData.value.client;
     } else if (authStore.user?.user_type === 'agriculteur') {
-      data.usine = authStore.user.usine;
-      data.concessionnaire = authStore.user.concessionnaire;
+      data.usine = typeof authStore.user.usine === 'object' ? authStore.user.usine.id : authStore.user.usine;
+      data.concessionnaire = typeof authStore.user.concessionnaire === 'object' ? authStore.user.concessionnaire.id : authStore.user.concessionnaire;
       data.agriculteur = authStore.user.id;
     }
 

@@ -191,7 +191,17 @@ export const useIrrigationStore = defineStore('irrigation', {
           };
         }
 
-        const response = await irrigationService.createPlan(planData);
+        // S'assurer que les IDs sont des nombres
+        const formattedData = {
+          ...planData,
+          usine: planData.usine ? (typeof planData.usine === 'object' && 'id' in planData.usine ? planData.usine.id : Number(planData.usine)) : null,
+          concessionnaire: planData.concessionnaire ? (typeof planData.concessionnaire === 'object' && 'id' in planData.concessionnaire ? planData.concessionnaire.id : Number(planData.concessionnaire)) : null,
+          agriculteur: planData.agriculteur ? (typeof planData.agriculteur === 'object' && 'id' in planData.agriculteur ? planData.agriculteur.id : Number(planData.agriculteur)) : null
+        };
+
+        console.log('[IrrigationStore] Données formatées pour création:', formattedData);
+
+        const response = await irrigationService.createPlan(formattedData);
         this.plans.push(response.data);
         notificationStore.success(`Le plan "${response.data.nom}" a été créé avec succès`);
         return response.data;
