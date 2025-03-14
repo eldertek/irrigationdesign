@@ -114,6 +114,35 @@ import { userService } from '@/services/api';
 import type { UserDetails } from '@/types/user';
 import { useDrawingStore } from '@/stores/drawing';
 
+interface User {
+  id: number;
+  user_type: string;
+  usine: IdType;
+  concessionnaire: IdType;
+}
+
+interface PlanData {
+  usine: IdType;
+  concessionnaire: IdType;
+  client: number | null;
+  nom: string;
+  description: string;
+}
+
+type IdType = { id: number } | number | null;
+
+// Helper function to safely extract ID
+function extractId(value: IdType): number | null {
+  if (!value) return null;
+  return typeof value === 'object' ? value.id : value;
+}
+
+// Helper function to validate ID is not null
+function validateId(id: number | null): number {
+  if (id === null) throw new Error('Invalid ID');
+  return id;
+}
+
 const props = defineProps<{
   modelValue: boolean;
 }>();
@@ -139,12 +168,12 @@ const isLoadingConcessionnaires = ref(false);
 const isLoadingClients = ref(false);
 const isLoadingUsines = ref(false);
 
-const planData = ref({
+const planData = ref<PlanData>({
   nom: '',
   description: '',
-  usine: null as number | null,
-  concessionnaire: null as number | null,
-  client: null as number | null
+  usine: null,
+  concessionnaire: null,
+  client: null
 });
 
 // Computed pour vérifier si le formulaire est valide
@@ -167,8 +196,9 @@ watch(() => planData.value.usine, async (newUsineId) => {
   planData.value.client = null;
   concessionnaireClients.value = [];
   
-  if (newUsineId) {
-    await loadConcessionnaires(newUsineId);
+  const usineId = extractId(newUsineId);
+  if (usineId) {
+    await loadConcessionnaires(usineId);
   } else {
     concessionnaires.value = [];
   }
@@ -180,8 +210,9 @@ watch(() => planData.value.concessionnaire, async (newConcessionnaireId) => {
   
   planData.value.client = null;
   
-  if (newConcessionnaireId) {
-    await loadConcessionnaireClients(newConcessionnaireId);
+  const concessionnaireId = extractId(newConcessionnaireId);
+  if (concessionnaireId) {
+    await loadConcessionnaireClients(concessionnaireId);
   } else {
     concessionnaireClients.value = [];
   }
@@ -314,23 +345,38 @@ async function createPlan() {
       description: planData.value.description.trim()
     };
 
+    const user = authStore.user as User;
+    if (!user) throw new Error('User not found');
+
     // Gestion des IDs selon le type d'utilisateur
-    if (authStore.user?.user_type === 'admin') {
-      data.usine = typeof planData.value.usine === 'object' ? planData.value.usine.id : planData.value.usine;
-      data.concessionnaire = typeof planData.value.concessionnaire === 'object' ? planData.value.concessionnaire.id : planData.value.concessionnaire;
+    if (user.user_type === 'admin') {
+      if (!planData.value.usine || !planData.value.concessionnaire || !planData.value.client) {
+        throw new Error('Missing required fields');
+      }
+      data.usine = validateId(extractId(planData.value.usine));
+      data.concessionnaire = validateId(extractId(planData.value.concessionnaire));
       data.agriculteur = planData.value.client;
-    } else if (authStore.user?.user_type === 'usine') {
-      data.usine = authStore.user.id;
-      data.concessionnaire = typeof planData.value.concessionnaire === 'object' ? planData.value.concessionnaire.id : planData.value.concessionnaire;
+    } else if (user.user_type === 'usine') {
+      if (!planData.value.concessionnaire || !planData.value.client) {
+        throw new Error('Missing required fields');
+      }
+      data.usine = user.id;
+      data.concessionnaire = validateId(extractId(planData.value.concessionnaire));
       data.agriculteur = planData.value.client;
-    } else if (authStore.user?.user_type === 'concessionnaire') {
-      data.usine = typeof authStore.user.usine === 'object' ? authStore.user.usine.id : authStore.user.usine;
-      data.concessionnaire = authStore.user.id;
+    } else if (user.user_type === 'concessionnaire') {
+      if (!user.usine || !planData.value.client) {
+        throw new Error('Missing required fields');
+      }
+      data.usine = validateId(extractId(user.usine));
+      data.concessionnaire = user.id;
       data.agriculteur = planData.value.client;
-    } else if (authStore.user?.user_type === 'agriculteur') {
-      data.usine = typeof authStore.user.usine === 'object' ? authStore.user.usine.id : authStore.user.usine;
-      data.concessionnaire = typeof authStore.user.concessionnaire === 'object' ? authStore.user.concessionnaire.id : authStore.user.concessionnaire;
-      data.agriculteur = authStore.user.id;
+    } else if (user.user_type === 'agriculteur') {
+      if (!user.usine || !user.concessionnaire) {
+        throw new Error('Missing required fields');
+      }
+      data.usine = validateId(extractId(user.usine));
+      data.concessionnaire = validateId(extractId(user.concessionnaire));
+      data.agriculteur = user.id;
     }
 
     console.log('Données du plan à créer:', data);

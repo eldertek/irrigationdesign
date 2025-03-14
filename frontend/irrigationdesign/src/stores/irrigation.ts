@@ -194,9 +194,9 @@ export const useIrrigationStore = defineStore('irrigation', {
         // S'assurer que les IDs sont des nombres
         const formattedData = {
           ...planData,
-          usine: planData.usine ? (typeof planData.usine === 'object' && 'id' in planData.usine ? planData.usine.id : Number(planData.usine)) : null,
-          concessionnaire: planData.concessionnaire ? (typeof planData.concessionnaire === 'object' && 'id' in planData.concessionnaire ? planData.concessionnaire.id : Number(planData.concessionnaire)) : null,
-          agriculteur: planData.agriculteur ? (typeof planData.agriculteur === 'object' && 'id' in planData.agriculteur ? planData.agriculteur.id : Number(planData.agriculteur)) : null
+          usine: planData.usine ? (typeof planData.usine === 'object' && planData.usine && 'id' in planData.usine ? (planData.usine as { id: number }).id : Number(planData.usine)) : null,
+          concessionnaire: planData.concessionnaire ? (typeof planData.concessionnaire === 'object' && planData.concessionnaire && 'id' in planData.concessionnaire ? (planData.concessionnaire as { id: number }).id : Number(planData.concessionnaire)) : null,
+          agriculteur: planData.agriculteur ? (typeof planData.agriculteur === 'object' && planData.agriculteur && 'id' in planData.agriculteur ? (planData.agriculteur as { id: number }).id : Number(planData.agriculteur)) : null
         };
 
         console.log('[IrrigationStore] Données formatées pour création:', formattedData);

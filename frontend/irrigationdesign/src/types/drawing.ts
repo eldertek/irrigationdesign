@@ -42,22 +42,18 @@ export interface BaseData {
 export interface CircleData extends BaseData {
   center: [number, number];  // [longitude, latitude]
   radius: number;
-  style: Style;
 }
 export interface RectangleData extends BaseData {
   bounds: Bounds;
-  style: Style;
 }
 export interface SemicircleData extends BaseData {
   center: [number, number];  // [longitude, latitude]
   radius: number;
   startAngle: number;
   endAngle: number;
-  style: Style;
 }
 export interface LineData extends BaseData {
   points: [number, number][];  // Array of [longitude, latitude]
-  style: Style;
 }
 export interface TextData {
   bounds: Bounds;
@@ -68,24 +64,11 @@ export interface TextData {
 export interface PolygonData extends BaseData {
   points: [number, number][];  // Array of [longitude, latitude]
 }
-export interface ElevationLineData {
+export interface ElevationLineData extends BaseData {
   points: [number, number][];
-  style: Style;
   elevationData?: Array<{ distance: number; elevation: number }>;
   samplePointStyle?: Style;
   minMaxPointStyle?: Style;
-}
-export type ShapeData = 
-  | TextData 
-  | PolygonData 
-  | LineData 
-  | RectangleData 
-  | CircleData
-  | ElevationLineData;
-export interface DrawingElement {
-  id?: number;
-  type_forme: 'CERCLE' | 'RECTANGLE' | 'DEMI_CERCLE' | 'LIGNE' | 'TEXTE' | 'POLYGON' | 'ELEVATIONLINE' | 'UNKNOWN';
-  data: ShapeData;
 }
 export interface ShapeType {
   type: "unknown" | "Rectangle" | "Circle" | "Polygon" | "Line" | "Semicircle";
@@ -105,61 +88,6 @@ export interface ShapeType {
     [key: string]: any;
   };
   layer: any;
-}
-
-// Définir et exporter les types de base
-export interface BaseStyle {
-  color?: string;
-  fillColor?: string;
-  fillOpacity?: number;
-  weight?: number;
-  opacity?: number;
-  dashArray?: string;
-}
-
-// Définir les types de données pour chaque forme
-export interface TextData {
-  bounds: {
-    southWest: [number, number];
-    northEast: [number, number];
-  };
-  content: string;
-  style: BaseStyle & {
-    textStyle: TextStyle;
-  };
-  rotation?: number;
-}
-
-export interface PolygonData {
-  points: [number, number][];
-  style: BaseStyle;
-}
-
-export interface LineData {
-  points: [number, number][];
-  style: BaseStyle;
-}
-
-export interface RectangleData {
-  bounds: {
-    southWest: [number, number];
-    northEast: [number, number];
-  };
-  style: BaseStyle;
-}
-
-export interface CircleData {
-  center: [number, number];
-  radius: number;
-  style: BaseStyle;
-}
-
-export interface ElevationLineData {
-  points: [number, number][];
-  style: BaseStyle;
-  elevationData?: Array<{ distance: number; elevation: number }>;
-  samplePointStyle?: BaseStyle;
-  minMaxPointStyle?: BaseStyle;
 }
 
 // Union type pour toutes les formes possibles

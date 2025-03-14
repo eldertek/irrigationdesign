@@ -462,6 +462,19 @@ export const useDrawingStore = defineStore('drawing', {
       }
     },
     setCurrentStyle(style: Partial<DrawingState['currentStyle']>) {
+      // Si aucun style n'est fourni, réinitialiser aux valeurs par défaut
+      if (!style || Object.keys(style).length === 0) {
+        this.currentStyle = {
+          strokeStyle: 'solid',
+          strokeWidth: 2,
+          strokeColor: '#2563EB',
+          fillColor: '#3B82F6',
+          fillOpacity: 0.2
+        };
+        return;
+      }
+      
+      // Sinon, mettre à jour uniquement les propriétés fournies
       this.currentStyle = { ...this.currentStyle, ...style };
     },
     async loadPlanElements(planId: number) {
@@ -585,7 +598,7 @@ export const useDrawingStore = defineStore('drawing', {
           console.log('[DrawingStore][saveToPlan] Préparation élément pour sauvegarde', {
             id: element.id,
             type_forme: element.type_forme,
-            isTextRectangle: element.type_forme === 'TEXTE' || isTextData(element.data),
+            isTextRectangle: element.type_forme === 'TEXTE' || element.type_forme === 'POLYGON' || isTextData(element.data) || isPolygonData(element.data),
             dataType: element.data ? Object.keys(element.data) : null,
             dataContent: element.data
           });
@@ -638,13 +651,6 @@ export const useDrawingStore = defineStore('drawing', {
       } catch (error) {
         console.error('[DrawingStore][saveToPlan] ERREUR:', error);
         console.error('[DrawingStore][saveToPlan] Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
-        if (error.response) {
-          console.error('[DrawingStore][saveToPlan] Réponse d\'erreur:', {
-            status: error.response.status,
-            statusText: error.response.statusText,
-            data: error.response.data
-          });
-        }
         this.error = 'Erreur lors de la sauvegarde du plan';
         throw error;
       } finally {

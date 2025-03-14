@@ -480,34 +480,57 @@ watch(
   () => props.selectedShape,
   (newShape) => {
     if (!newShape) {
+      // Réinitialiser tous les styles aux valeurs par défaut
       localProperties.value = null;
       textAlign.value = 'center';
       isBold.value = false;
       isItalic.value = false;
       textContent.value = 'Double-cliquez pour éditer';
+      // Réinitialiser les styles de base
+      fillColor.value = '#3B82F6';
+      fillOpacity.value = 0.2;
+      strokeColor.value = '#2563EB';
+      strokeWidth.value = 2;
+      strokeStyle.value = 'solid';
+      textColor.value = '#000000';
+      fontFamily.value = 'Arial, sans-serif';
       return;
     }
+
     console.log('[DrawingTools] Changement de forme sélectionnée', {
       newShape,
       properties: newShape?.properties,
     });
+
     if (newShape) {
       localProperties.value = { ...newShape.properties };
+      
+      // Récupérer les styles de la forme sélectionnée
+      const style = newShape.properties?.style || {};
+      
+      // Mettre à jour les styles de base avec ceux de la forme
+      fillColor.value = style.fillColor || '#3B82F6';
+      fillOpacity.value = style.fillOpacity !== undefined ? style.fillOpacity : 0.2;
+      strokeColor.value = style.color || '#2563EB';
+      strokeWidth.value = style.weight || 2;
+      strokeStyle.value = style.dashArray ? 'dashed' : 'solid';
+
       // Si c'est un TextRectangle, initialiser les propriétés de style de texte
       if (newShape.properties?.type === 'TextRectangle') {
-        const style = newShape.properties?.style || {};
-        textColor.value = style.textColor || '#000000';
-        fontFamily.value = style.fontFamily || 'Arial, sans-serif';
-        textAlign.value = style.textAlign || 'center';
-        isBold.value = style.bold || false;
-        isItalic.value = style.italic || false;
+        const textStyle = style.textStyle || {};
+        textColor.value = textStyle.color || '#000000';
+        fontFamily.value = textStyle.fontFamily || 'Arial, sans-serif';
+        textAlign.value = textStyle.textAlign || 'center';
+        isBold.value = textStyle.bold || false;
+        isItalic.value = textStyle.italic || false;
         textContent.value = newShape.properties.text || 'Double-cliquez pour éditer';
         console.log('[DrawingTools] Initialisation du TextRectangle', {
           text: textContent.value,
           style: style
         });
       }
-      // Initialiser les styles des points
+
+      // Initialiser les styles des points pour ElevationLine
       if (newShape.properties?.type === 'ElevationLine') {
         samplePointStyle.value = { ...newShape.properties.samplePointStyle };
         minMaxPointStyle.value = { ...newShape.properties.minMaxPointStyle };
