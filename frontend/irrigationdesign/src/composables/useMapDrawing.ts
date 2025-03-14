@@ -1215,7 +1215,10 @@ export function useMapDrawing(): MapDrawingReturn {
             // Désactiver explicitement la continuation après le dessin
             map.value?.pm.setGlobalOptions({
               continueDrawing: false,
-              finishOn: 'mouseup'
+              finishOn: 'mouseup',
+              preventMarkerRemoval: true,
+              preventVertexEdit: true,
+              preventMarkerEdit: true
             } as any);
 
             // Supprimer l'ancien gestionnaire d'événements s'il existe
@@ -1234,17 +1237,35 @@ export function useMapDrawing(): MapDrawingReturn {
                 const elevationLine = new ElevationLine(latLngs, {
                   color: '#FF4500',
                   weight: 4,
-                  opacity: 0.8
+                  opacity: 0.8,
+                  interactive: false,
+                  pmIgnore: true
                 });
 
                 // Ajouter la ligne au groupe de fonctionnalités
                 if (featureGroup.value) {
                   featureGroup.value.addLayer(elevationLine);
                   selectedShape.value = elevationLine;
-                  // Initialiser le profil d'élévation
+                  
+                  // Initialiser le profil d'élévation et attendre la fin
                   await elevationLine.updateElevationProfile();
-                  // Ajouter les points de contrôle
-                  updateLineControlPoints(elevationLine);
+                  
+                  // Forcer la mise à jour des propriétés
+                  const updatedProperties = calculateShapeProperties(elevationLine, 'ElevationLine');
+                  
+                  // Fusionner avec les propriétés spécifiques d'élévation
+                  Object.assign(elevationLine.properties, {
+                    ...updatedProperties,
+                    ...elevationLine.properties,
+                    type: 'ElevationLine',
+                    elevationData: elevationLine.getElevationData()
+                  });
+
+                  // Forcer la mise à jour du composant
+                  selectedShape.value = null;
+                  nextTick(() => {
+                    selectedShape.value = elevationLine;
+                  });
                 }
 
                 // Désactiver le mode dessin et réinitialiser l'outil
@@ -2109,89 +2130,58 @@ export function useMapDrawing(): MapDrawingReturn {
 
     // Gestion spécifique pour ElevationLine
     if (layer instanceof ElevationLine) {
+      // Supprimer tous les points de contrôle existants
+      clearActiveControlPoints();
+      
       // Force la mise à jour du profil après toute modification
       layer.updateElevationProfile().then(() => {
-        console.log('[useMapDrawing] ElevationLine properties updated:', {
-          length: layer.properties.length,
-          elevationData: layer.getElevationData()
+        // Mettre à jour toutes les propriétés
+        Object.assign(layer.properties, {
+          ...layer.properties,
+          type: 'ElevationLine'
+        });
+        
+        console.log('[useMapDrawing] ElevationLine properties avant calcul:', layer.properties);
+        
+        // Forcer la mise à jour des propriétés dans le composant
+        const updatedProperties = calculateShapeProperties(layer, 'ElevationLine');
+        
+        // S'assurer que toutes les propriétés d'élévation sont préservées
+        Object.assign(layer.properties, {
+          ...updatedProperties,
+          ...layer.properties,  // Préserver les propriétés spécifiques d'élévation
+          type: 'ElevationLine',
+          elevationData: layer.getElevationData(),
+          maxElevation: layer.properties.maxElevation,
+          minElevation: layer.properties.minElevation,
+          elevationGain: layer.properties.elevationGain,
+          elevationLoss: layer.properties.elevationLoss,
+          maxSlope: layer.properties.maxSlope,
+          averageSlope: layer.properties.averageSlope
+        });
+
+        console.log('[useMapDrawing] ElevationLine properties après mise à jour:', layer.properties);
+        
+        // Forcer la mise à jour du composant
+        selectedShape.value = null;
+        nextTick(() => {
+          selectedShape.value = layer;
         });
       });
 
-      // Ajouter les mesures d'élévation aux points de contrôle
-      activeControlPoints.forEach((point, index) => {
-        const elevationData = layer.getElevationData();
-        if (elevationData[index]) {
-          addMeasureEvents(point as ControlPoint, layer, () => {
-            const data = elevationData[index];
-            return [
-              formatMeasure(data.distance, 'm', 'Distance'),
-              formatMeasure(data.elevation, 'm', 'Altitude'),
-              formatMeasure(layer.properties.elevationGain, 'm', 'Dénivelé +'),
-              formatMeasure(layer.properties.elevationLoss, 'm', 'Dénivelé -')
-            ].join('<br>');
-          });
-
-          // Modifier le comportement des points de contrôle pour ElevationLine
-          point.on('mousedown', (e: L.LeafletMouseEvent) => {
-            if (!map.value) return;
-            L.DomEvent.stopPropagation(e);
-            map.value.dragging.disable();
-
-            const onMouseMove = (e: L.LeafletMouseEvent) => {
-              // Utiliser la méthode spécifique d'ElevationLine pour le déplacement
-              layer.moveVertex(index, e.latlng, false);
-              // Mettre à jour la position du point de contrôle
-              point.setLatLng(e.latlng);
-            };
-
-            const onMouseUp = () => {
-              if (!map.value) return;
-              map.value.off('mousemove', onMouseMove);
-              document.removeEventListener('mouseup', onMouseUp);
-              map.value.dragging.enable();
-
-              // S'assurer que c'est toujours une ElevationLine
-              if (layer instanceof ElevationLine) {
-                layer.updateElevationProfile();
-                // Forcer la mise à jour des propriétés
-                selectedShape.value = null;
-                nextTick(() => {
-                  selectedShape.value = layer;
-                });
-              }
-            };
-
-            map.value.on('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
-          });
-        }
-      });
-
-      // Écouter les événements de mise à jour du profil
-      layer.on('elevation:updated', () => {
-        // Mettre à jour les mesures affichées
-        activeControlPoints.forEach((point, index) => {
-          const elevationData = layer.getElevationData();
-          if (elevationData[index] && (point as any).measureDiv) {
-            const data = elevationData[index];
-            (point as any).measureDiv.innerHTML = [
-              formatMeasure(data.distance, 'm', 'Distance'),
-              formatMeasure(data.elevation, 'm', 'Altitude'),
-              formatMeasure(layer.properties.elevationGain, 'm', 'Dénivelé +'),
-              formatMeasure(layer.properties.elevationLoss, 'm', 'Dénivelé -')
-            ].join('<br>');
-          }
-        });
-      });
-
-      // Désactiver l'ajout de points intermédiaires pour ElevationLine
+      // Désactiver l'édition et le déplacement des points
       if (map.value) {
         map.value.pm.setGlobalOptions({
           preventMarkerRemoval: true,
-          preventVertexEdit: true
+          preventVertexEdit: true,
+          preventMarkerEdit: true
         } as any);
       }
+
+      return; // Sortir de la fonction pour éviter d'ajouter des points de contrôle
     }
+
+    // ... existing code pour les autres types de formes ...
   };
   // Mettre à jour la fonction updatePolygonControlPoints pour ajouter plus de mesures
   const updatePolygonControlPoints = (layer: L.Polygon) => {

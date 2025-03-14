@@ -59,7 +59,9 @@ export class ElevationLine extends Line {
       ...options,
       color: '#FF4500', // Couleur distincte pour les profils altimétriques
       weight: 4,
-      opacity: 0.8
+      opacity: 0.8,
+      interactive: false, // Désactiver l'interaction avec la ligne
+      pmIgnore: true     // Désactiver l'édition via Leaflet-Geoman
     });
 
     // Initialiser les propriétés de base sans les données d'élévation
@@ -84,27 +86,8 @@ export class ElevationLine extends Line {
    * Configure les écouteurs d'événements pour les mises à jour du profil
    */
   private setupEventListeners(): void {
-    this.on('edit', () => this.updateElevationProfile());
+    // Supprimer les écouteurs d'édition qui ne sont plus nécessaires
     this.on('move', () => this.updateElevationProfile());
-    this.on('pm:vertexadded', () => {
-      console.log('[ElevationLine] Vertex added, updating profile');
-      this.updateElevationProfile();
-    });
-    this.on('pm:vertexremoved', () => {
-      console.log('[ElevationLine] Vertex removed, updating profile');
-      this.updateElevationProfile();
-    });
-    this.on('pm:dragend', () => {
-      console.log('[ElevationLine] Drag ended, updating profile');
-      this.updateElevationProfile();
-    });
-    this.on('pm:markerdragend', () => {
-      console.log('[ElevationLine] Marker drag ended, updating profile');
-      this.updateElevationProfile();
-    });
-    this.on('pm:edit', (e: any) => {
-      e.layer.properties.type = 'ElevationLine';
-    });
   }
 
   /**
@@ -196,20 +179,67 @@ export class ElevationLine extends Line {
    */
   private calculateElevationStatistics(): void {
     if (!this.elevationData.length) return;
+    
     const elevations = this.elevationData.map(d => d.elevation);
     const maxElevation = elevations.length ? Math.max(...elevations) : 0;
     const minElevation = elevations.length ? Math.min(...elevations) : 0;
     let gain = 0;
     let loss = 0;
+    let maxSlope = 0;
+    let totalSlope = 0;
+    let slopeCount = 0;
+
+    console.log('[ElevationLine][calculateElevationStatistics] Données brutes:', {
+      elevationsCount: elevations.length,
+      maxElevation,
+      minElevation
+    });
+
     for (let i = 1; i < this.elevationData.length; i++) {
-      const diff = this.elevationData[i].elevation - this.elevationData[i - 1].elevation;
-      if (diff > 0) gain += diff;
-      else loss += Math.abs(diff);
+      const prevPoint = this.elevationData[i - 1];
+      const currPoint = this.elevationData[i];
+      
+      // Calcul du dénivelé
+      const elevationDiff = currPoint.elevation - prevPoint.elevation;
+      if (elevationDiff > 0) {
+        gain += elevationDiff;
+      } else {
+        loss += Math.abs(elevationDiff);
+      }
+
+      // Calcul de la pente
+      const distanceDiff = currPoint.distance - prevPoint.distance;
+      if (distanceDiff > 0) {
+        const slope = (elevationDiff / distanceDiff) * 100; // Convertir en pourcentage
+        maxSlope = Math.max(maxSlope, Math.abs(slope));
+        totalSlope += Math.abs(slope);
+        slopeCount++;
+      }
     }
-    this.properties.maxElevation = maxElevation;
-    this.properties.minElevation = minElevation;
-    this.properties.elevationGain = gain;
-    this.properties.elevationLoss = loss;
+
+    console.log('[ElevationLine][calculateElevationStatistics] Calculs intermédiaires:', {
+      gain,
+      loss,
+      maxSlope,
+      averageSlope: slopeCount > 0 ? totalSlope / slopeCount : 0
+    });
+
+    // Mettre à jour les propriétés avec toutes les données nécessaires
+    this.properties = {
+      ...this.properties,
+      type: 'ElevationLine',
+      maxElevation,
+      minElevation,
+      elevationGain: gain,
+      elevationLoss: loss,
+      maxSlope: maxSlope,
+      averageSlope: slopeCount > 0 ? totalSlope / slopeCount : 0,
+      elevationData: this.elevationData, // Ajouter explicitement les données d'élévation
+      dataSource: this.properties.dataSource,
+      length: this.getLength() // Ajouter la longueur totale
+    };
+
+    console.log('[ElevationLine][calculateElevationStatistics] Propriétés mises à jour:', this.properties);
   }
 
   /**
@@ -411,17 +441,38 @@ export class ElevationLine extends Line {
       Math.abs(curr.distance - distance) < Math.abs(prev.distance - distance) ? curr : prev
     );
     const latLng = this.getPointAtDistance(distance);
+    
     if (!this.elevationMarker && latLng) {
+      // Créer le marqueur avec un style plus visible
       this.elevationMarker = L.circleMarker(latLng, {
         radius: 6,
         color: '#FF4500',
         fillColor: '#FF4500',
-        fillOpacity: 1
+        fillOpacity: 1,
+        weight: 2,
+        className: 'elevation-marker'
       });
+      
+      // Ajouter un tooltip permanent
+      this.elevationMarker.bindTooltip(
+        `Distance: ${this.formatDistance(point.distance)}<br>Altitude: ${this.formatElevation(point.elevation)}`,
+        {
+          permanent: true,
+          direction: 'top',
+          offset: [0, -10],
+          className: 'elevation-marker-tooltip'
+        }
+      );
+      
       this.elevationMarker.addTo(this._map);
     } else if (this.elevationMarker && latLng) {
+      // Mettre à jour la position et le contenu du tooltip
       this.elevationMarker.setLatLng(latLng);
+      this.elevationMarker.setTooltipContent(
+        `Distance: ${this.formatDistance(point.distance)}<br>Altitude: ${this.formatElevation(point.elevation)}`
+      );
     }
+    
     this.fire('elevation:show', {
       distance,
       elevation: point.elevation,

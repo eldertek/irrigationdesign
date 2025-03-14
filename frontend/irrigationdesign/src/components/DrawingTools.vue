@@ -254,7 +254,7 @@
       <div v-show="!sectionsCollapsed.properties" class="mt-3">
         <div v-if="localProperties">
           <!-- Tableau compact des propriétés pour tous les types -->
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4">
             <!-- Cercle -->
             <template v-if="localProperties.type === 'Circle'">
               <span class="text-sm font-semibold text-gray-700">Rayon :</span>
@@ -294,16 +294,43 @@
             </template>
             <!-- ElevationLine -->
             <template v-else-if="localProperties.type === 'ElevationLine'">
-              <span class="text-sm font-semibold text-gray-700">Longueur :</span>
-              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.length || 0) }}</span>
-              <span class="text-sm font-semibold text-gray-700">Altitude min :</span>
-              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.minElevation || 0) }}</span>
-              <span class="text-sm font-semibold text-gray-700">Altitude max :</span>
-              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.maxElevation || 0) }}</span>
-              <span class="text-sm font-semibold text-gray-700">Dénivelé + :</span>
-              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.elevationGain || 0) }}</span>
-              <span class="text-sm font-semibold text-gray-700">Dénivelé - :</span>
-              <span class="text-sm font-medium text-gray-500">{{ formatMeasure(localProperties.elevationLoss || 0) }}</span>
+              <!-- Propriétés sur une seule colonne -->
+              <div class="flex flex-col space-y-2 w-full">
+                <div class="flex justify-between items-center">
+                  <span class="text-sm font-semibold text-gray-700 whitespace-nowrap">Distance totale :</span>
+                  <span class="text-sm font-medium text-gray-500 ml-2">{{ formatMeasure(localProperties.length || 0) }}</span>
+                </div>
+                
+                <div class="flex justify-between items-center">
+                  <span class="text-sm font-semibold text-gray-700 whitespace-nowrap">Dénivelé + :</span>
+                  <span class="text-sm font-medium text-gray-500 ml-2">{{ formatMeasure(localProperties.elevationGain || 0) }}</span>
+                </div>
+                
+                <div class="flex justify-between items-center">
+                  <span class="text-sm font-semibold text-gray-700 whitespace-nowrap">Dénivelé - :</span>
+                  <span class="text-sm font-medium text-gray-500 ml-2">{{ formatMeasure(localProperties.elevationLoss || 0) }}</span>
+                </div>
+                
+                <div class="flex justify-between items-center">
+                  <span class="text-sm font-semibold text-gray-700 whitespace-nowrap">Pente moy. :</span>
+                  <span class="text-sm font-medium text-gray-500 ml-2">{{ formatSlope(localProperties.averageSlope || 0) }}</span>
+                </div>
+                
+                <div class="flex justify-between items-center">
+                  <span class="text-sm font-semibold text-gray-700 whitespace-nowrap">Pente max :</span>
+                  <span class="text-sm font-medium text-gray-500 ml-2">{{ formatSlope(localProperties.maxSlope || 0) }}</span>
+                </div>
+              </div>
+
+              <!-- Graphique du profil sur toute la largeur -->
+              <div 
+                ref="elevationProfileContainer"
+                class="elevation-profile-container w-full h-48 bg-gray-50 rounded border border-gray-200 relative mt-4"
+                @mousemove="handleProfileHover"
+                @mouseleave="handleProfileLeave"
+              >
+                <canvas ref="elevationCanvas"></canvas>
+              </div>
             </template>
           </div>
         </div>
@@ -314,6 +341,7 @@
     </div>
     <!-- Section de personnalisation des points d'échantillonnage -->
     <div v-if="selectedShape && localProperties && localProperties.type === 'ElevationLine'" class="p-3 border-t border-gray-200">
+      <!-- Section Points d'échantillonnage (toujours fermée par défaut) -->
       <button 
         class="flex items-center justify-between w-full text-sm font-semibold text-gray-700"
         @click="toggleSection('samplePoints')"
@@ -383,7 +411,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 interface ShapeType {
   type: keyof typeof typeTranslations;
   properties: any;
@@ -420,7 +448,13 @@ interface ShapeProperties {
   maxElevation?: number;
   elevationGain?: number;
   elevationLoss?: number;
+  averageSlope?: number;
+  maxSlope?: number;
   elevationData?: Array<{ distance: number; elevation: number }>;
+}
+interface ElevationData {
+  distance: number;
+  elevation: number;
 }
 const props = defineProps<{
   currentTool: string;
@@ -450,7 +484,8 @@ const isItalic = ref(false);
 const sectionsCollapsed = ref({
   style: false,
   properties: false,
-  samplePoints: false
+  samplePoints: true,
+  elevationProfile: false
 });
 // Styles des points d'échantillonnage
 const samplePointStyle = ref({
@@ -500,10 +535,33 @@ watch(
     console.log('[DrawingTools] Changement de forme sélectionnée', {
       newShape,
       properties: newShape?.properties,
+      type: newShape?.properties?.type,
+      elevationData: newShape?.properties?.elevationData,
+      length: newShape?.properties?.length,
+      minElevation: newShape?.properties?.minElevation,
+      maxElevation: newShape?.properties?.maxElevation,
+      elevationGain: newShape?.properties?.elevationGain,
+      elevationLoss: newShape?.properties?.elevationLoss,
+      averageSlope: newShape?.properties?.averageSlope,
+      maxSlope: newShape?.properties?.maxSlope
     });
 
     if (newShape) {
       localProperties.value = { ...newShape.properties };
+      
+      if (localProperties.value) {
+        console.log('[DrawingTools] localProperties mis à jour', {
+          type: localProperties.value.type,
+          elevationData: localProperties.value.elevationData,
+          length: localProperties.value.length,
+          minElevation: localProperties.value.minElevation,
+          maxElevation: localProperties.value.maxElevation,
+          elevationGain: localProperties.value.elevationGain,
+          elevationLoss: localProperties.value.elevationLoss,
+          averageSlope: localProperties.value.averageSlope,
+          maxSlope: localProperties.value.maxSlope
+        });
+      }
       
       // Récupérer les styles de la forme sélectionnée
       const style = newShape.properties?.style || {};
@@ -539,7 +597,7 @@ watch(
       localProperties.value = null;
     }
   },
-  { immediate: true }
+  { immediate: true, deep: true }
 );
 // Watcher pour les changements de texte
 watch(
@@ -672,7 +730,7 @@ const showFillOptions = computed(() => {
   return ['Circle', 'Rectangle', 'Polygon', 'Semicircle'].includes(shapeType) && shapeType !== 'ElevationLine';
 });
 // Fonction pour basculer l'état des sections
-const toggleSection = (section: 'style' | 'properties' | 'samplePoints') => {
+const toggleSection = (section: 'style' | 'properties' | 'samplePoints' | 'elevationProfile') => {
   sectionsCollapsed.value[section] = !sectionsCollapsed.value[section];
 };
 const getDashArray = (style: string): string => {
@@ -785,6 +843,306 @@ const updateMinMaxPointStyle = () => {
     (props.selectedShape.layer as any).setMinMaxPointStyle(minMaxPointStyle.value);
   }
 };
+// Nouvelles propriétés pour le graphique
+const elevationCanvas = ref<HTMLCanvasElement | null>(null);
+const canvasContext = ref<CanvasRenderingContext2D | null>(null);
+// Nouvelle méthode pour formater les pentes
+const formatSlope = (slope: number): string => {
+  return `${slope.toFixed(1)}%`;
+};
+// Méthode pour dessiner le graphique
+const drawElevationProfile = () => {
+  if (!elevationCanvas.value || !props.selectedShape?.properties?.elevationData) {
+    console.log('[DrawingTools] Impossible de dessiner le profil : canvas ou données manquantes', {
+      canvas: !!elevationCanvas.value,
+      data: !!props.selectedShape?.properties?.elevationData
+    });
+    return;
+  }
+  
+  console.log('[DrawingTools] Dessin du profil avec les données:', {
+    data: props.selectedShape.properties.elevationData,
+    minElevation: props.selectedShape.properties.minElevation,
+    maxElevation: props.selectedShape.properties.maxElevation
+  });
+  
+  const ctx = elevationCanvas.value.getContext('2d');
+  if (!ctx) return;
+  
+  canvasContext.value = ctx;
+  const canvas = elevationCanvas.value;
+  const data = props.selectedShape.properties.elevationData;
+  
+  // Ajuster la taille du canvas pour la résolution
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  
+  // Définir la taille réelle du canvas en pixels
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  
+  // Ajuster le style CSS pour maintenir la taille d'affichage
+  canvas.style.width = `${rect.width}px`;
+  canvas.style.height = `${rect.height}px`;
+  
+  // Mettre à l'échelle le contexte
+  ctx.scale(dpr, dpr);
+  
+  // Effacer le canvas
+  ctx.clearRect(0, 0, rect.width, rect.height);
+  
+  // Calculer les dimensions utiles
+  const padding = 30; // Augmenter le padding pour plus d'espace
+  const width = rect.width - 2 * padding;
+  const height = rect.height - 2 * padding;
+  
+  // Trouver les valeurs min/max
+  const minElevation = props.selectedShape.properties.minElevation;
+  const maxElevation = props.selectedShape.properties.maxElevation;
+  const elevationRange = maxElevation - minElevation;
+  
+  // Ajouter une marge de 5% au-dessus et en-dessous
+  const margin = elevationRange * 0.05;
+  const yMin = minElevation - margin;
+  const yMax = maxElevation + margin;
+  
+  // Fonctions de conversion
+  const scaleX = (distance: number) => padding + (distance / data[data.length - 1].distance) * width;
+  const scaleY = (elevation: number) => padding + height - ((elevation - yMin) / (yMax - yMin)) * height;
+  
+  // Dessiner le fond
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(padding, padding, width, height);
+  
+  // Dessiner la grille
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1;
+  
+  // Dessiner les axes
+  ctx.beginPath();
+  ctx.moveTo(padding, padding);
+  ctx.lineTo(padding, height + padding);
+  ctx.lineTo(width + padding, height + padding);
+  ctx.strokeStyle = '#94a3b8';
+  ctx.stroke();
+  
+  // Graduations Y (altitude)
+  const numYTicks = 5;
+  for (let i = 0; i <= numYTicks; i++) {
+    const elevation = yMin + (i / numYTicks) * (yMax - yMin);
+    const y = scaleY(elevation);
+    
+    // Ligne de grille horizontale
+    ctx.beginPath();
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.moveTo(padding, y);
+    ctx.lineTo(width + padding, y);
+    ctx.stroke();
+    
+    // Graduation et label
+    ctx.beginPath();
+    ctx.strokeStyle = '#94a3b8';
+    ctx.moveTo(padding - 5, y);
+    ctx.lineTo(padding, y);
+    ctx.stroke();
+    
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${Math.round(elevation)}m`, padding - 8, y + 4);
+  }
+  
+  // Graduations X (distance)
+  const numXTicks = 5;
+  const maxDistance = data[data.length - 1].distance;
+  for (let i = 0; i <= numXTicks; i++) {
+    const distance = (i / numXTicks) * maxDistance;
+    const x = scaleX(distance);
+    
+    // Ligne de grille verticale
+    ctx.beginPath();
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.moveTo(x, padding);
+    ctx.lineTo(x, height + padding);
+    ctx.stroke();
+    
+    // Graduation et label
+    ctx.beginPath();
+    ctx.strokeStyle = '#94a3b8';
+    ctx.moveTo(x, height + padding);
+    ctx.lineTo(x, height + padding + 5);
+    ctx.stroke();
+    
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${Math.round(distance)}m`, x, height + padding + 16);
+  }
+  
+  // Dessiner la courbe avec un dégradé
+  const gradient = ctx.createLinearGradient(0, padding, 0, height + padding);
+  gradient.addColorStop(0, 'rgba(255, 69, 0, 0.8)');  // Orange plus foncé en haut
+  gradient.addColorStop(1, 'rgba(255, 69, 0, 0.2)');  // Orange plus clair en bas
+  
+  // Dessiner la courbe
+  ctx.beginPath();
+  ctx.moveTo(scaleX(data[0].distance), scaleY(data[0].elevation));
+  data.forEach((point: ElevationData, i: number) => {
+    if (i > 0) {
+      ctx.lineTo(scaleX(point.distance), scaleY(point.elevation));
+    }
+  });
+  
+  // Tracer la courbe
+  ctx.strokeStyle = '#FF4500';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  
+  // Remplir sous la courbe
+  ctx.lineTo(scaleX(data[data.length - 1].distance), scaleY(yMin));
+  ctx.lineTo(scaleX(data[0].distance), scaleY(yMin));
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  
+  // Ajouter les points d'échantillonnage
+  data.forEach((point: ElevationData) => {
+    ctx.beginPath();
+    ctx.arc(scaleX(point.distance), scaleY(point.elevation), 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#FF4500';
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+  
+  console.log('[DrawingTools] Profil dessiné avec succès');
+};
+// Gestionnaire d'événements pour le survol
+const handleProfileHover = (e: MouseEvent) => {
+  if (!elevationCanvas.value || !props.selectedShape?.properties?.elevationData) return;
+  
+  const rect = elevationCanvas.value.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  
+  const data = props.selectedShape.properties.elevationData;
+  const padding = 30; // Utiliser la même valeur de padding que dans drawElevationProfile
+  const width = rect.width - 2 * padding;
+  
+  // Calculer la distance correspondante en tenant compte du padding
+  const distance = Math.max(0, Math.min(
+    ((x - padding) / width) * data[data.length - 1].distance,
+    data[data.length - 1].distance
+  ));
+  
+  // Trouver le point le plus proche
+  const point = data.reduce((prev: ElevationData, curr: ElevationData) => 
+    Math.abs(curr.distance - distance) < Math.abs(prev.distance - distance) ? curr : prev
+  );
+
+  // Mettre à jour le marqueur sur la carte avec le tooltip
+  if (props.selectedShape && props.selectedShape.layer && typeof props.selectedShape.layer.showElevationAt === 'function') {
+    props.selectedShape.layer.showElevationAt(point.distance);
+  }
+
+  // Dessiner l'indicateur de position sur le graphique
+  drawElevationProfile(); // Redessiner le graphique pour effacer l'ancien indicateur
+  
+  // Ajouter l'indicateur de position
+  if (canvasContext.value) {
+    const ctx = canvasContext.value;
+    const rect = elevationCanvas.value.getBoundingClientRect();
+    
+    // Utiliser les mêmes fonctions de mise à l'échelle que dans drawElevationProfile
+    const width = rect.width - 2 * padding;
+    const height = rect.height - 2 * padding;
+    const minElevation = props.selectedShape.properties.minElevation;
+    const maxElevation = props.selectedShape.properties.maxElevation;
+    const margin = (maxElevation - minElevation) * 0.05;
+    const yMin = minElevation - margin;
+    const yMax = maxElevation + margin;
+    
+    const scaleX = (d: number) => padding + (d / data[data.length - 1].distance) * width;
+    const scaleY = (e: number) => padding + height - ((e - yMin) / (yMax - yMin)) * height;
+    
+    // Dessiner une ligne verticale
+    ctx.beginPath();
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.moveTo(scaleX(point.distance), padding);
+    ctx.lineTo(scaleX(point.distance), height + padding);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Dessiner un point plus gros à l'intersection
+    ctx.beginPath();
+    ctx.arc(scaleX(point.distance), scaleY(point.elevation), 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#FF4500';
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+};
+// Gestionnaire pour quitter le graphique
+const handleProfileLeave = () => {
+  // Redessiner le graphique sans l'indicateur
+  drawElevationProfile();
+  
+  // Cacher le marqueur sur la carte
+  if (props.selectedShape && props.selectedShape.layer && typeof props.selectedShape.layer.hideElevationMarker === 'function') {
+    props.selectedShape.layer.hideElevationMarker();
+  }
+};
+// Observer les changements de taille
+const resizeObserver = new ResizeObserver(() => {
+  drawElevationProfile();
+});
+// Cycle de vie du composant
+onMounted(() => {
+  if (elevationCanvas.value) {
+    resizeObserver.observe(elevationCanvas.value);
+  }
+  
+  // Ajouter un gestionnaire de redimensionnement de fenêtre
+  window.addEventListener('resize', handleResize);
+});
+onUnmounted(() => {
+  if (elevationCanvas.value) {
+    resizeObserver.unobserve(elevationCanvas.value);
+  }
+  
+  // Nettoyer le gestionnaire de redimensionnement
+  window.removeEventListener('resize', handleResize);
+});
+// Surveiller les changements de données d'élévation
+watch(
+  () => props.selectedShape?.properties?.elevationData,
+  () => {
+    nextTick(() => {
+      if (elevationCanvas.value && elevationProfileContainer.value) {
+        const containerRect = elevationProfileContainer.value.getBoundingClientRect();
+        elevationCanvas.value.style.width = `${containerRect.width}px`;
+        elevationCanvas.value.style.height = `${containerRect.height}px`;
+        drawElevationProfile();
+      }
+    });
+  },
+  { deep: true }
+);
+// Ajouter après la déclaration des refs
+const elevationProfileContainer = ref<HTMLElement | null>(null);
+
+// Ajouter la fonction de gestion du redimensionnement
+const handleResize = debounce(() => {
+  if (elevationCanvas.value && elevationProfileContainer.value) {
+    const containerRect = elevationProfileContainer.value.getBoundingClientRect();
+    elevationCanvas.value.style.width = `${containerRect.width}px`;
+    elevationCanvas.value.style.height = `${containerRect.height}px`;
+    drawElevationProfile();
+  }
+}, 250);
 </script>
 <style scoped>
 .h-full {
@@ -1134,5 +1492,49 @@ input[type="color"]::-webkit-color-swatch-wrapper {
 input[type="color"]::-webkit-color-swatch {
   border: none;
   border-radius: 4px;
+}
+.elevation-profile-container {
+  width: 100% !important;
+  height: 200px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  margin-top: 1rem;
+}
+
+canvas {
+  width: 100% !important;
+  height: 100%;
+  display: block;
+}
+
+.elevation-tooltip {
+  z-index: 1000;
+  white-space: nowrap;
+}
+
+/* Ajout de styles pour les propriétés */
+.whitespace-nowrap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Ajuster la largeur de la section des propriétés */
+.properties-container {
+  min-width: 280px;
+  padding: 1rem;
+}
+
+/* Ajuster l'espacement des propriétés */
+.space-y-2 > * + * {
+  margin-top: 0.5rem;
+}
+
+/* Ajuster l'espacement entre le label et la valeur */
+.flex.justify-between > .ml-2 {
+  margin-left: 1rem;
 }
 </style> 
