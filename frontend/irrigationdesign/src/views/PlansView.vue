@@ -744,15 +744,31 @@ function openNewPlanModal() {
 }
 
 async function editPlan(plan: LocalPlan) {
+  console.log('\n[PlansView][editPlan] ====== DÉBUT ÉDITION PLAN ======');
+  console.log('[PlansView][editPlan] Plan reçu:', {
+    id: plan.id,
+    nom: plan.nom,
+    usine: plan.usine,
+    concessionnaire: plan.concessionnaire,
+    agriculteur: plan.agriculteur
+  });
+
   try {
-    // Définir le plan courant dans le store
+    console.log('[PlansView][editPlan] Définition du plan courant dans le store...');
     irrigationStore.setCurrentPlan(plan);
-    // Sauvegarder l'ID du plan dans localStorage pour la persistance
+    
+    console.log('[PlansView][editPlan] Sauvegarde de l\'ID dans localStorage:', plan.id);
     localStorage.setItem('lastPlanId', plan.id.toString());
-    // Rediriger vers la vue carte
-    router.push('/');
+    
+    console.log('[PlansView][editPlan] Redirection vers la vue carte...');
+    await router.push('/');
+    
+    console.log('[PlansView][editPlan] ====== FIN ÉDITION PLAN ======\n');
   } catch (error) {
-    console.error('Erreur lors du chargement du plan:', error);
+    console.error('[PlansView][editPlan] ERREUR:', error);
+    if (error instanceof Error) {
+      console.error('[PlansView][editPlan] Stack trace:', error.stack);
+    }
     alert('Une erreur est survenue lors du chargement du plan');
   }
 }

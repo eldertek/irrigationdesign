@@ -10,11 +10,19 @@ export function useMapState() {
   const baseMaps = {
     'Ville': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
-      maxZoom: 19
+      maxZoom: 19,
+      updateWhenZooming: false,
+      updateWhenIdle: true,
+      noWrap: true,
+      keepBuffer: 5,
     }),
     'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: '© Esri',
-      maxZoom: 19
+      maxZoom: 19,
+      updateWhenZooming: false,
+      updateWhenIdle: true,
+      noWrap: true,
+      keepBuffer: 5,
     }),
     'Cadastre': L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=CADASTRALPARCELS.PARCELLAIRE_EXPRESS&STYLE=normal&FORMAT=image/png&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
       attribution: 'Cadastre - Carte © IGN/Geoportail',
@@ -23,7 +31,6 @@ export function useMapState() {
       updateWhenIdle: true,
       noWrap: true,
       keepBuffer: 5,
-      zoomAnimation: false
     })
   };
 

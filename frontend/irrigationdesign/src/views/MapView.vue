@@ -737,27 +737,26 @@ onMounted(async () => {
       }) as EventListener);
     }
 
-    // Ne charger le dernier plan que si l'utilisateur est agriculteur
-    if (authStore.isAgriculteur) {
-      const lastPlanId = localStorage.getItem('lastPlanId');
-      if (lastPlanId) {
-        try {
-          await loadPlan(parseInt(lastPlanId));
-        } catch (error) {
-          console.error('Error loading last plan:', error);
-          currentPlan.value = null;
-          irrigationStore.clearCurrentPlan();
-          drawingStore.clearCurrentPlan();
-          clearMap();
-          localStorage.removeItem('lastPlanId');
-        }
+    // Charger le dernier plan consulté
+    const lastPlanId = localStorage.getItem('lastPlanId');
+    if (lastPlanId) {
+      try {
+        console.log('[MapView][onMounted] Tentative de chargement du dernier plan:', lastPlanId);
+        await loadPlan(parseInt(lastPlanId));
+      } catch (error) {
+        console.error('[MapView][onMounted] Erreur chargement dernier plan:', error);
+        currentPlan.value = null;
+        irrigationStore.clearCurrentPlan();
+        drawingStore.clearCurrentPlan();
+        clearMap();
+        localStorage.removeItem('lastPlanId');
       }
     } else {
+      console.log('[MapView][onMounted] Aucun dernier plan à charger');
       currentPlan.value = null;
       irrigationStore.clearCurrentPlan();
       drawingStore.clearCurrentPlan();
       clearMap();
-      localStorage.removeItem('lastPlanId');
     }
 
     // Écouter l'événement de création de forme
@@ -777,13 +776,16 @@ onMounted(async () => {
 });
 // Surveiller les changements dans le dessin
 watch(() => drawingStore.hasUnsavedChanges, (newValue) => {
+  console.log('[MapView][watch drawingStore.hasUnsavedChanges]', newValue);
   if (newValue && currentPlan.value) {
     irrigationStore.markUnsavedChanges();
   }
 });
 // Surveiller l'initialisation de la carte
 watch(map, async (newMap) => {
+  console.log('\n[MapView][watch map] Nouvelle carte:', !!newMap);
   if (newMap && irrigationStore.currentPlan) {
+    console.log('[MapView][watch map] Plan courant trouvé:', irrigationStore.currentPlan.id);
     clearMap();
     await drawingStore.loadPlanElements(irrigationStore.currentPlan.id);
     await loadPlan(irrigationStore.currentPlan.id);
@@ -791,24 +793,50 @@ watch(map, async (newMap) => {
 });
 // Surveiller le plan courant dans le store
 watch(() => irrigationStore.currentPlan, async (newPlan) => {
+  console.log('\n[MapView][watch currentPlan] ====== CHANGEMENT DE PLAN ======');
+  console.log('[MapView][watch currentPlan] Nouveau plan:', newPlan?.id);
+  
   try {
     if (newPlan) {
+      console.log('[MapView][watch currentPlan] Mise à jour du plan courant...');
       currentPlan.value = newPlan;
       irrigationStore.setCurrentPlan(newPlan);
       drawingStore.setCurrentPlan(newPlan.id);
+      
+      // Forcer l'affichage de la carte et cacher l'écran d'accueil
+      const mapParent = document.querySelector('.map-parent');
+      if (mapParent instanceof HTMLElement) {
+        mapParent.style.display = 'block';
+      }
+      console.log('[MapView][watch currentPlan] Plan mis à jour avec succès');
     } else {
+      console.log('[MapView][watch currentPlan] Nettoyage du plan courant...');
       currentPlan.value = null;
       clearMap();
       irrigationStore.clearCurrentPlan();
       drawingStore.clearCurrentPlan();
+      
+      // Cacher la carte et montrer l'écran d'accueil
+      const mapParent = document.querySelector('.map-parent');
+      if (mapParent instanceof HTMLElement) {
+        mapParent.style.display = 'none';
+      }
     }
   } catch (error) {
-    console.error('Error in currentPlan watcher:', error);
+    console.error('[MapView][watch currentPlan] ERREUR:', error);
     currentPlan.value = null;
     clearMap();
     irrigationStore.clearCurrentPlan();
     drawingStore.clearCurrentPlan();
   }
+  
+  console.log('[MapView][watch currentPlan] État final:', {
+    currentPlanId: currentPlan.value?.id,
+    storePlanId: irrigationStore.currentPlan?.id,
+    mapVisible: map.value !== null,
+    mapParentDisplay: document.querySelector('.map-parent')?.getAttribute('style')
+  });
+  console.log('[MapView][watch currentPlan] ====== FIN CHANGEMENT ======\n');
 }, { immediate: true });
 // Nettoyer l'écouteur d'événement lors de la destruction du composant
 onBeforeUnmount(() => {
@@ -1020,17 +1048,22 @@ async function refreshMapWithPlan(planId: number) {
 }
 // Modifier la fonction loadPlan pour utiliser refreshMapWithPlan
 async function loadPlan(planId: number) {
+  console.log('\n[MapView][loadPlan] ====== DÉBUT CHARGEMENT PLAN ======');
+  console.log('[MapView][loadPlan] Tentative de chargement du plan:', planId);
+
   try {
-    console.log(`Tentative de chargement du plan ${planId}...`);
     // Vérifier si le plan existe dans le store
     const plan = irrigationStore.getPlanById(planId);
+    console.log('[MapView][loadPlan] Plan trouvé dans le store:', !!plan);
+
     // Si le plan n'existe pas dans le store, vérifier avec l'API
     if (!plan) {
+      console.log('[MapView][loadPlan] Plan non trouvé dans le store, vérification API...');
       try {
         await api.get(`/plans/${planId}/`);
       } catch (error: any) {
         if (error.response?.status === 404) {
-          console.warn(`Plan ${planId} non trouvé - Suppression de la référence du localStorage`);
+          console.warn('[MapView][loadPlan] Plan non trouvé - Nettoyage du localStorage');
           localStorage.removeItem('lastPlanId');
           currentPlan.value = null;
           irrigationStore.clearCurrentPlan();
@@ -1040,12 +1073,18 @@ async function loadPlan(planId: number) {
         throw error;
       }
     }
-    // Rafraîchir la carte avec le nouveau plan
+
+    console.log('[MapView][loadPlan] Rafraîchissement de la carte...');
     await refreshMapWithPlan(planId);
     showLoadPlanModal.value = false;
-    // Invalider la taille de la carte après le chargement
+
+    console.log('[MapView][loadPlan] Invalidation de la taille de la carte...');
     invalidateMapSize();
-    console.log(`Plan ${planId} chargé avec succès avec ${drawingStore.getCurrentElements.length} formes`);
+
+    console.log('[MapView][loadPlan] Plan chargé avec succès:', {
+      planId,
+      elementsCount: drawingStore.getCurrentElements.length
+    });
   } catch (error) {
     console.error('Erreur lors du chargement du plan:', error);
     // En cas d'erreur, réinitialiser complètement l'état
