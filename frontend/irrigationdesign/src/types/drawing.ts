@@ -45,6 +45,7 @@ export interface CircleData extends BaseData {
 }
 export interface RectangleData extends BaseData {
   bounds: Bounds;
+  rotation?: number;
 }
 export interface SemicircleData extends BaseData {
   center: [number, number];  // [longitude, latitude]

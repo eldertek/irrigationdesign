@@ -20,7 +20,7 @@ interface CustomIconOptions extends L.DivIconOptions {
 // Extend GlobalOptions to include snapLayers
 interface ExtendedGlobalOptions extends L.PM.GlobalOptions {
   snapLayers?: L.LayerGroup[];
-}
+  }
 // Modifier l'interface Layer pour éviter les conflits de type
 declare module 'leaflet' {
   interface Layer {
@@ -1543,12 +1543,8 @@ export function useMapDrawing(): MapDrawingReturn {
     clearActiveControlPoints();
     const bounds = rectangleLayer.getBounds();
     const center = bounds.getCenter();
-    const corners = [
-      bounds.getNorthWest(),
-      bounds.getNorthEast(),
-      bounds.getSouthEast(),
-      bounds.getSouthWest()
-    ];
+    const corners = rectangleLayer.getRotatedCorners();
+
     // Point central (vert)
     const centerPoint = createControlPoint(center, '#059669');
     activeControlPoints.push(centerPoint);
@@ -1556,12 +1552,35 @@ export function useMapDrawing(): MapDrawingReturn {
     addMeasureEvents(centerPoint, rectangleLayer, () => {
       const { width, height } = rectangleLayer.getDimensions();
       const area = width * height;
+      const rotation = rectangleLayer.getRotation();
       return [
         formatMeasure(width, 'm', 'Largeur'),
         formatMeasure(height, 'm', 'Hauteur'),
-        formatMeasure(area, 'm²', 'Surface')
+        formatMeasure(area, 'm²', 'Surface'),
+        `Rotation: ${rotation.toFixed(1)}°`
       ].join('<br>');
     });
+
+    // Point de rotation (orange) - Ajouter au-dessus du rectangle
+    const rotationPoint = createControlPoint(
+      L.latLng(
+        center.lat + (corners[0].lat - center.lat) * 1.2,
+        center.lng + (corners[0].lng - center.lng) * 1.2
+      ),
+      '#F97316'
+    );
+    activeControlPoints.push(rotationPoint);
+
+    // Ligne de rotation (du centre au point de rotation)
+    const rotationLine = L.polyline([center, rotationPoint.getLatLng()], {
+      color: '#F97316',
+      weight: 1,
+      opacity: 0.6,
+      dashArray: '4',
+      pmIgnore: true
+    });
+    controlPointsGroup.value?.addLayer(rotationLine);
+
     // Points de coin (rouge)
     const cornerPoints: L.CircleMarker[] = [];
     corners.forEach((corner, index) => {
@@ -1766,6 +1785,75 @@ export function useMapDrawing(): MapDrawingReturn {
           selectedShape.value = rectangleLayer;
         });
       };
+      map.value.on('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+    // Gestion de la rotation
+    rotationPoint.on('mousedown', (e: L.LeafletMouseEvent) => {
+      if (!map.value) return;
+      L.DomEvent.stopPropagation(e);
+      map.value.dragging.disable();
+      let isDragging = false;
+
+      // Stocker l'état initial
+      const initialMouseLatLng = e.latlng;
+      const initialRotation = rectangleLayer.getRotation();
+      const centerLatLng = rectangleLayer.getCenter();
+
+      // Calculer l'angle initial entre le centre et la position de la souris
+      const dx = initialMouseLatLng.lng - centerLatLng.lng;
+      const dy = initialMouseLatLng.lat - centerLatLng.lat;
+      const initialAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+      const onMouseMove = (e: L.LeafletMouseEvent) => {
+        if (!isDragging) {
+          isDragging = true;
+        }
+
+        // Calculer le nouvel angle
+        const dx = e.latlng.lng - centerLatLng.lng;
+        const dy = e.latlng.lat - centerLatLng.lat;
+        const currentAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+        // Calculer la différence d'angle et l'ajouter à la rotation initiale
+        let deltaAngle = currentAngle - initialAngle;
+        let newRotation = (initialRotation + deltaAngle) % 360;
+        if (newRotation < 0) newRotation += 360;
+
+        // Appliquer la rotation
+        rectangleLayer.setRotation(newRotation);
+
+        // Mettre à jour la position du point de rotation
+        rotationPoint.setLatLng(e.latlng);
+        rotationLine.setLatLngs([centerLatLng, e.latlng]);
+
+        // Mettre à jour les positions des points de contrôle
+        const rotatedCorners = rectangleLayer.getRotatedCorners();
+        cornerPoints.forEach((point, i) => {
+          point.setLatLng(rotatedCorners[i]);
+        });
+
+        // Mettre à jour les points milieux
+        const newMidPoints = rectangleLayer.getMidPoints();
+        midPoints.forEach((point, i) => {
+          point.setLatLng(newMidPoints[i]);
+        });
+      };
+
+      const onMouseUp = () => {
+        if (!map.value) return;
+        map.value.off('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        map.value.dragging.enable();
+
+        // Mettre à jour les propriétés à la fin de la rotation
+        rectangleLayer.updateProperties();
+        selectedShape.value = null;
+        nextTick(() => {
+          selectedShape.value = rectangleLayer;
+        });
+      };
+
       map.value.on('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     });

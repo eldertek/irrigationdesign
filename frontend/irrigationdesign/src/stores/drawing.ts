@@ -17,6 +17,7 @@ import { Polygon } from '@/utils/Polygon';
 import { ElevationLine } from '@/utils/ElevationLine';
 import { Line } from '@/utils/Line';
 import { CircleArc } from '@/utils/CircleArc';
+import { Rectangle } from '@/utils/Rectangle';
 
 interface DrawingState {
   currentPlanId: number | null;
@@ -160,6 +161,7 @@ function convertShapeToDrawingElement(shape: any): DrawingElement {
           southWest: [shape.getBounds().getSouthWest().lng, shape.getBounds().getSouthWest().lat],
           northEast: [shape.getBounds().getNorthEast().lng, shape.getBounds().getNorthEast().lat]
         },
+        rotation: shape.getRotation ? shape.getRotation() : 0,
         style: shape.properties?.style || {}
       } as RectangleData;
       break;
@@ -335,6 +337,35 @@ function convertStoredElementToShape(element: DrawingElement): any {
       circleArc.properties.openingAngle = data.endAngle - data.startAngle;
 
       return circleArc;
+    }
+
+    case 'RECTANGLE': {
+      const data = element.data as RectangleData;
+      if (!data.bounds) {
+        console.error('[DrawingStore] Données de bounds manquantes pour Rectangle');
+        return null;
+      }
+
+      const bounds = new L.LatLngBounds(
+        L.latLng(data.bounds.southWest[1], data.bounds.southWest[0]),
+        L.latLng(data.bounds.northEast[1], data.bounds.northEast[0])
+      );
+
+      const rectangle = new Rectangle(bounds, {
+        color: data.style?.color || '#3388ff',
+        weight: data.style?.weight || 3,
+        opacity: data.style?.opacity || 1,
+        fillColor: data.style?.fillColor || '#3388ff',
+        fillOpacity: data.style?.fillOpacity || 0.2,
+        dashArray: data.style?.dashArray || ''
+      });
+
+      // Appliquer la rotation si elle existe
+      if (data.rotation) {
+        rectangle.setRotation(data.rotation);
+      }
+
+      return rectangle;
     }
 
     default:
