@@ -2,21 +2,6 @@
   <div class="h-full flex">
     <!-- Carte -->
     <div class="flex-1 relative">
-        <!-- Barre d'outils principale - Déplacée hors de la condition v-if -->
-        <div class="z-[3000]">
-          <MapToolbar 
-            :last-save="currentPlan?.date_modification ? new Date(currentPlan.date_modification) : undefined"
-            :plan-name="currentPlan?.nom"
-            :plan-description="currentPlan?.description"
-            :save-status="saveStatus"
-            @change-map-type="changeBaseMap"
-            @create-new-plan="showNewPlanModal = true"
-            @load-plan="showLoadPlanModal = true"
-            @save-plan="savePlan"
-            @adjust-view="handleAdjustView"
-            @generate-summary="generateSynthesis"
-          />
-        </div>
         <!-- Overlay de génération -->
         <div v-if="isGeneratingSynthesis" class="absolute inset-0 bg-black/30 backdrop-blur-sm z-[2000] flex items-center justify-center">
           <div class="bg-white/90 rounded-2xl p-8 max-w-md shadow-2xl border border-gray-100">
@@ -87,6 +72,21 @@
       </div>
       <!-- Conteneur de la carte avec positionnement relatif -->
       <div v-show="currentPlan" class="map-parent">
+        <!-- Barre d'outils principale -->
+        <div v-if="currentPlan && !isGeneratingSynthesis" class="z-[3000]">
+          <MapToolbar 
+            :last-save="currentPlan?.date_modification ? new Date(currentPlan.date_modification) : undefined"
+            :plan-name="currentPlan?.nom"
+            :plan-description="currentPlan?.description"
+            :save-status="saveStatus"
+            @change-map-type="changeBaseMap"
+            @create-new-plan="showNewPlanModal = true"
+            @load-plan="showLoadPlanModal = true"
+            @save-plan="savePlan"
+            @adjust-view="handleAdjustView"
+            @generate-summary="generateSynthesis"
+          />
+        </div>
         <!-- Conteneur principal avec carte et outils -->
         <div class="map-content flex">
           <!-- Conteneur de la carte -->
@@ -717,56 +717,17 @@ onMounted(async () => {
 
     // Initialiser la carte une seule fois
     if (mapContainer.value && !map.value) {
-      // Attendre que le DOM soit complètement chargé
-      await nextTick();
-      
       const mapInstance = initDrawing(mapContainer.value, center, zoom) as L.Map;
-      
-      // Configurer les options de la carte
-      mapInstance.options.zoomSnap = 0.5;
-      mapInstance.options.wheelPxPerZoomLevel = 120;
-      mapInstance.options.zoomAnimation = true;
-      mapInstance.options.fadeAnimation = true;
-      mapInstance.options.markerZoomAnimation = true;
-      
-      // Configurer Leaflet-Geoman
       mapInstance.pm.setLang('fr');
       mapInstance.pm.addControls({
         rotateMode: false
       });
-      
-      // Initialiser l'état de la carte
       initState(mapInstance);
-      
-      // Ajouter des propriétés personnalisées pour suivre l'état du zoom
-      const mapState = {
-        isZooming: false,
-        isAnimating: false
-      };
-      
-      // Gérer la sauvegarde de la position
       mapInstance.on('moveend', () => {
-        if (!mapState.isAnimating) {  // Ne sauvegarder que si ce n'est pas pendant une animation
-          saveMapPosition(mapInstance);
-        }
+        saveMapPosition(mapInstance);
       });
-      
-      // Gérer les événements de zoom
-      mapInstance.on('zoomstart', () => {
-        mapState.isZooming = true;
-        mapState.isAnimating = true;
-      });
-      
-      mapInstance.on('zoomend', () => {
-        mapState.isZooming = false;
-        setTimeout(() => {
-          mapState.isAnimating = false;
-        }, 250); // Attendre que l'animation soit complètement terminée
-      });
-      
-      // Écouter les événements de localisation
       window.addEventListener('map-set-location', ((event: CustomEvent) => {
-        if (mapInstance && event.detail && !mapState.isZooming) {
+        if (mapInstance && event.detail) {
           const { lat, lng, zoom } = event.detail;
           mapInstance.flyTo([lat, lng], zoom, {
             duration: 1.5,
