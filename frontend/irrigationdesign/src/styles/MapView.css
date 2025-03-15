@@ -642,3 +642,31 @@
 .leaflet-text-rectangle:hover {
   filter: brightness(1.05);
 }
+
+/* Styles pour garantir la visibilité du MapToolbar */
+.map-toolbar {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 3000 !important;
+  background-color: white !important;
+  pointer-events: auto !important;
+}
+
+/* S'assurer que le MapToolbar reste visible pendant la génération */
+.generating-synthesis .map-toolbar {
+  z-index: 3001 !important;
+}
+
+/* Ajuster la position des éléments enfants */
+.map-parent {
+  padding-top: 56px; /* Hauteur du MapToolbar */
+  position: relative;
+  height: calc(100% - 56px);
+}
+
+/* Garantir que les dropdowns restent au-dessus */
+.dropdown-menu {
+  z-index: 3002 !important;
+}

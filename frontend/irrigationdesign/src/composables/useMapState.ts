@@ -39,6 +39,7 @@ export function useMapState() {
     map.value = mapInstance;
     mapInstance.options.zoomSnap = 0.5;
     mapInstance.options.wheelPxPerZoomLevel = 120;
+    mapInstance.options.zoomAnimation = true;
     
     // Ajouter la couche initiale
     activeLayer.value = baseMaps[currentBaseMap.value as keyof typeof baseMaps];
@@ -48,61 +49,59 @@ export function useMapState() {
     mapInstance.on('baselayerchange', (e: any) => {
       currentBaseMap.value = e.name;
       activeLayer.value = e.layer;
-      
-      // Mettre à jour les options d'animation en fonction de la couche
-      if (e.name === 'Cadastre') {
-        map.value!.options.zoomAnimation = false;
-      } else {
-        map.value!.options.zoomAnimation = true;
-      }
-      
-      // Force le recalcul des dimensions après le changement
-      setTimeout(() => {
-        if (map.value) {
-          map.value.invalidateSize(true);
-        }
-      }, 100);
     });
   };
 
-  const changeBaseMap = (baseMapName: keyof typeof baseMaps) => {
+  const changeBaseMap = async (baseMapName: keyof typeof baseMaps) => {
     if (!map.value || !baseMaps[baseMapName]) return;
     
     try {
       // Vérifier si la couche demandée est déjà active
       if (currentBaseMap.value === baseMapName) return;
       
-      // Retirer proprement l'ancienne couche si elle existe
-      if (activeLayer.value) {
-        // @ts-ignore - Contourner les problèmes de typage de Leaflet
-        if (map.value.hasLayer(activeLayer.value)) {
-          // @ts-ignore - Contourner les problèmes de typage de Leaflet
-          map.value.removeLayer(activeLayer.value);
-        }
+      // Désactiver les animations temporairement
+      const wasAnimated = map.value.options.zoomAnimation;
+      map.value.options.zoomAnimation = false;
+      
+      // Mémoriser l'état actuel de la carte
+      const currentCenter = map.value.getCenter();
+      const currentZoom = map.value.getZoom();
+      
+      // Retirer proprement l'ancienne couche
+      if (activeLayer.value && map.value.hasLayer(activeLayer.value)) {
+        map.value.removeLayer(activeLayer.value);
       }
       
-      // Attendre un court instant pour s'assurer que la couche précédente est bien nettoyée
+      // Attendre que la couche soit retirée
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      if (!map.value) return;
+      
+      // Ajouter la nouvelle couche
+      activeLayer.value = baseMaps[baseMapName];
+      activeLayer.value.addTo(map.value);
+      currentBaseMap.value = baseMapName;
+      
+      // Réinitialiser la vue sans animation
+      map.value.setView(currentCenter, currentZoom, { animate: false });
+      
+      // Forcer un recalcul de la taille
+      map.value.invalidateSize({ animate: false, pan: false });
+      
+      // Restaurer l'état des animations après un court délai
       setTimeout(() => {
-        if (!map.value) return;
-        
-        // Mettre à jour les options d'animation en fonction de la couche
-        map.value.options.zoomAnimation = baseMapName !== 'Cadastre';
-        
-        // Ajouter la nouvelle couche
-        activeLayer.value = baseMaps[baseMapName];
-        // @ts-ignore - Contourner les problèmes de typage de Leaflet
-        activeLayer.value.addTo(map.value);
-        currentBaseMap.value = baseMapName;
-        
-        // Forcer un recalcul de la taille après le changement
-        map.value.invalidateSize(true);
-        
-        // Désactiver temporairement le zoom pour éviter les conflits pendant la transition
-        const currentZoom = map.value.getZoom();
-        map.value.setView(map.value.getCenter(), currentZoom, { animate: false });
-      }, 50);
+        if (map.value) {
+          map.value.options.zoomAnimation = wasAnimated && baseMapName !== 'Cadastre';
+        }
+      }, 100);
+      
     } catch (error) {
       console.error('Erreur lors du changement de carte de base:', error);
+      // En cas d'erreur, essayer de restaurer un état stable
+      if (map.value) {
+        map.value.options.zoomAnimation = true;
+        map.value.invalidateSize({ animate: false, pan: false });
+      }
     }
   };
 
@@ -115,8 +114,7 @@ export function useMapState() {
       const data = await response.json();
       if (data && data.length > 0) {
         const { lat, lon } = data[0];
-        const useAnimation = currentBaseMap.value !== 'Cadastre';
-        map.value.setView([lat, lon], 13, { animate: useAnimation });
+        map.value.setView([lat, lon], 13, { animate: currentBaseMap.value !== 'Cadastre' });
       }
     } catch (error) {
       console.error('Erreur lors de la recherche de localisation:', error);
